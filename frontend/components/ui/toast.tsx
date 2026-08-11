@@ -5,9 +5,12 @@ import {
   useCallback,
   useContext,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import type { ReactNode } from "react";
+import { playError, playSuccess } from "@/lib/sound";
+import { TOAST } from "@/lib/constants";
 
 type ToastType = "success" | "error";
 
@@ -15,6 +18,7 @@ type Toast = {
   id: number;
   message: string;
   type: ToastType;
+  count: number;
 };
 
 type ToastContextValue = {
@@ -27,16 +31,57 @@ let nextId = 1;
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const toastsRef = useRef<Toast[]>([]);
+  const timersRef = useRef(new Map<number, ReturnType<typeof setTimeout>>());
 
   const dismiss = useCallback((id: number) => {
-    setToasts((prev) => prev.filter((t) => t.id !== id));
+    const timer = timersRef.current.get(id);
+    if (timer) {
+      clearTimeout(timer);
+      timersRef.current.delete(id);
+    }
+    setToasts((prev) => {
+      const next = prev.filter((t) => t.id !== id);
+      toastsRef.current = next;
+      return next;
+    });
   }, []);
 
   const toast = useCallback(
     (message: string, type: ToastType = "success") => {
+      if (type === "success") playSuccess();
+      else playError();
+      const existing = toastsRef.current.find(
+        (t) => t.message === message && t.type === type,
+      );
+      if (existing) {
+        setToasts((prev) => {
+          const next = prev.map((t) =>
+            t.id === existing.id ? { ...t, count: t.count + 1 } : t,
+          );
+          toastsRef.current = next;
+          return next;
+        });
+        const timer = timersRef.current.get(existing.id);
+        if (timer) clearTimeout(timer);
+        timersRef.current.set(
+          existing.id,
+          setTimeout(() => dismiss(existing.id), TOAST.durationMs),
+        );
+        return;
+      }
       const id = nextId++;
-      setToasts((prev) => [...prev, { id, message, type }]);
-      setTimeout(() => dismiss(id), 3200);
+      setToasts((prev) => {
+        const next = [...prev, { id, message, type, count: 1 }].slice(
+          -TOAST.maxVisible,
+        );
+        toastsRef.current = next;
+        return next;
+      });
+      timersRef.current.set(
+        id,
+        setTimeout(() => dismiss(id), TOAST.durationMs),
+      );
     },
     [dismiss],
   );
@@ -46,12 +91,12 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={value}>
       {children}
-      <div className="pointer-events-none fixed right-4 top-4 z-50 flex flex-col items-end gap-2">
+      <div className="pointer-events-none fixed right-4 top-4 z-[200] flex flex-col items-end gap-2">
         {toasts.map((t) => (
           <div
             key={t.id}
             role="status"
-            className="toast-in pointer-events-auto flex items-center gap-2.5 rounded-2xl bg-ink-900 px-4 py-3 text-sm font-medium text-ink-50 shadow-[0_16px_40px_-16px_rgba(0,0,0,0.5)]"
+            className="toast-in pointer-events-auto flex items-center gap-2.5 rounded-2xl bg-ink-900 px-4 py-3 text-sm font-medium text-ink-50"
           >
             <span
               className={
@@ -60,6 +105,11 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             >
               {t.type === "error" ? "✕" : "✓"}
             </span>
+            {t.count > 1 && (
+              <span className="rounded-full bg-white/15 px-2 py-0.5 text-xs font-bold">
+                {t.count}x
+              </span>
+            )}
             {t.message}
           </div>
         ))}

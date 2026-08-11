@@ -1,0 +1,48 @@
+import type { PaymentMethod } from "@/lib/api-types";
+import { TRANSACTION_TYPE_LABELS } from "./transactions";
+import { CONDITION_LABELS } from "./units";
+
+export const REPORT_NAV: { href: string; label: string; adminOnly?: boolean }[] = [
+  { href: "/reports", label: "Overview" },
+  { href: "/reports/sales", label: "Sales" },
+  { href: "/reports/purchases", label: "Purchases" },
+  { href: "/reports/profit", label: "Profit", adminOnly: true },
+  { href: "/reports/expenses", label: "Expenses" },
+  { href: "/reports/stock", label: "Stock", adminOnly: true },
+  { href: "/reports/cash", label: "Payments" },
+  { href: "/reports/ledger", label: "Ledger" },
+  { href: "/reports/receivables", label: "Receivables" },
+  { href: "/reports/payables", label: "Payables" },
+];
+
+export const REPORT_QUICK_RANGES: { key: string; label: string; days: number }[] = [
+  { key: "today", label: "Today", days: 0 },
+  { key: "7d", label: "7 days", days: 6 },
+  { key: "30d", label: "30 days", days: 29 },
+  { key: "90d", label: "90 days", days: 89 },
+  { key: "ytd", label: "This year", days: 364 },
+  { key: "all", label: "All time", days: -1 },
+];
+
+export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
+  CASH: "Cash",
+  CARD: "Card",
+  BANK_TRANSFER: "Bank",
+  CREDIT: "Credit",
+};
+
+export const REPORT_CONDITION_LABELS: Record<string, string> = {
+  ...CONDITION_LABELS,
+  ACCESSORY: "Accessories",
+};
+
+export const LEDGER_TYPE_LABELS: Record<string, string> = {
+  ...TRANSACTION_TYPE_LABELS,
+  PAYMENT_CASH: "Payment — Cash",
+  PAYMENT_CARD: "Payment — Card",
+  PAYMENT_BANK_TRANSFER: "Payment — Bank",
+  PAYMENT_CREDIT: "Payment — Credit",
+  VOUCHER_RECEIVING: "Voucher — Receiving",
+  VOUCHER_PAYMENT: "Voucher — Payment",
+  EXPENSE: "Expense",
+};

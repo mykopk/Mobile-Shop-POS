@@ -17,7 +17,7 @@ export default function GlobalError({
           <p className="text-sm text-ink-500">{error.message}</p>
           <button
             onClick={reset}
-            className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-700"
+            className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-700"
           >
             {UI.retry}
           </button>

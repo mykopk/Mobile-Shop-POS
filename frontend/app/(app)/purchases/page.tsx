@@ -1,0 +1,1187 @@
+"use client";
+
+import Link from "next/link";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { apiRequest } from "@/lib/apiClient";
+import { useAuth } from "@/lib/auth-context";
+import type { Color, Contact, ProductSummary, Transaction } from "@/lib/api-types";
+import { useApi } from "@/lib/use-api";
+import { CARRIER_LABELS, CARRIER_OPTIONS } from "@/lib/constants";
+import { formatPKR } from "@/lib/money";
+import { toISODate } from "@/lib/dates";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Dropdown } from "@/components/ui/dropdown";
+import { DatePicker } from "@/components/ui/date-picker";
+import { useToast } from "@/components/ui/toast";
+import { Kbd } from "@/components/ui/kbd";
+import { useSaveShortcut } from "@/lib/use-save-shortcut";
+import { playPop, playSuccess } from "@/lib/sound";
+import { Scanner } from "@/components/scanner";
+import { CameraIcon, CheckIcon, ChevronLeftIcon, HeadphonesIcon, PlusIcon, SmartphoneIcon } from "@/components/icons";
+
+type PendingUnit = {
+  key: string;
+  productId: string;
+  productLabel: string;
+  imei: string;
+  barcode: string;
+  costPrice: string;
+  quantity: number;
+  colorId: string | null;
+  colorLabel: string | null;
+  carrier: "NON_PTA" | "PTA" | "SIM_LOCKED";
+  batteryHealth: string;
+  grade: string;
+};
+
+type PopupInfo = {
+  productId: string;
+  productLabel: string;
+  qty: number;
+  price: string;
+  colorId: string | null;
+  colorLabel: string | null;
+  carrier: "NON_PTA" | "PTA" | "SIM_LOCKED";
+  batteryHealth: string;
+  grade: string;
+};
+
+let keyCounter = 0;
+
+export default function PurchasesPage() {
+  const { token } = useAuth();
+  const { toast } = useToast();
+  const { data: contacts } = useApi<Contact[]>("/contact");
+  const { data: products } = useApi<ProductSummary[]>("/product");
+  const { data: colors } = useApi<Color[]>("/color");
+  const [flow, setFlow] = useState<"NEW" | "USED" | "ACCESSORY" | null>(null);
+  const [tab, setTab] = useState<"NEW" | "USED">("NEW");
+  const [contactId, setContactId] = useState<string | null>(null);
+  const [cash, setCash] = useState("");
+  const [creditAmount, setCreditAmount] = useState("");
+  const [payMode, setPayMode] = useState<"CASH" | "CREDIT" | "SPLIT">("CASH");
+  const [discount, setDiscount] = useState("");
+  const [note, setNote] = useState("");
+  const [rows, setRows] = useState<PendingUnit[]>([]);
+  const [submitting, setSubmitting] = useState(false);
+  const [purchaseNo, setPurchaseNo] = useState("PUR-0001");
+  const [purchaseDate, setPurchaseDate] = useState(() => toISODate(new Date()));
+
+  const [selProductId, setSelProductId] = useState<string | null>(null);
+  const [price, setPrice] = useState("");
+  const [qty, setQty] = useState("1");
+  const [colorId, setColorId] = useState<string | null>(null);
+  const [carrier, setCarrier] = useState<"NON_PTA" | "PTA" | "SIM_LOCKED">("PTA");
+  const [batteryHealth, setBatteryHealth] = useState("");
+  const [grade, setGrade] = useState("A");
+
+  const [popup, setPopup] = useState<PopupInfo | null>(null);
+  const [popupImeis, setPopupImeis] = useState<string[]>([]);
+  const imeiFieldRefs = useRef<(HTMLInputElement | null)[]>([]);
+
+  const [barcodePopup, setBarcodePopup] = useState<{ productId: string; productLabel: string; qty: number; price: string } | null>(null);
+  const [barcodes, setBarcodes] = useState<string[]>([]);
+  const [sameBarcode, setSameBarcode] = useState(false);
+  const [singleBarcode, setSingleBarcode] = useState("");
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const barcodeFieldRefs = useRef<(HTMLInputElement | null)[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const list = await apiRequest<{ number: string }[]>(`/transaction?type=PURCHASE&limit=1`, { token });
+        const last = list?.[0]?.number ?? "";
+        const match = last.match(/PUR-(\d+)$/);
+        const next = match ? parseInt(match[1], 10) + 1 : 1;
+        if (!cancelled) setPurchaseNo(`PUR-${String(next).padStart(4, "0")}`);
+      } catch {
+        /* keep default */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
+
+  useEffect(() => {
+    if (popup) {
+      requestAnimationFrame(() => imeiFieldRefs.current[0]?.focus());
+    }
+  }, [popup]);
+
+  useEffect(() => {
+    if (barcodePopup && !sameBarcode) {
+      requestAnimationFrame(() => barcodeFieldRefs.current[0]?.focus());
+    }
+  }, [barcodePopup, sameBarcode]);
+
+  const contactOptions = (contacts ?? []).map((c) => ({
+    value: c.id,
+    label: c.name,
+    trailing: c.phone ? <span className="text-xs text-ink-400">{c.phone}</span> : null,
+  }));
+  const productOptions = (products ?? [])
+    .filter((p) => {
+      if (flow === "ACCESSORY") return p.categoryType === "ACCESSORY";
+      if (flow === "USED") return p.categoryType === "PHONE" && p.categoryName === "Used Phone";
+      return p.categoryType === "PHONE" && p.categoryName === "New Phone";
+    })
+    .map((p) => ({
+      value: p.id,
+      label: `${p.brand} ${p.model} ${p.storage ?? ""} ${p.ram ?? ""}`.trim(),
+      trailing: <span className="text-xs text-ink-400">{formatPKR(p.costPrice ?? 0)}</span>,
+    }));
+  const colorOptions = (colors ?? [])
+    .filter((c) => c.active)
+    .map((c) => ({ value: c.id, label: c.name }));
+
+  const subtotal = useMemo(
+    () => rows.reduce((sum, r) => sum + (parseFloat(r.costPrice) || 0) * r.quantity, 0),
+    [rows],
+  );
+  const total = Math.max(0, subtotal - (parseFloat(discount) || 0));
+
+  function onProductSelect(value: string) {
+    setSelProductId(value);
+    const p = (products ?? []).find((x) => x.id === value);
+    if (p?.costPrice) setPrice(String(p.costPrice));
+  }
+
+  function openImeiPopup() {
+    const p = (products ?? []).find((x) => x.id === selProductId);
+    if (!p) {
+      toast("Pick a product first", "error");
+      return;
+    }
+    const count = parseInt(qty, 10);
+    if (!count || count < 1) {
+      toast("Enter a quantity of at least 1", "error");
+      return;
+    }
+    if (!price.trim() || isNaN(parseFloat(price))) {
+      toast("Enter a cost price", "error");
+      return;
+    }
+    const color = colorOptions.find((c) => c.value === colorId);
+    playPop();
+    setPopup({
+      productId: p.id,
+      productLabel: `${p.brand} ${p.model} ${p.storage ?? ""} ${p.ram ?? ""}`.trim(),
+      qty: count,
+      price: String(parseFloat(price)),
+      colorId: colorId,
+      colorLabel: color?.label ?? null,
+      carrier,
+      batteryHealth,
+      grade,
+    });
+    setPopupImeis(Array.from({ length: count }, () => ""));
+  }
+
+  function closePopup() {
+    setPopup(null);
+    setPopupImeis([]);
+  }
+
+  function focusNextImeiField(next: string[], after: number) {
+    const target = next.findIndex((v, idx) => idx > after && v.length < 15);
+    const t2 = target === -1 ? next.findIndex((v) => v.length < 15) : target;
+    if (t2 !== -1) imeiFieldRefs.current[t2]?.focus();
+  }
+
+  function updatePopupImei(i: number, value: string) {
+    const next = popupImeis.map((v, idx) => (idx === i ? value : v));
+    setPopupImeis(next);
+    if (value.length === 15) {
+      if (next.every((v) => v.length === 15)) {
+        commit(next);
+        return;
+      }
+      focusNextImeiField(next, i);
+    }
+  }
+
+  function clearPopupImei(i: number) {
+    const next = popupImeis.map((v, idx) => (idx === i ? "" : v));
+    setPopupImeis(next);
+    imeiFieldRefs.current[i]?.focus();
+  }
+
+  function handlePopupImeiEnter(i: number) {
+    const value = popupImeis[i];
+    if (value.length !== 15) {
+      toast("IMEI must be exactly 15 digits", "error");
+      return;
+    }
+    const next = popupImeis.map((v, idx) => (idx === i ? value : v));
+    if (next.every((v) => v.length === 15)) {
+      commit(next);
+      return;
+    }
+    focusNextImeiField(next, i);
+  }
+
+  function commit(imeis: string[]) {
+    if (!popup) return;
+    const seen = new Set<string>();
+    for (const imei of imeis) {
+      if (seen.has(imei)) {
+        toast(`Duplicate IMEI: ${imei}`, "error");
+        return;
+      }
+      seen.add(imei);
+    }
+    const newRows = imeis.map((imei) => ({
+      key: String(keyCounter++),
+      productId: popup.productId,
+      productLabel: popup.productLabel,
+      imei,
+      barcode: "",
+      costPrice: popup.price,
+      quantity: 1,
+      colorId: popup.colorId,
+      colorLabel: popup.colorLabel,
+      carrier: popup.carrier,
+      batteryHealth: popup.batteryHealth,
+      grade: popup.grade,
+    }));
+    setRows((prev) => [...prev, ...newRows]);
+    setPopup(null);
+    setPopupImeis([]);
+    setQty("1");
+    playSuccess();
+    toast(`${imeis.length} unit(s) added`, "success");
+  }
+
+  function removeRow(key: string) {
+    setRows((prev) => prev.filter((r) => r.key !== key));
+  }
+
+  function updateRowCost(key: string, value: string) {
+    setRows((prev) => prev.map((r) => (r.key === key ? { ...r, costPrice: value } : r)));
+  }
+
+  function updateRowQty(key: string, value: string) {
+    const n = parseInt(value, 10);
+    setRows((prev) =>
+      prev.map((r) => (r.key === key ? { ...r, quantity: Number.isFinite(n) && n >= 1 ? n : 1 } : r)),
+    );
+  }
+
+  function openBarcodePopup() {
+    const p = (products ?? []).find((x) => x.id === selProductId);
+    if (!p) {
+      toast("Pick a product first", "error");
+      return;
+    }
+    const count = parseInt(qty, 10);
+    if (!count || count < 1) {
+      toast("Enter a quantity of at least 1", "error");
+      return;
+    }
+    if (!price.trim() || isNaN(parseFloat(price))) {
+      toast("Enter a cost price", "error");
+      return;
+    }
+    const label = `${p.brand} ${p.model} ${p.storage ?? ""} ${p.ram ?? ""}`.trim();
+    playPop();
+    setBarcodePopup({
+      productId: p.id,
+      productLabel: label,
+      qty: count,
+      price: String(parseFloat(price)),
+    });
+    setBarcodes(Array.from({ length: count }, () => ""));
+    setSingleBarcode("");
+    setSameBarcode(false);
+  }
+
+  function closeBarcodePopup() {
+    setBarcodePopup(null);
+    setBarcodes([]);
+    setSingleBarcode("");
+    setSameBarcode(false);
+  }
+
+  function onScannerScan(value: string) {
+    if (sameBarcode) {
+      setSingleBarcode(value);
+      return;
+    }
+    const idx = barcodes.findIndex((v) => v.trim() === "");
+    if (idx === -1) {
+      toast("All barcodes are already filled", "error");
+      return;
+    }
+    const next = barcodes.map((v, i) => (i === idx ? value : v));
+    setBarcodes(next);
+    focusNextBarcodeField(next, idx);
+  }
+
+  function focusNextBarcodeField(next: string[], after: number) {
+    const target = next.findIndex((v, idx) => idx > after && v.trim() === "");
+    const t2 = target === -1 ? next.findIndex((v) => v.trim() === "") : target;
+    if (t2 !== -1) barcodeFieldRefs.current[t2]?.focus();
+  }
+
+  function updateBarcode(i: number, value: string) {
+    const next = barcodes.map((v, idx) => (idx === i ? value : v));
+    setBarcodes(next);
+  }
+
+  function clearBarcode(i: number) {
+    const next = barcodes.map((v, idx) => (idx === i ? "" : v));
+    setBarcodes(next);
+    barcodeFieldRefs.current[i]?.focus();
+  }
+
+  function handleBarcodeEnter(i: number) {
+    const value = barcodes[i];
+    if (!value.trim()) {
+      toast("Enter a barcode", "error");
+      return;
+    }
+    const next = barcodes.map((v, idx) => (idx === i ? value : v));
+    focusNextBarcodeField(next, i);
+  }
+
+  function commitBarcodes(values?: string[]) {
+    if (!barcodePopup) return;
+    if (sameBarcode) {
+      const bc = singleBarcode.trim();
+      if (!bc) {
+        toast("Enter a barcode", "error");
+        return;
+      }
+      setRows((prev) => [
+        ...prev,
+        {
+          key: String(keyCounter++),
+          productId: barcodePopup.productId,
+          productLabel: barcodePopup.productLabel,
+          imei: "",
+          barcode: bc,
+          costPrice: barcodePopup.price,
+          quantity: barcodePopup.qty,
+          colorId: null,
+          colorLabel: null,
+          carrier: "PTA" as const,
+          batteryHealth: "",
+          grade: "A",
+        },
+      ]);
+      toast(`${barcodePopup.qty} × ${barcodePopup.productLabel} added`, "success");
+    } else {
+      const list = (values ?? barcodes).map((v) => v.trim()).filter(Boolean);
+      if (list.length === 0) {
+        toast("Enter at least one barcode", "error");
+        return;
+      }
+      const newRows = list.map((bc) => ({
+        key: String(keyCounter++),
+        productId: barcodePopup.productId,
+        productLabel: barcodePopup.productLabel,
+        imei: "",
+        barcode: bc,
+        costPrice: barcodePopup.price,
+        quantity: 1,
+        colorId: null,
+        colorLabel: null,
+        carrier: "PTA" as const,
+        batteryHealth: "",
+        grade: "A",
+      }));
+      setRows((prev) => [...prev, ...newRows]);
+      toast(`${newRows.length} unit(s) added`, "success");
+    }
+    setBarcodePopup(null);
+    setBarcodes([]);
+    setSingleBarcode("");
+    setSameBarcode(false);
+    setQty("1");
+    playSuccess();
+  }
+
+  function clearAll() {
+    setRows([]);
+    setCash("");
+    setCreditAmount("");
+    setPayMode("CASH");
+    setDiscount("");
+    setNote("");
+    setContactId(null);
+    setSelProductId(null);
+    setPrice("");
+    setQty("1");
+    setColorId(null);
+    setCarrier("PTA");
+    setBatteryHealth("");
+  }
+
+  function onSplitCash(value: string) {
+    setCash(value);
+    const c = parseFloat(value);
+    if (c && c > 0) setCreditAmount(String(Math.max(0, total - c)));
+  }
+
+  function onSplitCredit(value: string) {
+    setCreditAmount(value);
+    const c = parseFloat(value);
+    if (c && c > 0) setCash(String(Math.max(0, total - c)));
+  }
+
+  function onCreditCash(value: string) {
+    setCash(value);
+    const c = parseFloat(value);
+    if (c && c > 0) {
+      setPayMode("SPLIT");
+      setCreditAmount(String(Math.max(0, total - c)));
+    }
+  }
+
+  function onPayModeChange(v: "CASH" | "CREDIT" | "SPLIT") {
+    setPayMode(v);
+    setCash("");
+    setCreditAmount("");
+  }
+
+  function pickFlow(f: "NEW" | "USED" | "ACCESSORY") {
+    if (f === "NEW") setTab("NEW");
+    if (f === "USED") setTab("USED");
+    if (f === "ACCESSORY") setTab("NEW");
+    setFlow(f);
+  }
+
+  useSaveShortcut(() => {
+    void submit();
+  }, !submitting && rows.length > 0);
+
+  async function submit() {
+    const contactList = contactOptions;
+    if (!contactId || !contactList.some((c) => c.value === contactId)) {
+      toast(`Pick a ${tab === "NEW" ? "vendor" : "seller"}`, "error");
+      return;
+    }
+    if (rows.length === 0) {
+      toast("Add at least one item first", "error");
+      return;
+    }
+    const validItems = rows.map((r) =>
+      flow === "ACCESSORY"
+        ? {
+            productId: r.productId,
+            barcode: r.barcode || undefined,
+            costPrice: parseFloat(r.costPrice) || 0,
+            quantity: r.quantity,
+          }
+        : {
+            productId: r.productId,
+            imei: r.imei.trim(),
+            costPrice: parseFloat(r.costPrice) || 0,
+            condition: tab,
+            grade: tab === "USED" ? r.grade : undefined,
+            carrier: r.carrier,
+            batteryHealth: tab === "USED" && r.batteryHealth ? Number(r.batteryHealth) : undefined,
+            colorId: r.colorId ?? undefined,
+          },
+    );
+    if (flow === "ACCESSORY") {
+      if (validItems.some((i) => !i.productId)) {
+        toast("Every accessory needs a product", "error");
+        return;
+      }
+    } else if (validItems.some((i) => !i.productId || !i.imei)) {
+      toast("Every unit needs a product and IMEI", "error");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      let payments: { method: "CASH" | "CREDIT"; amount: number }[];
+      if (payMode === "SPLIT") {
+        const cashAmt = parseFloat(cash) || 0;
+        const creditAmt = parseFloat(creditAmount) || 0;
+        if (Math.abs(cashAmt + creditAmt - total) > 0.01) {
+          toast(`Cash + credit must equal ${formatPKR(total)}`, "error");
+          setSubmitting(false);
+          return;
+        }
+        payments = [
+          ...(cashAmt > 0 ? [{ method: "CASH" as const, amount: cashAmt }] : []),
+          ...(creditAmt > 0 ? [{ method: "CREDIT" as const, amount: creditAmt }] : []),
+        ];
+      } else {
+        payments = [
+          { method: payMode === "CREDIT" ? ("CREDIT" as const) : ("CASH" as const), amount: parseFloat(cash) || total },
+        ];
+      }
+      const txn = await apiRequest<Transaction>("/transaction/purchase", {
+        method: "POST",
+        token,
+        body: {
+          contactId,
+          items: validItems,
+          payments,
+          number: purchaseNo,
+          date: purchaseDate,
+          discount: parseFloat(discount) || 0,
+          note: note.trim() || undefined,
+        },
+      });
+      toast(`${txn.number} recorded (${formatPKR(txn.total)})`, "success");
+      clearAll();
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Purchase failed", "error");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (!flow) {
+    const options = [
+      {
+        f: "NEW" as const,
+        icon: <SmartphoneIcon className="h-8 w-8 text-white" />,
+        title: "New Phone",
+        desc: "Fresh sealed handsets bought straight from your vendors",
+        featured: true,
+      },
+      {
+        f: "USED" as const,
+        icon: <SmartphoneIcon className="h-8 w-8 text-white" />,
+        title: "Used Phone",
+        desc: "Trade-ins bought from customers, inspected and ready to resell",
+        accent: "bg-ink-800",
+      },
+      {
+        f: "ACCESSORY" as const,
+        icon: <HeadphonesIcon className="h-8 w-8 text-white" />,
+        title: "Accessories",
+        desc: "Cases, chargers and more to sell alongside every phone",
+        accent: "bg-ink-400",
+      },
+    ];
+    return (
+      <div className="flex h-full items-center justify-center">
+        <div className="w-full max-w-4xl">
+          <p className="mb-8 text-center text-sm font-semibold uppercase tracking-wide text-ink-500">
+            What are you buying?
+          </p>
+          <div className="grid gap-5 md:grid-cols-3">
+            {options.map((o) =>
+              o.featured ? (
+                <button
+                  key={o.f}
+                  type="button"
+                  onClick={() => pickFlow(o.f)}
+                  className="flex flex-col items-center justify-center gap-4 rounded-3xl bg-brand-600 p-8 text-center transition hover:-translate-y-0.5 hover:bg-brand-700 hover:shadow-xl hover:shadow-brand-600/25"
+                >
+                  <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/20">
+                    {o.icon}
+                  </span>
+                  <span className="text-lg font-bold text-white">{o.title}</span>
+                  <span className="text-sm text-brand-50">{o.desc}</span>
+                </button>
+              ) : (
+                <button
+                  key={o.f}
+                  type="button"
+                  onClick={() => pickFlow(o.f)}
+                  className="flex flex-col items-center justify-center gap-3 rounded-3xl bg-white p-6 text-center transition hover:-translate-y-0.5 hover:bg-ink-50 hover:shadow-lg hover:shadow-ink-900/5"
+                >
+                  <span className={`flex h-16 w-16 items-center justify-center rounded-2xl ${o.accent}`}>
+                    {o.icon}
+                  </span>
+                  <span className="text-base font-semibold text-ink-900">{o.title}</span>
+                  <span className="text-xs text-ink-500">{o.desc}</span>
+                </button>
+              ),
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-full flex-col">
+      <div className="mb-4 flex items-center justify-between">
+        <button
+          type="button"
+          onClick={() => setFlow(null)}
+          className="inline-flex items-center gap-1.5 self-start text-sm font-medium text-ink-500 hover:text-ink-900"
+        >
+          <ChevronLeftIcon className="h-4 w-4" />
+          {flow === "ACCESSORY" ? "Accessories" : flow === "USED" ? "Used Phone" : "New Phone"}
+        </button>
+        <Link
+          href="/purchase-returns"
+          className="inline-flex items-center gap-2 rounded-2xl bg-white px-5 py-3 text-sm font-semibold text-ink-700 transition hover:bg-ink-50"
+        >
+          Purchase returns
+        </Link>
+      </div>
+      <div className="grid shrink-0 gap-3 md:grid-cols-[2fr_1fr_1fr_1fr] md:items-end">
+        <div>
+          <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">
+            {tab === "NEW" ? "Vendor" : "Seller"}
+          </p>
+          {contactOptions.length > 0 && (
+            <Dropdown
+              value={contactId}
+              options={contactOptions}
+              onChange={setContactId}
+              searchable
+              trigger={
+                <div className="flex items-center justify-between rounded-2xl bg-ink-100 px-4 py-3 text-sm">
+                  <span className="truncate text-ink-900">
+                    {contactOptions.find((c) => c.value === contactId)?.label ?? "Select…"}
+                  </span>
+                </div>
+              }
+            />
+          )}
+        </div>
+
+        <div>
+          <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Purchase #</p>
+          <Input value={purchaseNo} readOnly className="bg-ink-100" />
+        </div>
+
+        <div>
+          <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Date</p>
+          <DatePicker value={purchaseDate} onChange={setPurchaseDate} />
+        </div>
+
+        <div>
+          <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Total</p>
+          <p className="rounded-2xl bg-ink-100 px-4 py-3 text-sm font-bold text-ink-900">{formatPKR(total)}</p>
+        </div>
+      </div>
+
+      <form
+        className="mt-6 shrink-0 rounded-2xl bg-white p-4"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (flow === "ACCESSORY") openBarcodePopup();
+          else openImeiPopup();
+        }}
+      >
+        <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-ink-500">
+          {flow === "ACCESSORY" ? "Add accessories" : "Add units"}
+        </p>
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="min-w-64 flex-1">
+            <p className="mb-1 text-xs font-medium text-ink-500">Product</p>
+            <Dropdown
+              value={selProductId}
+              options={productOptions}
+              onChange={onProductSelect}
+              searchable
+              trigger={
+                <div className="flex items-center justify-between rounded-2xl bg-ink-50 px-4 py-2.5 text-sm">
+                  <span className="truncate text-ink-900">
+                    {productOptions.find((o) => o.value === selProductId)?.label ?? "Select product…"}
+                  </span>
+                </div>
+              }
+            />
+          </div>
+          <div className="w-32">
+            <p className="mb-1 text-xs font-medium text-ink-500">Cost (Rs)</p>
+            <Input
+              value={price}
+              onChange={(e) => setPrice(e.target.value)}
+              placeholder="Auto-filled"
+              inputMode="numeric"
+              variant="filled"
+              className="py-2.5"
+            />
+          </div>
+          <div className="w-20">
+            <p className="mb-1 text-xs font-medium text-ink-500">Qty</p>
+            <Input
+              value={qty}
+              onChange={(e) => setQty(e.target.value)}
+              inputMode="numeric"
+              variant="filled"
+              className="py-2.5"
+            />
+          </div>
+          {flow !== "ACCESSORY" && (
+            <div className="w-40">
+              <p className="mb-1 text-xs font-medium text-ink-500">Color</p>
+              <Dropdown
+                value={colorId}
+                options={colorOptions}
+                onChange={setColorId}
+                searchable
+                trigger={
+                  <div className="flex items-center justify-between rounded-2xl bg-ink-50 px-4 py-2.5 text-sm">
+                    <span className="truncate text-ink-900">
+                      {colorOptions.find((c) => c.value === colorId)?.label ?? "Select…"}
+                    </span>
+                  </div>
+                }
+              />
+            </div>
+          )}
+          {flow === "USED" && (
+            <>
+              <div className="w-36">
+                <p className="mb-1 text-xs font-medium text-ink-500">Carrier</p>
+                <Dropdown
+                  value={carrier}
+                  options={CARRIER_OPTIONS.map((c) => ({ value: c, label: CARRIER_LABELS[c] }))}
+                  onChange={(value) => setCarrier(value)}
+                  trigger={
+                    <div className="flex items-center justify-between rounded-2xl bg-ink-50 px-4 py-2.5 text-sm">
+                      <span className="text-ink-900">{CARRIER_LABELS[carrier]}</span>
+                    </div>
+                  }
+                />
+              </div>
+              <div className="w-28">
+                <p className="mb-1 text-xs font-medium text-ink-500">Battery %</p>
+                <Input
+                  value={batteryHealth}
+                  onChange={(e) => setBatteryHealth(e.target.value)}
+                  inputMode="numeric"
+                  placeholder="Optional"
+                  variant="filled"
+                  className="py-2.5"
+                />
+              </div>
+              <div className="w-24">
+                <p className="mb-1 text-xs font-medium text-ink-500">Grade</p>
+                <Dropdown
+                  value={grade}
+                  options={["A", "B", "C", "D"].map((g) => ({ value: g, label: `Grade ${g}` }))}
+                  onChange={setGrade}
+                  trigger={
+                    <div className="flex items-center justify-between rounded-2xl bg-ink-50 px-4 py-2.5 text-sm">
+                      <span className="text-ink-900">{grade}</span>
+                    </div>
+                  }
+                />
+              </div>
+            </>
+          )}
+          <Button type="submit">
+            <PlusIcon className="h-4 w-4" />
+            Add
+          </Button>
+        </div>
+      </form>
+
+      <div className="mt-6 flex-1 overflow-y-auto pt-0.5">
+        <section>
+          <div className="mb-3 flex items-center justify-between">
+            <span className="text-xs font-semibold uppercase tracking-wide text-ink-500">Purchase items</span>
+            <span className="text-xs text-ink-500">{rows.length} {flow === "ACCESSORY" ? "item(s)" : "unit(s)"}</span>
+          </div>
+
+          <div className="overflow-x-auto rounded-2xl bg-white">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs uppercase tracking-wide text-ink-500">
+                  <th className="px-4 py-2.5 font-semibold">Item</th>
+                  {flow === "ACCESSORY" ? (
+                    <>
+                      <th className="px-4 py-2.5 font-semibold">Barcode</th>
+                      <th className="px-4 py-2.5 text-center font-semibold">Qty</th>
+                      <th className="px-4 py-2.5 text-right font-semibold">Cost</th>
+                    </>
+                  ) : (
+                    <>
+                      <th className="px-4 py-2.5 font-semibold">IMEI</th>
+                      <th className="px-4 py-2.5 font-semibold">Color</th>
+                      {flow === "USED" && <th className="px-4 py-2.5 font-semibold">Carrier</th>}
+                      {flow === "USED" && <th className="px-4 py-2.5 font-semibold">Battery</th>}
+                      {flow === "USED" && <th className="px-4 py-2.5 font-semibold">Grade</th>}
+                      <th className="px-4 py-2.5 text-right font-semibold">Cost</th>
+                    </>
+                  )}
+                  <th className="px-4 py-2.5" />
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row) => (
+                  <tr key={row.key} className="border-t border-ink-100">
+                    <td className="px-4 py-3 font-medium text-ink-900">{row.productLabel}</td>
+                    {flow === "ACCESSORY" ? (
+                      <>
+                        <td className="px-4 py-3 font-mono text-xs text-ink-700">{row.barcode || "—"}</td>
+                        <td className="px-4 py-3 text-center">
+                          <Input
+                            value={String(row.quantity)}
+                            onChange={(e) => updateRowQty(row.key, e.target.value)}
+                            inputMode="numeric"
+                            className="w-16 py-1 text-center"
+                          />
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <Input
+                            value={row.costPrice}
+                            onChange={(e) => updateRowCost(row.key, e.target.value)}
+                            inputMode="numeric"
+                            className="w-28 py-1 text-right"
+                          />
+                        </td>
+                      </>
+                    ) : (
+                      <>
+                        <td className="px-4 py-3 font-mono text-xs text-ink-700">{row.imei}</td>
+                        <td className="px-4 py-3 text-ink-700">{row.colorLabel ?? "—"}</td>
+                        {flow === "USED" && <td className="px-4 py-3 text-ink-700">{CARRIER_LABELS[row.carrier]}</td>}
+                        {flow === "USED" && <td className="px-4 py-3 text-ink-700">{row.batteryHealth ? `${row.batteryHealth}%` : "—"}</td>}
+                        {flow === "USED" && <td className="px-4 py-3 text-ink-700">{row.grade}</td>}
+                        <td className="px-4 py-3 text-right">
+                          <Input
+                            value={row.costPrice}
+                            onChange={(e) => updateRowCost(row.key, e.target.value)}
+                            inputMode="numeric"
+                            className="w-28 py-1 text-right"
+                          />
+                        </td>
+                      </>
+                    )}
+                    <td className="px-4 py-3 text-right">
+                      <button
+                        type="button"
+                        onClick={() => removeRow(row.key)}
+                        className="text-ink-400 hover:text-red-500"
+                        aria-label="Remove"
+                      >
+                        ✕
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+                {rows.length === 0 && (
+                  <tr>
+                    <td colSpan={flow === "ACCESSORY" ? 5 : flow === "USED" ? 8 : 5} className="px-5 py-8 text-center text-sm text-ink-400">
+                      No items added yet — pick a product above and press Add.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+
+      <div className="-mx-6 -mb-6 mt-6 shrink-0 bg-white px-6 py-4">
+        <div className="lg:max-w-xl">
+          <div className="grid grid-cols-[1fr_1.5fr] items-end gap-3">
+            <div>
+              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Payment</p>
+              <Dropdown
+                value={payMode}
+                options={[
+                  { value: "CASH", label: "Cash" },
+                  { value: "CREDIT", label: "Credit" },
+                  { value: "SPLIT", label: "Cash + Credit" },
+                ]}
+                onChange={(v) => onPayModeChange(v as "CASH" | "CREDIT" | "SPLIT")}
+                trigger={
+                  <div className="flex items-center justify-between rounded-2xl bg-ink-100 px-4 py-3 text-sm">
+                    <span className="text-ink-900">
+                      {payMode === "CREDIT" ? "Credit" : payMode === "SPLIT" ? "Cash + Credit" : "Cash"}
+                    </span>
+                  </div>
+                }
+              />
+            </div>
+            {payMode === "SPLIT" ? (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Cash paid</p>
+                  <Input
+                    value={cash}
+                    onChange={(e) => onSplitCash(e.target.value)}
+                    placeholder="0"
+                    inputMode="numeric"
+                    className="bg-ink-100"
+                  />
+                </div>
+                <div>
+                  <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">On credit (debt)</p>
+                  <Input
+                    value={creditAmount}
+                    onChange={(e) => onSplitCredit(e.target.value)}
+                    placeholder="0"
+                    inputMode="numeric"
+                    className="bg-ink-100"
+                  />
+                </div>
+              </div>
+            ) : (
+              <div>
+                <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">
+                  {payMode === "CREDIT" ? "Cash paid (optional)" : "Cash paid"}
+                </p>
+                <Input
+                  value={cash}
+                  onChange={(e) =>
+                    payMode === "CREDIT" ? onCreditCash(e.target.value) : setCash(e.target.value)
+                  }
+                  placeholder={payMode === "CREDIT" ? "Leave blank for full credit" : "Leave blank for full amount"}
+                  inputMode="numeric"
+                  className="bg-ink-100"
+                />
+              </div>
+            )}
+          </div>
+          {payMode === "SPLIT" && (
+            <p className="mt-1.5 text-[11px] text-ink-400">
+              Cash + credit must add up to the total ({formatPKR(total)}).{" "}
+              {(() => {
+                const remain = total - ((parseFloat(cash) || 0) + (parseFloat(creditAmount) || 0));
+                return remain > 0.01
+                  ? `Remaining: ${formatPKR(remain)}`
+                  : remain < -0.01
+                    ? "Over the total"
+                    : "Balanced";
+              })()}
+            </p>
+          )}
+        </div>
+
+        <div className="mt-3 grid gap-3 lg:max-w-2xl lg:grid-cols-[1fr_2fr]">
+          <div>
+            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Discount (Rs)</p>
+            <Input
+              value={discount}
+              onChange={(e) => setDiscount(e.target.value)}
+              placeholder="0"
+              inputMode="numeric"
+              className="bg-ink-100"
+            />
+          </div>
+          <div>
+            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Note</p>
+            <Input
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="Optional note on this purchase"
+              className="bg-ink-100"
+            />
+          </div>
+        </div>
+
+        <div className="mt-4 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="flex items-baseline gap-3">
+              <span className="text-sm font-medium text-ink-500">Subtotal</span>
+              <span className="text-base font-semibold text-ink-500">{formatPKR(subtotal)}</span>
+            </div>
+            {discount && (parseFloat(discount) || 0) > 0 && (
+              <div className="flex items-baseline gap-3">
+                <span className="text-sm font-medium text-ink-500">Total</span>
+                <span className="text-3xl font-bold text-brand-600">{formatPKR(total)}</span>
+              </div>
+            )}
+          </div>
+          <div className="flex items-center gap-3">
+            <Button variant="grey" className="px-4 py-2" onClick={clearAll}>
+              Clear
+            </Button>
+            <Button
+              className="min-w-72 px-8 py-4 text-base"
+              onClick={submit}
+              disabled={submitting || rows.length === 0}
+            >
+              {submitting
+                ? "Recording…"
+                : payMode === "CREDIT"
+                  ? `Buy on credit · ${formatPKR(total)}`
+                  : payMode === "SPLIT"
+                    ? `Cash + credit · ${formatPKR(total)}`
+                    : `Pay ${formatPKR(total)}`}
+              <Kbd>Ctrl+S</Kbd>
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {popup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-900/40 p-4">
+          <div className="flex max-h-[85vh] w-full max-w-md flex-col rounded-2xl bg-white px-5 py-5">
+            <h3 className="text-lg font-bold text-ink-900">{popup.productLabel}</h3>
+            <p className="mt-0.5 text-xs text-ink-500">
+              {[popup.colorLabel, popup.batteryHealth ? `Battery ${popup.batteryHealth}%` : null]
+                .filter(Boolean)
+                .join(" · ")}
+              {" · "}
+              {formatPKR(popup.price)} each
+            </p>
+
+            <div className="my-4 flex items-center justify-center gap-1 text-4xl font-bold">
+              <span className={popupImeis.filter((v) => v.length === 15).length === popup.qty ? "text-brand-600" : "text-ink-900"}>
+                {popupImeis.filter((v) => v.length === 15).length}
+              </span>
+              <span className="text-ink-400">/</span>
+              <span className="text-ink-400">{popup.qty}</span>
+            </div>
+
+            <div className="-mr-1 mt-4 h-72 space-y-2 overflow-y-auto overscroll-none py-1 pr-1">
+              {popupImeis.map((val, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <span className="w-5 shrink-0 text-right text-xs text-ink-400">{i + 1}.</span>
+                  <Input
+                    ref={(el) => {
+                      imeiFieldRefs.current[i] = el;
+                    }}
+                    value={val}
+                    onChange={(e) => updatePopupImei(i, e.target.value.replace(/\D/g, "").slice(0, 15))}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        handlePopupImeiEnter(i);
+                      }
+                    }}
+                    placeholder={`IMEI ${i + 1}`}
+                    variant="filled"
+                    className={`rounded-xl py-1.5 font-mono text-xs ${val.length === 15 ? "border border-brand-500/50" : ""}`}
+                  />
+                  {val.length === 15 ? (
+                    <CheckIcon className="h-4 w-4 shrink-0 text-brand-600" />
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => clearPopupImei(i)}
+                      className="shrink-0 text-ink-300 hover:text-red-500"
+                      aria-label="Clear IMEI"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-5 flex shrink-0 justify-end gap-2">
+              <Button variant="grey" onClick={closePopup}>
+                Cancel
+              </Button>
+              <Button
+                onClick={() => commit(popupImeis.filter((v) => v.length === 15))}
+                disabled={popupImeis.filter((v) => v.length === 15).length === 0}
+              >
+                {popupImeis.filter((v) => v.length === 15).length === popup.qty
+                  ? "Add all"
+                  : `Add ${popupImeis.filter((v) => v.length === 15).length} unit(s)`}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {barcodePopup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-900/40 p-4">
+          <div className="flex max-h-[85vh] w-full max-w-md flex-col rounded-2xl bg-white px-5 py-5">
+            <h3 className="text-lg font-bold text-ink-900">{barcodePopup.productLabel}</h3>
+            <p className="mt-0.5 text-xs text-ink-500">{formatPKR(barcodePopup.price)} each</p>
+
+            <div className="my-4">
+              <Checkbox
+                checked={sameBarcode}
+                onChange={setSameBarcode}
+                label={`Use the same barcode for all ${barcodePopup.qty} units`}
+                description="When a set or bundle shares one barcode"
+              />
+            </div>
+
+            {sameBarcode ? (
+              <div className="-mx-1 h-72 space-y-2 overflow-y-auto overscroll-none px-1 py-1">
+                <Input
+                  value={singleBarcode}
+                  onChange={(e) => setSingleBarcode(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      commitBarcodes();
+                    }
+                  }}
+                  placeholder={`Barcode for all ${barcodePopup.qty} units`}
+                  variant="filled"
+                  autoFocus
+                  className="rounded-xl py-1.5 font-mono text-xs"
+                />
+              </div>
+            ) : (
+              <>
+                <div className="my-4 flex items-center justify-center gap-1 text-4xl font-bold">
+                  <span className={barcodes.filter((v) => v.trim() !== "").length === barcodePopup.qty ? "text-brand-600" : "text-ink-900"}>
+                    {barcodes.filter((v) => v.trim() !== "").length}
+                  </span>
+                  <span className="text-ink-400">/</span>
+                  <span className="text-ink-400">{barcodePopup.qty}</span>
+                </div>
+
+                <div className="-mr-1 mt-4 h-72 space-y-2 overflow-y-auto overscroll-none py-1 pr-1">
+                  {barcodes.map((val, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <span className="w-5 shrink-0 text-right text-xs text-ink-400">{i + 1}.</span>
+                      <Input
+                        ref={(el) => {
+                          barcodeFieldRefs.current[i] = el;
+                        }}
+                        value={val}
+                        onChange={(e) => updateBarcode(i, e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            handleBarcodeEnter(i);
+                          }
+                        }}
+                        placeholder={`Barcode ${i + 1}`}
+                        variant="filled"
+                        className={`rounded-xl py-1.5 font-mono text-xs ${val.trim() !== "" ? "border border-brand-500/50" : ""}`}
+                      />
+                      {val.trim() !== "" ? (
+                        <CheckIcon className="h-4 w-4 shrink-0 text-brand-600" />
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => clearBarcode(i)}
+                          className="shrink-0 text-ink-300 hover:text-red-500"
+                          aria-label="Clear barcode"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+
+            <div className="mt-5 flex shrink-0 justify-end gap-2">
+              <Button variant="grey" onClick={() => setScannerOpen(true)}>
+                <CameraIcon className="h-4 w-4" />
+                Scan
+              </Button>
+              <Button variant="grey" onClick={closeBarcodePopup}>
+                Cancel
+              </Button>
+              <Button onClick={() => commitBarcodes()}>Add</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {scannerOpen && (
+        <Scanner
+          title="Scan barcode"
+          onScan={onScannerScan}
+          onClose={() => setScannerOpen(false)}
+        />
+      )}
+    </div>
+  );
+}

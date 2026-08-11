@@ -1,0 +1,449 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import Link from "next/link";
+import { apiRequest } from "@/lib/apiClient";
+import { useAuth } from "@/lib/auth-context";
+import { brandOf, type ReservationDetail } from "@/lib/api-types";
+import { useApi } from "@/lib/use-api";
+import { formatPKR } from "@/lib/money";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import type { BadgeVariant } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Dialog } from "@/components/ui/dialog";
+import { useToast } from "@/components/ui/toast";
+import { PlusIcon, SearchIcon, XIcon } from "@/components/icons";
+
+type TypeFilter = "ALL" | "RESERVATION" | "CONSIGNMENT";
+type StatusFilter = "ALL" | "ACTIVE" | "COMPLETED" | "CANCELLED";
+
+const TYPE_FILTERS: { value: TypeFilter; label: string }[] = [
+  { value: "ALL", label: "All" },
+  { value: "RESERVATION", label: "On hold" },
+  { value: "CONSIGNMENT", label: "On consignment" },
+];
+
+const STATUS_FILTERS: { value: StatusFilter; label: string }[] = [
+  { value: "ALL", label: "All" },
+  { value: "ACTIVE", label: "Active" },
+  { value: "COMPLETED", label: "Completed" },
+  { value: "CANCELLED", label: "Cancelled" },
+];
+
+function statusInfo(r: ReservationDetail) {
+  if (r.status === "ACTIVE") {
+    return r.type === "CONSIGNMENT"
+      ? { label: "Out", variant: "info" as BadgeVariant }
+      : { label: "On hold", variant: "warning" as BadgeVariant };
+  }
+  if (r.status === "COMPLETED") {
+    if (r.type === "CONSIGNMENT" && !r.sale) {
+      return { label: "Returned", variant: "neutral" as BadgeVariant };
+    }
+    return { label: "Sold", variant: "success" as BadgeVariant };
+  }
+  if (r.type === "RESERVATION" && parseFloat(r.advance) > 0) {
+    return r.refundStatus === "PAID"
+      ? { label: "Refunded", variant: "success" as BadgeVariant }
+      : { label: "Refund due", variant: "danger" as BadgeVariant };
+  }
+  return { label: "Cancelled", variant: "danger" as BadgeVariant };
+}
+
+function daysOut(createdAt: string) {
+  const diff = Date.now() - new Date(createdAt).getTime();
+  return Math.max(1, Math.floor(diff / 86400000));
+}
+
+export default function AllReservationsPage() {
+  const { token } = useAuth();
+  const { toast } = useToast();
+  const { data, loading, refetch } = useApi<ReservationDetail[]>("/reservation");
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>("ALL");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
+  const [q, setQ] = useState("");
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [action, setAction] = useState<{
+    reservation: ReservationDetail;
+    kind: "cancel" | "return" | "refund";
+  } | null>(null);
+  const [refunded, setRefunded] = useState(true);
+  const [busy, setBusy] = useState(false);
+
+  const rows = useMemo(() => {
+    const query = q.trim().toLowerCase();
+    return (data ?? []).filter((r) => {
+      if (typeFilter !== "ALL" && r.type !== typeFilter) return false;
+      if (statusFilter !== "ALL" && r.status !== statusFilter) return false;
+      if (!query) return true;
+      return (
+        r.number.toLowerCase().includes(query) ||
+        r.contact.name.toLowerCase().includes(query) ||
+        (r.contact.phone ?? "").toLowerCase().includes(query)
+      );
+    });
+  }, [data, typeFilter, statusFilter, q]);
+
+  function openCancel(r: ReservationDetail) {
+    setRefunded(parseFloat(r.advance) === 0);
+    setAction({ reservation: r, kind: "cancel" });
+  }
+
+  async function confirmAction() {
+    if (!action) return;
+    const { reservation, kind } = action;
+    setBusy(true);
+    try {
+      if (kind === "cancel") {
+        await apiRequest(`/reservation/${reservation.id}/cancel`, {
+          method: "POST",
+          token,
+          body: { refunded },
+        });
+        toast(
+          `${reservation.number} cancelled — ${
+            refunded ? "units returned to stock" : "advance kept as debt on us"
+          }`,
+          "success",
+        );
+      } else if (kind === "refund") {
+        await apiRequest(`/reservation/${reservation.id}/refund`, { method: "POST", token });
+        toast(`${reservation.number} — advance refunded to ${reservation.contact.name}`, "success");
+      } else {
+        await apiRequest(`/reservation/${reservation.id}/return`, { method: "POST", token });
+        toast(`${reservation.number} returned — phones are back in stock`, "success");
+      }
+      setAction(null);
+      void refetch();
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Couldn't update the reservation", "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="flex h-full flex-col">
+      <div className="flex shrink-0 items-center justify-end gap-2">
+        <Link href="/reservations/cancel">
+          <Button variant="grey">
+            <XIcon className="h-4 w-4" />
+            Cancel Reservation
+          </Button>
+        </Link>
+        <Link href="/reservations">
+          <Button>
+            <PlusIcon className="h-4 w-4" />
+            New Reservation
+          </Button>
+        </Link>
+      </div>
+
+      <div className="mt-4 flex shrink-0 flex-wrap items-center gap-3">
+        <div className="flex items-center gap-1 rounded-2xl bg-brand-100 p-1">
+          {TYPE_FILTERS.map((f) => (
+            <button
+              key={f.value}
+              type="button"
+              onClick={() => setTypeFilter(f.value)}
+              className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
+                typeFilter === f.value ? "bg-brand-600 text-white" : "text-brand-700 hover:text-ink-900"
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-1 rounded-2xl bg-brand-100 p-1">
+          {STATUS_FILTERS.map((f) => (
+            <button
+              key={f.value}
+              type="button"
+              onClick={() => setStatusFilter(f.value)}
+              className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
+                statusFilter === f.value ? "bg-brand-600 text-white" : "text-brand-700 hover:text-ink-900"
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+        <div className="relative ml-auto w-64">
+          <SearchIcon className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400" />
+          <Input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search number, customer…"
+            className="bg-ink-100 pl-10"
+          />
+        </div>
+      </div>
+
+      <div className="mt-4 flex-1 overflow-y-auto overscroll-none">
+        {loading ? (
+          <p className="py-8 text-center text-sm text-ink-400">Loading…</p>
+        ) : rows.length === 0 ? (
+          <p className="py-8 text-center text-sm text-ink-400">No reservations found.</p>
+        ) : (
+          <div className="overflow-x-auto rounded-2xl bg-white">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs uppercase tracking-wide text-ink-500">
+                  <th className="px-4 py-2.5 font-semibold">Reservation</th>
+                  <th className="px-4 py-2.5 font-semibold">Customer</th>
+                  <th className="px-4 py-2.5 text-center font-semibold">Items</th>
+                  <th className="px-4 py-2.5 text-right font-semibold">Total</th>
+                  <th className="px-4 py-2.5 text-right font-semibold">Advance</th>
+                  <th className="px-4 py-2.5 font-semibold">Status</th>
+                  <th className="px-4 py-2.5 font-semibold">Created</th>
+                  <th className="px-4 py-2.5 text-right font-semibold" />
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r, i) => {
+                  const info = statusInfo(r);
+                  const isConsignment = r.type === "CONSIGNMENT";
+                  let rowAction: { label: string; variant: "secondary" | "grey"; onAction: () => void } | null =
+                    null;
+                  if (r.status === "ACTIVE") {
+                    if (isConsignment) {
+                      rowAction = {
+                        label: "Returned",
+                        variant: "secondary",
+                        onAction: () => setAction({ reservation: r, kind: "return" }),
+                      };
+                    } else {
+                      rowAction = {
+                        label: "Cancel",
+                        variant: "grey",
+                        onAction: () => openCancel(r),
+                      };
+                    }
+                  } else if (
+                    r.status === "CANCELLED" &&
+                    !isConsignment &&
+                    parseFloat(r.advance) > 0 &&
+                    r.refundStatus !== "PAID"
+                  ) {
+                    rowAction = {
+                      label: "Mark refunded",
+                      variant: "grey",
+                      onAction: () => setAction({ reservation: r, kind: "refund" }),
+                    };
+                  }
+                  return (
+                    <FragmentRow
+                      key={r.id}
+                      r={r}
+                      even={i % 2 === 0}
+                      info={info}
+                      isConsignment={isConsignment}
+                      daysOut={isConsignment ? daysOut(r.createdAt) : null}
+                      expanded={expanded === r.id}
+                      onToggle={() => setExpanded(expanded === r.id ? null : r.id)}
+                      action={rowAction}
+                    />
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      <Dialog
+        open={action !== null}
+        title={
+          action?.kind === "cancel"
+            ? `Cancel ${action.reservation.number}?`
+            : action?.kind === "refund"
+              ? `Mark refund for ${action?.reservation.number ?? ""}?`
+              : `Return ${action?.reservation.number ?? ""} to stock?`
+        }
+        message={
+          action ? (
+            action.kind === "cancel" ? (
+              <div className="space-y-3">
+                <p>
+                  {action.reservation.contact.name} paid an advance of{" "}
+                  {formatPKR(parseFloat(action.reservation.advance))}. The reserved phones will return
+                  to stock.
+                </p>
+                {parseFloat(action.reservation.advance) > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">
+                      Advance refund
+                    </p>
+                    <div className="flex items-center gap-1 rounded-2xl bg-brand-100 p-1">
+                      <button
+                        type="button"
+                        onClick={() => setRefunded(true)}
+                        className={`flex-1 rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
+                          refunded ? "bg-brand-600 text-white" : "text-brand-700 hover:text-ink-900"
+                        }`}
+                      >
+                        Paid back now
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setRefunded(false)}
+                        className={`flex-1 rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
+                          !refunded ? "bg-brand-600 text-white" : "text-brand-700 hover:text-ink-900"
+                        }`}
+                      >
+                        Not yet — we owe it
+                      </button>
+                    </div>
+                    <p className="text-xs text-ink-500">
+                      {refunded
+                        ? "The advance is already back with the customer."
+                        : `${formatPKR(parseFloat(action.reservation.advance))} shows as debt on us until you mark it refunded.`}
+                    </p>
+                  </div>
+                )}
+              </div>
+            ) : action.kind === "refund" ? (
+              <p>
+                You're returning {formatPKR(parseFloat(action.reservation.advance))} to{" "}
+                {action.reservation.contact.name}. The debt on us will clear.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                <p>
+                  {action.reservation.contact.name} has not paid for the phones — they are coming back
+                  unsold.
+                </p>
+                <p>The phones will return to stock.</p>
+              </div>
+            )
+          ) : null
+        }
+        confirmLabel={
+          action?.kind === "cancel"
+            ? "Cancel reservation"
+            : action?.kind === "refund"
+              ? "Mark refunded"
+              : "Return to stock"
+        }
+        destructive={action?.kind === "cancel"}
+        busy={busy}
+        onConfirm={() => void confirmAction()}
+        onCancel={() => setAction(null)}
+      />
+    </div>
+  );
+}
+
+function FragmentRow({
+  r,
+  even,
+  info,
+  isConsignment,
+  daysOut,
+  expanded,
+  onToggle,
+  action,
+}: {
+  r: ReservationDetail;
+  even: boolean;
+  info: { label: string; variant: BadgeVariant };
+  isConsignment: boolean;
+  daysOut: number | null;
+  expanded: boolean;
+  onToggle: () => void;
+  action: { label: string; variant: "secondary" | "grey"; onAction: () => void } | null;
+}) {
+  return (
+    <>
+      <tr
+        onClick={onToggle}
+        className={`${even ? "bg-white" : "bg-ink-50"} cursor-pointer ${expanded ? "bg-brand-50/60" : ""}`}
+      >
+        <td className="px-4 py-3">
+          <span className="font-mono font-semibold text-ink-900">{r.number}</span>
+          <Badge className="ml-2" variant={isConsignment ? "info" : "neutral"}>
+            {isConsignment ? "Out" : "Hold"}
+          </Badge>
+        </td>
+        <td className="px-4 py-3">
+          <p className="font-medium text-ink-900">{r.contact.name}</p>
+          {r.contact.phone && <p className="text-[11px] text-ink-400">{r.contact.phone}</p>}
+        </td>
+        <td className="px-4 py-3 text-center text-ink-700">{r.items.length}</td>
+        <td className="px-4 py-3 text-right font-semibold text-ink-900">{formatPKR(r.total)}</td>
+        <td className="px-4 py-3 text-right text-ink-700">
+          {isConsignment ? "—" : formatPKR(parseFloat(r.advance))}
+        </td>
+        <td className="px-4 py-3">
+          <Badge variant={info.variant}>{info.label}</Badge>
+        </td>
+        <td className="px-4 py-3 text-ink-500">
+          {new Date(r.createdAt).toLocaleDateString("en-PK", { day: "numeric", month: "short" })}
+          {daysOut !== null && (
+            <span className="block text-[10px] text-sky-700">out {daysOut}d</span>
+          )}
+        </td>
+        <td className="px-4 py-3 text-right">
+          {action && (
+            <Button
+              variant={action.variant}
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                action.onAction();
+              }}
+            >
+              <XIcon className="h-3.5 w-3.5" />
+              {action.label}
+            </Button>
+          )}
+        </td>
+      </tr>
+      {expanded && (
+        <tr className="bg-white">
+          <td colSpan={8} className="px-4 py-3">
+            <div className="rounded-xl bg-ink-50 p-3">
+              {r.items.map((i) => (
+                <div key={i.id} className="flex items-center justify-between py-0.5 text-xs">
+                  <span className="text-ink-700">
+                    {brandOf(i.product)} {i.product.model}
+                    {i.unit ? ` · ${i.unit.imei}` : ` ×${i.quantity}`}
+                  </span>
+                  <span className="text-ink-500">
+                    {formatPKR(i.total)}
+                    {isConsignment && <span className="ml-1 text-[10px] text-sky-700">agreed</span>}
+                  </span>
+                </div>
+              ))}
+              {isConsignment && r.status === "COMPLETED" && !r.sale && (
+                <div className="mt-1.5 rounded-lg bg-white px-2.5 py-1.5 text-xs text-ink-500">
+                  Returned unsold — no payment collected.
+                </div>
+              )}
+              {r.status === "CANCELLED" && !isConsignment ? (
+                <div className="mt-1 flex items-center justify-between border-t border-ink-200 pt-1.5 text-xs font-semibold text-ink-900">
+                  <span>Refund due</span>
+                  <span className={r.refundStatus === "PAID" ? "text-emerald-600" : "text-red-600"}>
+                    {r.refundStatus === "PAID"
+                      ? "Paid back"
+                      : formatPKR(parseFloat(r.advance))}
+                  </span>
+                </div>
+              ) : (
+                <div className="mt-1 flex items-center justify-between border-t border-ink-200 pt-1.5 text-xs font-semibold text-ink-900">
+                  <span>{isConsignment ? "Balance to collect" : "Balance due"}</span>
+                  <span>
+                    {r.status === "COMPLETED" && r.sale
+                      ? "Settled"
+                      : formatPKR(Math.max(0, parseFloat(r.total) - parseFloat(r.advance)))}
+                  </span>
+                </div>
+              )}
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
+  );
+}

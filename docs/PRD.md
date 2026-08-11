@@ -62,6 +62,7 @@ A single system for a mobile phone shop that **buys and sells** phones (new + us
 **P0**
 - Phone catalog: brand, model, storage, color, category.
 - Variant = combination of model + storage + color → one `Product` record.
+- **New and used phones are separate categories** (seeded Category rows `New Phone` / `Used Phone`) with their own sell/cost prices; the same model+storage+color can exist once per condition. Categories are managed from the Products screen (add/rename/deactivate) — adding "Refurbished" needs no code change.
 - SKU + IMEI searchable.
 - Sell price, purchase (cost) price, and **price history**.
 - Accessories category (covers, chargers, earbuds) — quantities only, no IMEI.
@@ -117,6 +118,7 @@ A single system for a mobile phone shop that **buys and sells** phones (new + us
 - Pick a **specific unit** by IMEI — choose which exact phone to sell (new or used).
 - Accessories saleable as quantity line items.
 - Sell to any contact (default: walk-in).
+- **Walk-in customer quick-create**: the sale screen offers a "Walk-in (new)" option that reveals **Customer Name** and **Phone Number** fields; on checkout the contact is auto-created and reused for future sales (no need to pre-create it in Contacts).
 - Discounts: line-level and order-level; **price override** gated by permission.
 - **Multi-payment split**: a single total can be paid in parts — e.g. Rs 1,000 total → Rs 300 cash, Rs 200 into bank account A, Rs 500 credit.
   - Cash & card: enter amount received, change due calculated.

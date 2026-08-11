@@ -9,12 +9,12 @@
 - [ ] **Frontend**: AppShell layout (sidebar/topbar), protected routes → redirect to `/login`
 
 ## Phase 1 — Core POS (v1 must-have)
-- [ ] **Backend**: products, units, contacts, transactions, payments endpoints
-- [ ] **Frontend**: Products CRUD + price history
-- [ ] **Frontend**: Units + IMEI validation, condition/status badges, unit picker
-- [ ] **Frontend**: **Sale flow**: search → cart → NEW/USED unit picker → contact → payment → receipt
-- [ ] **Frontend**: **Purchase flow**: Buy New (vendor, multi-IMEI) + Buy Used (walk-in, grade)
-- [ ] **Frontend**: Unified Contacts with dedupe warning
+- [x] **Backend**: products, units, contacts, transactions, payments endpoints
+- [x] **Frontend**: Products CRUD + price history
+- [x] **Frontend**: Units + IMEI validation, condition/status badges, unit picker
+- [x] **Frontend**: **Sale flow**: search → cart → NEW/USED unit picker → contact → payment → receipt
+- [x] **Frontend**: **Purchase flow**: Buy New (vendor, multi-IMEI) + Buy Used (walk-in, grade)
+- [x] **Frontend**: Unified Contacts with dedupe warning
 - [ ] Returns (sale + purchase), stock movements log
 
 ## Phase 2 — Money & Credit
@@ -22,11 +22,12 @@
 - [ ] Multi-payment split (cash/card/bank-account/credit) + change calculation
 - [ ] Partial credit: credit portion only goes to balance; remaining-due tracking
 - [ ] Credit accounts, installments, due dates, collect payments, overdue list
-- [ ] Expenses
-- [ ] Contact ledger with running balance
+- [x] Expenses
+- [x] Contact ledger with running balance (reports → Ledger)
+- [x] **Cash vouchers**: CRV/CPV creation, modify, reverse (void with audit trail) — `Voucher` model + `/api/voucher`
 
 ## Phase 3 — Analytics & Reports
-- [ ] Report hub: sales, profit (by brand/model/condition), purchases, stock valuation, statements
+- [x] Report hub (`/reports`): sales, purchases, profit (by brand/model/condition), expenses, stock valuation, payments/cash flow, receivables, payables, contact ledgers — `/api/report`
 - [ ] **Customizable dashboard**: widget gallery, drag/drop layout, saved per user
 - [ ] Export (PDF/Excel), print
 

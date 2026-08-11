@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { OtpInput } from "@/components/auth/otp-input";
 import { Logo } from "@/components/brand/logo";
+import { LockIcon, UserIcon } from "@/components/icons";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
 import { useAuth } from "@/lib/auth-context";
@@ -58,14 +59,21 @@ export default function LoginPage() {
 
       <div className="flex flex-1 items-center justify-center px-4 py-10">
         <div className="relative w-full max-w-md">
-          <div className="rounded-[2.5rem] bg-white p-8 shadow-[0_24px_60px_-24px_rgba(230,59,32,0.4)]">
+          <div className="rounded-[2.5rem] bg-white p-8">
             <h2 className="text-center text-sm font-semibold uppercase tracking-widest text-ink-400">
               {AUTH.title}
             </h2>
 
-            <div className="mt-6 space-y-6">
+            <form
+              className="mt-6 space-y-6"
+              onSubmit={(e) => {
+                e.preventDefault();
+                submit(pin);
+              }}
+            >
             <div>
-              <label className="mb-2.5 block text-xs font-semibold uppercase tracking-wider text-ink-500">
+              <label className="mb-2.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-ink-500">
+                <UserIcon className="h-3.5 w-3.5 text-ink-400" />
                 {AUTH.username}
               </label>
               <Input
@@ -78,7 +86,8 @@ export default function LoginPage() {
             </div>
 
             <div>
-              <label className="mb-2.5 block text-center text-xs font-semibold uppercase tracking-wider text-ink-500">
+              <label className="mb-2.5 flex items-center justify-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-ink-500">
+                <LockIcon className="h-3.5 w-3.5 text-ink-400" />
                 {AUTH.enterPin}
               </label>
               <OtpInput
@@ -90,7 +99,7 @@ export default function LoginPage() {
             </div>
 
             <p className="text-center text-xs text-ink-400">{AUTH.demoHint}</p>
-          </div>
+          </form>
         </div>
       </div>
       </div>

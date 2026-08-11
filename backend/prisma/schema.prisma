@@ -7,11 +7,111 @@ datasource db {
   provider = "sqlite"
 }
 
+// ============ ENUMS ============
+
 enum Role {
   ADMIN
   MANAGER
   CASHIER
 }
+
+enum ContactType {
+  WALK_IN
+  CUSTOMER
+  VENDOR
+  BOTH
+}
+
+enum UnitCondition {
+  NEW
+  USED
+}
+
+enum UnitStatus {
+  IN_STOCK
+  RESERVED
+  OUT
+  SOLD
+  RETURNED
+  DAMAGED
+  WRITTEN_OFF
+}
+
+enum UnitSource {
+  VENDOR_PURCHASE
+  BOUGHT_WALKIN
+  SALE_RETURN
+  PURCHASE_RETURN
+}
+
+enum CarrierType {
+  NON_PTA
+  PTA
+  SIM_LOCKED
+}
+
+enum CategoryType {
+  PHONE
+  ACCESSORY
+}
+
+enum TransactionType {
+  PURCHASE
+  SALE
+  PURCHASE_RETURN
+  SALE_RETURN
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  BANK_TRANSFER
+  CREDIT
+}
+
+enum PaymentStatus {
+  PAID
+  PARTIAL
+  PENDING
+  REFUNDED
+}
+
+enum StockMovementType {
+  IN
+  OUT
+  ADJUST
+  TRANSFER
+  RESERVED
+  RELEASED
+}
+
+enum ReservationStatus {
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum HoldType {
+  RESERVATION
+  CONSIGNMENT
+}
+
+enum RefundStatus {
+  PENDING
+  PAID
+}
+
+enum VoucherType {
+  RECEIVING
+  PAYMENT
+}
+
+enum VoucherStatus {
+  ACTIVE
+  REVERSED
+}
+
+// ============ USERS & SECURITY ============
 
 model User {
   id        String   @id @default(cuid())
@@ -21,9 +121,398 @@ model User {
   pinHash   String
   role      Role     @default(CASHIER)
   active    Boolean  @default(true)
-  permissions String 
+  soundPrefs String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  auditLogs        AuditLog[]
+  transactions     Transaction[]
+  reservations     Reservation[]
+  dashboardWidgets DashboardWidget[]
+  printLayouts     PrintLayout[]
+  vouchers         Voucher[] @relation("VoucherCreated")
+  voucherReversals Voucher[] @relation("VoucherReversed")
+
   @@map("users")
+}
+
+// ============ CONTACTS (unified) ============
+
+model Contact {
+  id        String      @id @default(cuid())
+  type      ContactType @default(WALK_IN)
+  name      String
+  phone     String?
+  email     String?
+  address   String?
+  notes     String?
+  createdAt DateTime    @default(now())
+
+  creditAccount CreditAccount?
+  transactions  Transaction[]
+  reservations  Reservation[]
+  expenses      Expense[]
+  vouchers      Voucher[]
+
+  @@index([phone])
+}
+
+model CreditAccount {
+  id            String   @id @default(cuid())
+  contactId     String   @unique
+  contact       Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  limit         Decimal  @default(0)
+  balance       Decimal  @default(0)
+  creditPayments CreditPayment[]
+
+  @@map("credit_accounts")
+}
+
+// ============ PRODUCTS & UNITS ============
+
+model Brand {
+  id        String    @id @default(cuid())
+  name      String    @unique
+  sortOrder Int       @default(0)
+  active    Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  products  Product[]
+
+  @@map("brands")
+}
+
+model Category {
+  id        String       @id @default(cuid())
+  name      String       @unique
+  type      CategoryType @default(PHONE)
+  sortOrder Int          @default(0)
+  active    Boolean      @default(true)
+  createdAt DateTime     @default(now())
+  products  Product[]
+
+  @@map("categories")
+}
+
+model Color {
+  id        String    @id @default(cuid())
+  name      String    @unique
+  sortOrder Int       @default(0)
+  active    Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  products  Product[]
+  units     Unit[]
+
+  @@map("colors")
+}
+
+model Product {
+  id               String   @id @default(cuid())
+  brandId          String
+  brand            Brand    @relation(fields: [brandId], references: [id])
+  model            String
+  storage          String?
+  ram              String?
+  screenSize       String?
+  colorId          String?
+  color            Color?   @relation(fields: [colorId], references: [id])
+  categoryId       String
+  category         Category @relation(fields: [categoryId], references: [id])
+  sku              String   @unique
+  barcode          String?
+  image            String?
+  specs            String?
+  sellPrice        Decimal
+  costPrice        Decimal
+  retailPrice      Decimal?
+  lowStockThreshold Int     @default(2)
+  createdAt        DateTime @default(now())
+
+  units        Unit[]
+  priceHistory ProductPriceHistory[]
+  items        TransactionItem[]
+  movements    StockMovement[]
+  reservationItems ReservationItem[]
+
+  @@index([brandId])
+  @@index([model])
+  @@index([categoryId])
+  @@index([colorId])
+}
+
+model ProductPriceHistory {
+  id        String   @id @default(cuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  sellPrice Decimal
+  costPrice Decimal
+  fromDate  DateTime @default(now())
+
+  @@map("product_price_history")
+}
+
+model Unit {
+  id         String        @id @default(cuid())
+  productId  String
+  product    Product       @relation(fields: [productId], references: [id])
+  imei       String        @unique
+  condition  UnitCondition @default(NEW)
+  status     UnitStatus    @default(IN_STOCK)
+  source     UnitSource    @default(VENDOR_PURCHASE)
+  carrier    CarrierType   @default(NON_PTA)
+  batteryHealth Int?
+  costPrice  Decimal
+  acquiredAt DateTime      @default(now())
+  grade      String?
+  colorId    String?
+  color      Color?        @relation(fields: [colorId], references: [id])
+  returnedFromSource UnitSource?
+
+  items      TransactionItem[]
+  movements  StockMovement[]
+  reservationItems ReservationItem[]
+
+  @@index([condition, status])
+}
+
+model StockMovement {
+  id        String             @id @default(cuid())
+  unitId    String?
+  unit      Unit?              @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  productId String?
+  product   Product?           @relation(fields: [productId], references: [id], onDelete: Cascade)
+  type      StockMovementType
+  qty       Int                @default(1)
+  note      String?
+  createdAt DateTime           @default(now())
+
+  @@map("stock_movements")
+}
+
+// ============ TRANSACTIONS (unified) ============
+
+model Transaction {
+  id        String          @id @default(cuid())
+  type      TransactionType
+  number    String          @unique
+  contactId String
+  contact   Contact         @relation(fields: [contactId], references: [id])
+  userId    String
+  user      User            @relation(fields: [userId], references: [id])
+  subtotal  Decimal
+  discount  Decimal         @default(0)
+  total     Decimal
+  status    PaymentStatus   @default(PAID)
+  note      String?
+  createdAt DateTime        @default(now())
+
+  items       TransactionItem[]
+  payments    Payment[]
+  reservation Reservation?
+
+  @@index([type, createdAt])
+}
+
+model TransactionItem {
+  id            String      @id @default(cuid())
+  transactionId String
+  transaction   Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  productId     String
+  product       Product     @relation(fields: [productId], references: [id])
+  unitId        String?
+  unit          Unit?       @relation(fields: [unitId], references: [id])
+  quantity      Int         @default(1)
+  unitPrice     Decimal
+  discount      Decimal     @default(0)
+  total         Decimal
+
+  @@map("transaction_items")
+}
+
+model Reservation {
+  id        String            @id @default(cuid())
+  type      HoldType          @default(RESERVATION)
+  number    String            @unique
+  contactId String
+  contact   Contact           @relation(fields: [contactId], references: [id])
+  userId    String
+  user      User              @relation(fields: [userId], references: [id])
+  subtotal  Decimal
+  discount  Decimal           @default(0)
+  total     Decimal
+  advance   Decimal           @default(0)
+  status    ReservationStatus @default(ACTIVE)
+  note      String?
+  refundStatus RefundStatus?          // set on cancel when advance was collected: PENDING = debt on us, PAID = handed back
+  refundedAt   DateTime?
+  createdAt DateTime          @default(now())
+  saleId    String?           @unique
+  sale      Transaction?      @relation(fields: [saleId], references: [id])
+
+  items ReservationItem[]
+
+  @@index([status, createdAt])
+  @@map("reservations")
+}
+
+model ReservationItem {
+  id            String      @id @default(cuid())
+  reservationId String
+  reservation   Reservation @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+  productId     String
+  product       Product     @relation(fields: [productId], references: [id])
+  unitId        String?
+  unit          Unit?       @relation(fields: [unitId], references: [id])
+  quantity      Int         @default(1)
+  unitPrice     Decimal
+  discount      Decimal     @default(0)
+  total         Decimal
+
+  @@map("reservation_items")
+}
+
+model Payment {
+  id            String        @id @default(cuid())
+  transactionId String
+  transaction   Transaction   @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  method        PaymentMethod
+  amount        Decimal
+  reference     String?
+  bankAccountId String?
+  bankAccount   BankAccount?  @relation(fields: [bankAccountId], references: [id])
+  createdAt     DateTime      @default(now())
+}
+
+model BankAccount {
+  id         String          @id @default(cuid())
+  companyId  String?
+  company    CompanyProfile? @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name       String
+  bankName   String
+  accountNo  String
+  holderName String?
+  iban       String?
+  isDefault  Boolean         @default(false)
+  active     Boolean         @default(true)
+  createdAt  DateTime        @default(now())
+  payments   Payment[]
+  vouchers   Voucher[]
+
+  @@index([companyId])
+  @@map("bank_accounts")
+}
+
+model Voucher {
+  id            String        @id @default(cuid())
+  type          VoucherType
+  number        String        @unique // CRV-0001 = cash receiving, CPV-0001 = cash payment
+  amount        Decimal
+  method        PaymentMethod @default(CASH) // CASH or BANK_TRANSFER
+  bankAccountId String?
+  bankAccount   BankAccount?  @relation(fields: [bankAccountId], references: [id])
+  contactId     String?
+  contact       Contact?      @relation(fields: [contactId], references: [id])
+  narration     String?
+  date          DateTime      @default(now())
+  status        VoucherStatus @default(ACTIVE)
+  reversedById  String?
+  reversedBy    User?         @relation("VoucherReversed", fields: [reversedById], references: [id])
+  reversedAt    DateTime?
+  reversalNote  String?
+  userId        String
+  user          User          @relation("VoucherCreated", fields: [userId], references: [id])
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@index([type, date])
+  @@map("vouchers")
+}
+
+model CreditPayment {
+  id              String        @id @default(cuid())
+  creditAccountId String
+  creditAccount   CreditAccount @relation(fields: [creditAccountId], references: [id], onDelete: Cascade)
+  amount          Decimal
+  receivedFrom    String?
+  dueDate         DateTime?
+  paidAt          DateTime      @default(now())
+
+  @@map("credit_payments")
+}
+
+// ============ SUPPORTING ============
+
+model Expense {
+  id        String   @id @default(cuid())
+  category  String
+  amount    Decimal
+  note      String?
+  contactId String?
+  contact   Contact? @relation(fields: [contactId], references: [id])
+  date      DateTime @default(now())
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  action    String
+  entity    String
+  entityId  String
+  details   String?
+  createdAt DateTime @default(now())
+
+  @@map("audit_logs")
+}
+
+model DashboardWidget {
+  id       String @id @default(cuid())
+  userId   String
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  key      String
+  layout   String
+  settings String
+  order    Int    @default(0)
+
+  @@map("dashboard_widgets")
+}
+
+model PrintLayout {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  type      String   @default("document")
+  format    String   @default("80")
+  options   Json?
+  qrType    String   @default("none")
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, isDefault])
+  @@map("print_layouts")
+}
+
+model Settings {
+  key   String @id
+  value String
+}
+
+model CompanyProfile {
+  id         String   @id @default("store")
+  name       String
+  tagline    String?
+  address    String?
+  phone      String?
+  email      String?
+  logoUrl    String?
+  footerText String?
+  currency   String   @default("PKR")
+  taxRate    Decimal  @default(0)
+  raastId    String?
+  whatsapp   String?
+  website    String?
+  bankAccounts BankAccount[]
+
+  @@map("company_profiles")
 }

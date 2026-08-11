@@ -84,8 +84,10 @@ dost-mobile-pos/
 |---|---|---|
 | `POST /api/auth/login` | `endpoints/auth/` | Login (username+PIN) → JWT |
 | `GET/POST /api/contact` · `/api/contact/:id` · `/ledger` · `/credit` | `endpoints/contact/` | Unified contacts, ledger, credit, collect |
-| `GET/POST/PUT /api/product` · `/api/product/:id/prices` | `endpoints/product/` | Catalog + price history |
-| `GET /api/product/search?q=` | `endpoints/product/` | Debounced POS search (name/SKU/IMEI) |
+| `GET/POST/PUT /api/product` · `/api/product/import` | `endpoints/product/` | Catalog CRUD + CSV bulk import (dup-safe) |
+| `GET/POST /api/category` · `PUT/DELETE /api/category/:id` | `endpoints/category/` | Product categories (add/rename/deactivate) || `GET /api/product/search?q=` | `endpoints/product/` | Debounced POS search (name/SKU/IMEI) |
+| `GET/POST /api/brand` · `PUT/DELETE /api/brand/:id` | `endpoints/brand/` | Product brands (add/rename/deactivate) |
+| `GET/POST /api/color` · `PUT/DELETE /api/color/:id` | `endpoints/color/` | Product colors (add/rename/deactivate) |
 | `GET/POST /api/unit` · `GET /api/unit/imei/:imei` · `POST /api/unit/adjust` | `endpoints/unit/` | Units, IMEI trace, stock adjustment |
 | `GET/POST /api/purchase` · `/new` · `/used` · `/returns` | `endpoints/purchase/` | Purchases (new & used) + returns |
 | `GET/POST /api/sale` · `/returns` · `/api/sale/:id` | `endpoints/sale/` | Sales + returns |
