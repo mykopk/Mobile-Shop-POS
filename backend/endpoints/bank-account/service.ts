@@ -1,9 +1,8 @@
 import { prisma } from "../../core/lib/prisma";
 import { ApiError } from "../../core/middleware/error";
 import { writeAudit } from "../../core/lib/audit";
+import { COMPANY_ID } from "../../core/lib/company";
 import type { BankAccountInput, BankAccountUpdateInput } from "./schemas";
-
-const COMPANY_ID = "store";
 
 export async function listBankAccounts() {
   return prisma.bankAccount.findMany({

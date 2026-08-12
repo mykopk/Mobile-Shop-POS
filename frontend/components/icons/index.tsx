@@ -1,8 +1,8 @@
-import type { SVGProps } from "react";
+import type { ReactNode, SVGProps } from "react";
 
 type IconProps = SVGProps<SVGSVGElement>;
 
-function base(props: IconProps, children: React.ReactNode) {
+function base(props: IconProps, children: ReactNode) {
   const { className = "", ...rest } = props;
   return (
     <svg
@@ -149,6 +149,24 @@ export function UserIcon(props: IconProps) {
       <path d="M4 21a8 8 0 0 1 16 0" />
     </>
   ));
+}
+
+export function UsersIcon(props: IconProps) {
+  const { className = "", ...rest } = props;
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      className={`h-4 w-4 ${className}`}
+      aria-hidden="true"
+      {...rest}
+    >
+      <circle cx="9" cy="7" r="3.5" />
+      <path d="M2 20c0-2.8 3.1-4.5 7-4.5s7 1.7 7 4.5" />
+      <circle cx="17" cy="9" r="2.5" />
+      <path d="M15.5 15.8c2.8.3 4.5 1.6 4.5 3.7v.5" />
+    </svg>
+  );
 }
 
 export function LockIcon(props: IconProps) {
@@ -401,6 +419,28 @@ export function CheckIcon(props: IconProps) {
   ));
 }
 
+export function GripIcon(props: IconProps) {
+  return base(props, (
+    <>
+      <circle cx="9" cy="6" r="1" />
+      <circle cx="9" cy="12" r="1" />
+      <circle cx="9" cy="18" r="1" />
+      <circle cx="15" cy="6" r="1" />
+      <circle cx="15" cy="12" r="1" />
+      <circle cx="15" cy="18" r="1" />
+    </>
+  ));
+}
+
+export function EyeIcon(props: IconProps) {
+  return base(props, (
+    <>
+      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />
+      <circle cx="12" cy="12" r="3" />
+    </>
+  ));
+}
+
 export function XIcon(props: IconProps) {
   return base(props, (
     <>
@@ -553,6 +593,7 @@ export const NAV_ICONS = {
   analytics: ChartPieIcon,
   print: PrinterIcon,
   settings: SettingsIcon,
+  users: UsersIcon,
 } as const;
 
 export type NavIconKey = keyof typeof NAV_ICONS;

@@ -9,6 +9,7 @@ import { DailyBars } from "@/components/reports/daily-bars";
 import { ReportTable } from "@/components/reports/report-table";
 import type { SalesReport } from "@/lib/api-types";
 import { formatPKR } from "@/lib/money";
+import { pluralize } from "@/lib/pluralize";
 import { PAYMENT_METHOD_LABELS, REPORT_CONDITION_LABELS } from "@/lib/constants";
 
 export default function SalesReportPage() {
@@ -29,7 +30,7 @@ export default function SalesReportPage() {
       ) : data ? (
         <>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <KpiCard label="Revenue" value={formatPKR(data.revenue)} sub={`${data.count} sale(s)`} />
+            <KpiCard label="Revenue" value={formatPKR(data.revenue)} sub={pluralize(data.count, "sale")} />
             <KpiCard label="Items sold" value={String(data.items)} sub="Across all sales" />
             <KpiCard label="Discounts" value={formatPKR(data.discount)} sub={`Subtotal ${formatPKR(data.subtotal)}`} />
             <KpiCard label="Avg. sale" value={formatPKR(data.count > 0 ? data.revenue / data.count : 0)} sub="Revenue per sale" />
@@ -41,8 +42,9 @@ export default function SalesReportPage() {
             <TopList
               title="By condition"
               rows={data.byCondition.map((c) => ({
+                id: c.condition,
                 label: REPORT_CONDITION_LABELS[c.condition] ?? c.condition,
-                sub: `${c.items} item(s)`,
+                sub: `${pluralize(c.items, "item")}`,
                 value: c.revenue,
               }))}
               format={formatPKR}
@@ -50,8 +52,9 @@ export default function SalesReportPage() {
             <TopList
               title="By brand"
               rows={data.byBrand.map((b) => ({
+                id: b.name,
                 label: b.name,
-                sub: `${b.count} line(s)`,
+                sub: `${pluralize(b.count, "line")}`,
                 value: b.revenue,
               }))}
               format={formatPKR}
@@ -59,8 +62,9 @@ export default function SalesReportPage() {
             <TopList
               title="By category"
               rows={data.byCategory.map((c) => ({
+                id: c.name,
                 label: c.name,
-                sub: `${c.count} line(s)`,
+                sub: `${pluralize(c.count, "line")}`,
                 value: c.revenue,
               }))}
               format={formatPKR}
@@ -75,6 +79,7 @@ export default function SalesReportPage() {
                 { key: "amount", label: "Amount", align: "right", render: (r) => <span className="font-semibold text-ink-900">{formatPKR(r.amount)}</span> },
               ]}
               rows={data.byPayment}
+              rowKey={(r) => r.method}
             />
             <ReportTable
               columns={[
@@ -83,6 +88,7 @@ export default function SalesReportPage() {
                 { key: "revenue", label: "Revenue", align: "right", render: (r) => <span className="font-semibold text-ink-900">{formatPKR(r.revenue)}</span> },
               ]}
               rows={data.byUser}
+              rowKey={(r) => r.name}
             />
           </div>
         </>

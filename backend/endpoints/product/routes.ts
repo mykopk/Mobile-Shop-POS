@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { asyncHandler } from "../../core/lib/asyncHandler";
-import { requireAuth } from "../../core/middleware/auth";
+import { requireAuth, requirePermission } from "../../core/middleware/auth";
+import { PERMISSIONS } from "../../core/lib/permissions";
 import { validate } from "../../core/middleware/validate";
 import {
   bulkDeleteHandler,
@@ -17,12 +18,12 @@ const router = Router();
 
 router.use(requireAuth);
 
-router.get("/", asyncHandler(listHandler));
-router.get("/search", asyncHandler(searchHandler));
-router.get("/:id", asyncHandler(getHandler));
-router.post("/import", validate(importProductsSchema), asyncHandler(importHandler));
-router.post("/", validate(productSchema), asyncHandler(createHandler));
-router.put("/:id", validate(productSchema), asyncHandler(updateHandler));
-router.delete("/", asyncHandler(bulkDeleteHandler));
+router.get("/", requirePermission(PERMISSIONS.productView), asyncHandler(listHandler));
+router.get("/search", requirePermission(PERMISSIONS.productView), asyncHandler(searchHandler));
+router.get("/:id", requirePermission(PERMISSIONS.productView), asyncHandler(getHandler));
+router.post("/import", requirePermission(PERMISSIONS.productImport), validate(importProductsSchema), asyncHandler(importHandler));
+router.post("/", requirePermission(PERMISSIONS.productCreate), validate(productSchema), asyncHandler(createHandler));
+router.put("/:id", requirePermission(PERMISSIONS.productUpdate), validate(productSchema), asyncHandler(updateHandler));
+router.delete("/", requirePermission(PERMISSIONS.productDelete), asyncHandler(bulkDeleteHandler));
 
 export default router;

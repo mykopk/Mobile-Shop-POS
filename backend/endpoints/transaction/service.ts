@@ -103,6 +103,7 @@ export async function createSale(input: CreateSaleInput, userId: string) {
     () => prisma.transaction.findMany({ where: { number: { startsWith: "SAL-" } }, select: { number: true } }),
     "SAL",
   );
+  const createdAt = input.date ? new Date(`${input.date}T00:00:00`) : undefined;
   const transaction = await prisma.$transaction(async (tx) => {
     const createdItems: Prisma.TransactionItemUncheckedCreateWithoutTransactionInput[] = [];
 
@@ -152,6 +153,7 @@ export async function createSale(input: CreateSaleInput, userId: string) {
         total,
         status: statusFor(total, paidInput),
         note: input.note,
+        ...(createdAt ? { createdAt } : {}),
         items: { create: createdItems },
       },
       include: { items: true },

@@ -6,6 +6,11 @@ import type { ContactType, Role } from "../generated/prisma/enums";
 
 const RESET = process.argv.includes("--reset");
 
+if (process.env.NODE_ENV === "production" && !process.argv.includes("--force")) {
+  console.log("Seeding is disabled in production. Re-run with --force to override.");
+  process.exit(0);
+}
+
 const DEMO_USERS: {
   username: string;
   name: string;

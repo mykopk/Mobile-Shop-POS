@@ -5,6 +5,9 @@ export const UI = {
   signOut: "Sign out",
   error: "Something went wrong",
   retry: "Try again",
+  pageNotFound: "Page not found",
+  pageNotFoundHint: "The page you're looking for doesn't exist.",
+  backToDashboard: "Back to dashboard",
 } as const;
 
 export const TOAST = {

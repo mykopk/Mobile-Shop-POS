@@ -3,15 +3,16 @@
 import { useState } from "react";
 import type { ReactNode } from "react";
 import { apiRequest } from "@/lib/apiClient";
-import { useAuth } from "@/lib/auth-context";
 import type { Expense } from "@/lib/api-types";
 import { EXPENSE_CATEGORIES, EXPENSE_CATEGORY_LABELS, EXPENSE_TEXT } from "@/lib/constants";
 import { formatPKR } from "@/lib/money";
 import { toISODate } from "@/lib/dates";
+import { useDirtyForm } from "@/lib/use-dirty-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dropdown } from "@/components/ui/dropdown";
 import { DatePicker } from "@/components/ui/date-picker";
+import { DiscardConfirmDialog } from "@/components/ui/discard-confirm-dialog";
 import { useToast } from "@/components/ui/toast";
 import { WalletIcon } from "@/components/icons";
 
@@ -44,7 +45,6 @@ export function ExpenseForm({
   onClose: () => void;
   onSaved: () => void;
 }) {
-  const { token } = useAuth();
   const { toast } = useToast();
   const [category, setCategory] = useState(editing?.category ?? EXPENSE_CATEGORIES[0].value);
   const [amount, setAmount] = useState(editing?.amount ?? "");
@@ -54,6 +54,17 @@ export function ExpenseForm({
     return toISODate(new Date());
   });
   const [submitting, setSubmitting] = useState(false);
+
+  const dirty = useDirtyForm({ category, amount, note, date });
+
+  function onFieldChange(next: { category?: string; amount?: string; note?: string; date?: string }) {
+    const updated = { category, amount, note, date, ...next };
+    if (next.category !== undefined) setCategory(next.category);
+    if (next.amount !== undefined) setAmount(next.amount);
+    if (next.note !== undefined) setNote(next.note);
+    if (next.date !== undefined) setDate(next.date);
+    dirty.markDirty(updated);
+  }
 
   async function save() {
     const value = parseFloat(amount);
@@ -74,10 +85,10 @@ export function ExpenseForm({
         date,
       };
       if (editing) {
-        await apiRequest(`/expense/${editing.id}`, { token, method: "PUT", body });
+        await apiRequest(`/expense/${editing.id}`, { method: "PUT", body });
         toast("Expense updated", "success");
       } else {
-        await apiRequest<Expense>("/expense", { token, method: "POST", body });
+        await apiRequest<Expense>("/expense", { method: "POST", body });
         toast("Expense recorded", "success");
       }
       onSaved();
@@ -102,14 +113,7 @@ export function ExpenseForm({
             <Dropdown
               value={category}
               options={EXPENSE_CATEGORIES.map((c) => ({ value: c.value, label: c.label }))}
-              onChange={setCategory}
-              trigger={
-                <div className="flex items-center justify-between rounded-2xl bg-ink-100 px-4 py-3 text-sm">
-                  <span className="truncate text-ink-900">
-                    {EXPENSE_CATEGORY_LABELS[category] ?? category}
-                  </span>
-                </div>
-              }
+              onChange={(value) => onFieldChange({ category: value })}
             />
           </Field>
 
@@ -118,7 +122,7 @@ export function ExpenseForm({
               <span className="text-lg font-bold text-ink-400">Rs</span>
               <input
                 value={amount}
-                onChange={(e) => setAmount(e.target.value)}
+                onChange={(e) => onFieldChange({ amount: e.target.value })}
                 placeholder="0"
                 inputMode="decimal"
                 className="w-full bg-transparent px-3 py-3 text-2xl font-bold text-ink-900 outline-none"
@@ -128,13 +132,13 @@ export function ExpenseForm({
           </Field>
 
           <Field label={EXPENSE_TEXT.date}>
-            <DatePicker value={date} onChange={setDate} />
+            <DatePicker value={date} onChange={(value) => onFieldChange({ date: value })} />
           </Field>
 
           <Field label={EXPENSE_TEXT.note}>
             <Input
               value={note}
-              onChange={(e) => setNote(e.target.value)}
+              onChange={(e) => onFieldChange({ note: e.target.value })}
               placeholder={EXPENSE_TEXT.addNote}
               className="bg-ink-100"
             />
@@ -149,14 +153,20 @@ export function ExpenseForm({
             note={note}
             date={date}
           />
-          <Button type="submit" className="mt-3 w-full" disabled={submitting}>
+          <Button type="submit" className="mt-3 w-full" loading={submitting}>
             {editing ? "Update expense" : "Record expense"}
           </Button>
-          <Button variant="grey" type="button" className="mt-2 w-full" onClick={onClose}>
+          <Button variant="grey" type="button" className="mt-2 w-full" onClick={() => dirty.requestClose(onClose)}>
             Cancel
           </Button>
         </div>
       </div>
+
+      <DiscardConfirmDialog
+        open={dirty.confirmOpen}
+        onConfirm={dirty.confirmDiscard}
+        onCancel={dirty.cancelDiscard}
+      />
     </form>
   );
 }

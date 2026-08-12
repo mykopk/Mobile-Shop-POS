@@ -8,13 +8,14 @@ import QRCode from "qrcode";
 import JsBarcode from "jsbarcode";
 import { apiRequest } from "@/lib/apiClient";
 import { useAuth } from "@/lib/auth-context";
-import type { Transaction, TransactionDetail, Unit, Voucher } from "@/lib/api-types";
+import type { CompanyProfile, Transaction, TransactionDetail, Unit, Voucher } from "@/lib/api-types";
 import { formatPKR } from "@/lib/money";
 import { formatDateTime } from "@/lib/dates";
-import { whatsappLink } from "@/lib/emv-qr";
+import { whatsappLink } from "@/lib/whatsapp";
 import { canViewCosts } from "@/lib/roles";
 import { CARRIER_LABELS } from "@/lib/constants/units";
 import {
+  APP,
   INVENTORY_DEFAULT_OPTIONS,
   INVENTORY_FORMAT_IDS,
   INVENTORY_OPTION_LABELS,
@@ -70,16 +71,6 @@ const STATUS_LABEL: Record<string, string> = {
   RETURNED: "Returned",
   DAMAGED: "Damaged",
   WRITTEN_OFF: "Written off",
-};
-
-type CompanyProfile = {
-  name: string;
-  tagline: string | null;
-  address: string | null;
-  phone: string | null;
-  footerText: string | null;
-  whatsapp: string | null;
-  website: string | null;
 };
 
 type BankAccount = {
@@ -145,7 +136,7 @@ function loadInvOptions(): InventoryPrintOptions {
 
 function PrintStudioContent() {
   const params = useSearchParams();
-  const { token, user } = useAuth();
+  const { user } = useAuth();
   const { toast } = useToast();
 
   const deepLinkId = params.get("id");
@@ -185,7 +176,7 @@ function PrintStudioContent() {
   const selectedDoc = documents.find((d) => d.id === selectedId) ?? null;
   const selectedVoucher = vouchers.find((v) => v.id === selectedId) ?? null;
   const activeLayout = layouts.find((l) => l.id === activeLayoutId) ?? null;
-  const showCost = canViewCosts(user?.role) && invOptions.cost;
+  const showCost = canViewCosts(user) && invOptions.cost;
   const inStockCount = units.filter((u) => u.status === "IN_STOCK").length;
 
   const docOptions =
@@ -219,11 +210,10 @@ function PrintStudioContent() {
   ];
 
   useEffect(() => {
-    if (!token) return;
     let cancelled = false;
     (async () => {
       try {
-        const list = await apiRequest<PrintLayout[]>("/print-layout", { token });
+        const list = await apiRequest<PrintLayout[]>("/print-layout");
         if (cancelled) return;
         setLayouts(list ?? []);
         const def = (list ?? []).find((l) => l.isDefault);
@@ -246,7 +236,7 @@ function PrintStudioContent() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token]);
+  }, []);
 
   function applyLayout(layout: PrintLayout) {
     applyingLayoutRef.current = true;
@@ -302,11 +292,10 @@ function PrintStudioContent() {
   }, [qrType]);
 
   useEffect(() => {
-    if (!token) return;
     let cancelled = false;
     (async () => {
       try {
-        const p = await apiRequest<CompanyProfile>("/settings/company", { token });
+        const p = await apiRequest<CompanyProfile>("/settings/company");
         if (!cancelled) setProfile(p);
       } catch {
         /* optional — QR targets simply stay unset */
@@ -315,14 +304,13 @@ function PrintStudioContent() {
     return () => {
       cancelled = true;
     };
-  }, [token]);
+  }, []);
 
   useEffect(() => {
-    if (!token) return;
     let cancelled = false;
     (async () => {
       try {
-        const list = await apiRequest<BankAccount[]>("/bank-account", { token });
+        const list = await apiRequest<BankAccount[]>("/bank-account");
         if (!cancelled) setBankAccounts((list ?? []).filter((a) => a.active));
       } catch {
         /* optional */
@@ -331,18 +319,18 @@ function PrintStudioContent() {
     return () => {
       cancelled = true;
     };
-  }, [token]);
+  }, []);
 
   const loadDocuments = useMemo(
     () => async () => {
       try {
-        const list = await apiRequest<Transaction[]>("/transaction?limit=100", { token });
+        const list = await apiRequest<Transaction[]>("/transaction?limit=100");
         setDocuments(list ?? []);
       } catch (err) {
         toast(err instanceof Error ? err.message : "Failed to load documents", "error");
       }
     },
-    [token, toast],
+    [toast],
   );
 
   useEffect(() => {
@@ -353,7 +341,7 @@ function PrintStudioContent() {
     () => async () => {
       setLoadingVouchers(true);
       try {
-        const list = await apiRequest<Voucher[]>("/voucher", { token });
+        const list = await apiRequest<Voucher[]>("/voucher");
         setVouchers(list ?? []);
       } catch (err) {
         toast(err instanceof Error ? err.message : "Failed to load vouchers", "error");
@@ -361,7 +349,7 @@ function PrintStudioContent() {
         setLoadingVouchers(false);
       }
     },
-    [token, toast],
+    [toast],
   );
 
   useEffect(() => {
@@ -370,12 +358,12 @@ function PrintStudioContent() {
   }, [docType, loadVouchers]);
 
   useEffect(() => {
-    if (!token || layoutType !== "inventory") return;
+    if (layoutType !== "inventory") return;
     let cancelled = false;
     (async () => {
       setLoadingUnits(true);
       try {
-        const list = await apiRequest<Unit[]>("/unit", { token });
+        const list = await apiRequest<Unit[]>("/unit");
         if (!cancelled) setUnits(list ?? []);
       } catch (err) {
         if (!cancelled) toast(err instanceof Error ? err.message : "Failed to load inventory", "error");
@@ -386,7 +374,7 @@ function PrintStudioContent() {
     return () => {
       cancelled = true;
     };
-  }, [token, layoutType, toast]);
+  }, [layoutType, toast]);
 
   useEffect(() => {
     if (!selectedId || docType === "VOUCHER") {
@@ -398,7 +386,7 @@ function PrintStudioContent() {
     (async () => {
       setLoadingDoc(true);
       try {
-        const d = await apiRequest<TransactionDetail>(`/transaction/${selectedId}`, { token });
+        const d = await apiRequest<TransactionDetail>(`/transaction/${selectedId}`);
         if (!cancelled) setDetail(d);
       } catch (err) {
         if (!cancelled) toast(err instanceof Error ? err.message : "Failed to load document", "error");
@@ -409,7 +397,7 @@ function PrintStudioContent() {
     return () => {
       cancelled = true;
     };
-  }, [selectedId, docType, token, toast]);
+  }, [selectedId, docType, toast]);
 
   const qrPayload = useMemo(() => {
     if (qrType === "none") return null;
@@ -468,7 +456,6 @@ function PrintStudioContent() {
     try {
       const created = await apiRequest<PrintLayout>("/print-layout", {
         method: "POST",
-        token,
         body:
           layoutType === "inventory"
             ? { name: layoutName.trim(), type: layoutType, format: activeFormat, options: invOptions }
@@ -490,7 +477,6 @@ function PrintStudioContent() {
     try {
       const updated = await apiRequest<PrintLayout>(`/print-layout/${id}/default`, {
         method: "POST",
-        token,
       });
       setLayouts((prev) => prev.map((l) => (l.id === id ? updated : { ...l, isDefault: false })));
       toast("Default layout set", "success");
@@ -501,7 +487,7 @@ function PrintStudioContent() {
 
   async function removeLayout(id: string) {
     try {
-      await apiRequest(`/print-layout/${id}`, { method: "DELETE", token });
+      await apiRequest(`/print-layout/${id}`, { method: "DELETE" });
       setLayouts((prev) => prev.filter((l) => l.id !== id));
       if (activeLayoutId === id) setActiveLayoutId(null);
       toast("Layout deleted", "success");
@@ -847,12 +833,12 @@ function PrintStudioContent() {
             variant="white"
             className="bg-ink-100 py-2 text-sm"
           />
-          <Button size="sm" onClick={saveLayout} disabled={savingLayout}>
-            {savingLayout ? "Saving…" : "Save"}
+          <Button size="sm" onClick={saveLayout} loading={savingLayout} loadingText="Saving…">
+            Save
           </Button>
         </div>
         {activeLayout && (
-          <div className="mt-3 flex items-center justify-between rounded-2xl bg-ink-50 px-4 py-3">
+          <div className="mt-3 flex items-center justify-between rounded-2xl bg-ink-50 px-3.5 py-2">
             <span className="min-w-0 truncate text-sm font-semibold text-ink-900">
               {activeLayout.name}
             </span>
@@ -988,8 +974,8 @@ function InventoryDocument({
     <div className={`bg-white ${pad} ${base} text-ink-900`}>
       <div className="flex items-start justify-between gap-6">
         <div className="min-w-0 flex-1">
-          <p className={isA4 ? "text-2xl font-bold tracking-tight text-ink-900" : "text-base font-bold uppercase tracking-wide text-ink-900"}>
-            {profile?.name ?? "Mobile Phone Shop"}
+          <p className={isA4 ? "break-words text-2xl font-bold tracking-tight text-ink-900" : "break-words text-base font-bold uppercase tracking-wide text-ink-900"}>
+            {profile?.name ?? APP.nameFull}
           </p>
           {options.shopInfo && profile?.tagline && <p className="text-ink-500">{profile.tagline}</p>}
           {options.shopInfo && (profile?.address || profile?.phone) && (
@@ -1412,8 +1398,11 @@ function VoucherDocument({
         <div className="min-w-0 flex-1">
           {options.header && (
             <>
-              <p className="text-base font-bold uppercase tracking-wide text-ink-900">
-                {profile?.name ?? "Mobile Phone Shop"}
+              {profile?.logoUrl && (
+                <img src={profile.logoUrl} alt="" className="mb-2 max-h-16 w-auto object-contain" />
+              )}
+              <p className="break-words text-base font-bold uppercase tracking-wide text-ink-900">
+                {profile?.name ?? APP.nameFull}
               </p>
               {options.shopInfo && hasShopInfo(profile) && (
                 <div className="mt-1 space-y-0.5 text-ink-500">
@@ -1531,8 +1520,11 @@ function ThermalHeader({
   return (
     <div className="flex items-start justify-between gap-3">
       <div className="min-w-0 flex-1">
-        <p className="text-base font-bold uppercase tracking-wide text-ink-900">
-          {profile?.name ?? "Mobile Phone Shop"}
+        {profile?.logoUrl && (
+          <img src={profile.logoUrl} alt="" className="mb-2 max-h-14 w-auto object-contain" />
+        )}
+        <p className="break-words text-base font-bold uppercase tracking-wide text-ink-900">
+          {profile?.name ?? APP.nameFull}
         </p>
         {options.shopInfo && hasShopInfo(profile) && (
           <div className="mt-1 space-y-0.5 text-ink-500">
@@ -1606,8 +1598,11 @@ function A4Header({
     <div className="flex items-start justify-between gap-8">
       {options.header ? (
         <div className="max-w-xs">
-          <p className="text-2xl font-bold tracking-tight text-ink-900">
-            {profile?.name ?? "Mobile Phone Shop"}
+          {profile?.logoUrl && (
+            <img src={profile.logoUrl} alt="" className="mb-2 max-h-16 w-auto object-contain" />
+          )}
+          <p className="break-words text-2xl font-bold tracking-tight text-ink-900">
+            {profile?.name ?? APP.nameFull}
           </p>
           {options.shopInfo && hasShopInfo(profile) && (
             <div className="mt-2 space-y-0.5 text-ink-500">

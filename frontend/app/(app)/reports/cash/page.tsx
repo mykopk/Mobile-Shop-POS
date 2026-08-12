@@ -7,6 +7,7 @@ import { KpiCard } from "@/components/reports/report-card";
 import { TopList } from "@/components/reports/top-list";
 import type { PaymentsReport } from "@/lib/api-types";
 import { formatPKR } from "@/lib/money";
+import { pluralize } from "@/lib/pluralize";
 import { PAYMENT_METHOD_LABELS } from "@/lib/constants";
 
 export default function PaymentsReportPage() {
@@ -40,14 +41,15 @@ export default function PaymentsReportPage() {
             <TopList
               title="By payment method"
               rows={data.byMethod.map((m) => ({
+                id: m.method,
                 label: PAYMENT_METHOD_LABELS[m.method] ?? m.method,
-                sub: `${m.count} payment(s)`,
+                sub: `${pluralize(m.count, "payment")}`,
                 value: m.amount,
               }))}
               format={formatPKR}
             />
-            <TopList title="Cash inflows" rows={data.inflows.map((i) => ({ label: i.label, value: i.amount }))} format={formatPKR} />
-            <TopList title="Cash outflows" rows={data.outflows.map((i) => ({ label: i.label, value: i.amount }))} format={formatPKR} />
+            <TopList title="Cash inflows" rows={data.inflows.map((i) => ({ id: i.label, label: i.label, value: i.amount }))} format={formatPKR} />
+            <TopList title="Cash outflows" rows={data.outflows.map((i) => ({ id: i.label, label: i.label, value: i.amount }))} format={formatPKR} />
           </div>
         </>
       ) : null}

@@ -1,5 +1,4 @@
 import type { Request, Response } from "express";
-import { ApiError } from "../../core/middleware/error";
 import {
   createExpense,
   deleteExpense,
@@ -8,12 +7,6 @@ import {
   updateExpense,
 } from "./service";
 import type { ExpenseInput, ExpenseUpdateInput } from "./schemas";
-
-function assertNotCashier(user?: { role?: string }) {
-  if (user?.role === "CASHIER") {
-    throw new ApiError(403, "auth.forbidden", "Forbidden");
-  }
-}
 
 export async function listHandler(req: Request, res: Response) {
   const category = typeof req.query.category === "string" ? req.query.category : undefined;
@@ -27,19 +20,16 @@ export async function getHandler(req: Request, res: Response) {
 }
 
 export async function createHandler(req: Request, res: Response) {
-  assertNotCashier(req.user);
   const expense = await createExpense(req.body as ExpenseInput, req.user!.id);
   res.status(201).json({ data: expense });
 }
 
 export async function updateHandler(req: Request, res: Response) {
-  assertNotCashier(req.user);
   const expense = await updateExpense(req.params.id, req.body as ExpenseUpdateInput, req.user!.id);
   res.json({ data: expense });
 }
 
 export async function deleteHandler(req: Request, res: Response) {
-  assertNotCashier(req.user);
   await deleteExpense(req.params.id, req.user!.id);
   res.json({ data: { ok: true } });
 }

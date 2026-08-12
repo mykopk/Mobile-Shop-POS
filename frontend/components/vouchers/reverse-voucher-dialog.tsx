@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { apiRequest } from "@/lib/apiClient";
-import { useAuth } from "@/lib/auth-context";
 import type { Voucher } from "@/lib/api-types";
 import { VOUCHER_TYPE_LABELS } from "@/lib/constants";
 import { formatPKR } from "@/lib/money";
@@ -19,7 +18,6 @@ export function ReverseVoucherDialog({
   onClose: () => void;
   onReversed: () => void;
 }) {
-  const { token } = useAuth();
   const { toast } = useToast();
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
@@ -28,7 +26,6 @@ export function ReverseVoucherDialog({
     setBusy(true);
     try {
       await apiRequest(`/voucher/${voucher.id}/reverse`, {
-        token,
         method: "POST",
         body: { note: note || undefined },
       });

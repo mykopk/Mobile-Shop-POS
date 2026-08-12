@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { asyncHandler } from "../../core/lib/asyncHandler";
-import { requireAuth } from "../../core/middleware/auth";
+import { requireAuth, requirePermission } from "../../core/middleware/auth";
+import { PERMISSIONS } from "../../core/lib/permissions";
 import { validate } from "../../core/middleware/validate";
 import {
   bulkDeleteHandler,
@@ -17,12 +18,12 @@ const router = Router();
 
 router.use(requireAuth);
 
-router.get("/", asyncHandler(listHandler));
-router.get("/dedupe", asyncHandler(dedupeHandler));
-router.get("/:id", asyncHandler(getHandler));
-router.post("/import", validate(importContactsSchema), asyncHandler(importHandler));
-router.post("/", validate(contactSchema), asyncHandler(createHandler));
-router.put("/:id", validate(contactSchema), asyncHandler(updateHandler));
-router.delete("/", asyncHandler(bulkDeleteHandler));
+router.get("/", requirePermission(PERMISSIONS.contactView), asyncHandler(listHandler));
+router.get("/dedupe", requirePermission(PERMISSIONS.contactView), asyncHandler(dedupeHandler));
+router.get("/:id", requirePermission(PERMISSIONS.contactView), asyncHandler(getHandler));
+router.post("/import", requirePermission(PERMISSIONS.contactImport), validate(importContactsSchema), asyncHandler(importHandler));
+router.post("/", requirePermission(PERMISSIONS.contactCreate), validate(contactSchema), asyncHandler(createHandler));
+router.put("/:id", requirePermission(PERMISSIONS.contactUpdate), validate(contactSchema), asyncHandler(updateHandler));
+router.delete("/", requirePermission(PERMISSIONS.contactDelete), asyncHandler(bulkDeleteHandler));
 
 export default router;

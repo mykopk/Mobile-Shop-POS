@@ -38,7 +38,7 @@
 - [ ] Settings: printer default per use case, backup/restore
 - [ ] Search perf (indexes, debounce, pagination)
 - [ ] Bulk import/export catalog
-- [ ] Package as **offline desktop app (Electron)** — frontend + API + SQLite in one file
+- [ ] Package as **dual-mode desktop app** — static frontend shell (Electron); backend bundled locally or pointed at a hosted URL, switched at runtime
 - [ ] Backups: `data/dost.db` export / restore in Settings
 
 ## Phase 5 — Later

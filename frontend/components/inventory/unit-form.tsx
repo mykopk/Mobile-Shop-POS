@@ -3,6 +3,8 @@
 import { useState } from "react";
 import type { ProductSummary } from "@/lib/api-types";
 import { CARRIER_OPTIONS, CARRIER_LABELS } from "@/lib/constants/units";
+import { useDirtyForm } from "@/lib/use-dirty-form";
+import { DiscardConfirmDialog } from "@/components/ui/discard-confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dropdown } from "@/components/ui/dropdown";
@@ -51,6 +53,13 @@ export function UnitForm({
   onCancel: () => void;
 }) {
   const [form, setForm] = useState<UnitFormValues>(initial);
+  const dirty = useDirtyForm(initial);
+
+  function update(next: Partial<UnitFormValues>) {
+    const updated = { ...form, ...next };
+    setForm(updated);
+    dirty.markDirty(updated);
+  }
 
   return (
     <form
@@ -66,16 +75,13 @@ export function UnitForm({
             <label className="mb-1 block text-xs font-semibold text-ink-500">Product</label>
             <Dropdown
               value={form.productId}
-              onChange={(value) => setForm({ ...form, productId: value })}
+              onChange={(value) => update({ productId: value })}
               searchable
-              trigger={
-                <div className="flex items-center justify-between rounded-2xl bg-ink-50 px-4 py-3 text-sm">
-                  <span className="text-ink-900">
-                    {products.find((p) => p.id === form.productId)
-                      ? `${products.find((p) => p.id === form.productId)!.brand} ${products.find((p) => p.id === form.productId)!.model}`
-                      : "Select…"}
-                  </span>
-                </div>
+              placeholder="Select…"
+              label={
+                products.find((p) => p.id === form.productId)
+                  ? `${products.find((p) => p.id === form.productId)!.brand} ${products.find((p) => p.id === form.productId)!.model}`
+                  : undefined
               }
               options={[
                 ...products.map((p) => ({
@@ -90,7 +96,7 @@ export function UnitForm({
           <label className="mb-1 block text-xs font-semibold text-ink-500">IMEI</label>
           <Input
             value={form.imei}
-            onChange={(e) => setForm({ ...form, imei: e.target.value })}
+            onChange={(e) => update({ imei: e.target.value })}
             placeholder="350014001234560"
             inputMode="numeric"
           />
@@ -101,12 +107,7 @@ export function UnitForm({
             <Dropdown
               value={form.condition}
               options={CONDITION_OPTIONS}
-              onChange={(value) => setForm({ ...form, condition: value as UnitFormValues["condition"] })}
-              trigger={
-                <div className="flex items-center justify-between rounded-2xl bg-ink-50 px-4 py-3 text-sm">
-                  <span className="text-ink-900">{form.condition}</span>
-                </div>
-              }
+              onChange={(value) => update({ condition: value as UnitFormValues["condition"] })}
             />
           </div>
           <div>
@@ -114,12 +115,7 @@ export function UnitForm({
             <Dropdown
               value={form.carrier}
               options={CARRIER_OPTIONS.map((c) => ({ value: c, label: CARRIER_LABELS[c] }))}
-              onChange={(value) => setForm({ ...form, carrier: value as UnitFormValues["carrier"] })}
-              trigger={
-                <div className="flex items-center justify-between rounded-2xl bg-ink-50 px-4 py-3 text-sm">
-                  <span className="text-ink-900">{CARRIER_LABELS[form.carrier]}</span>
-                </div>
-              }
+              onChange={(value) => update({ carrier: value as UnitFormValues["carrier"] })}
             />
           </div>
         </div>
@@ -130,7 +126,7 @@ export function UnitForm({
             </label>
             <Input
               value={form.grade}
-              onChange={(e) => setForm({ ...form, grade: e.target.value })}
+              onChange={(e) => update({ grade: e.target.value })}
               placeholder="e.g. A"
             />
           </div>
@@ -140,7 +136,7 @@ export function UnitForm({
             </label>
             <Input
               value={form.batteryHealth}
-              onChange={(e) => setForm({ ...form, batteryHealth: e.target.value })}
+              onChange={(e) => update({ batteryHealth: e.target.value })}
               placeholder="e.g. 92"
               inputMode="numeric"
             />
@@ -152,7 +148,7 @@ export function UnitForm({
               <label className="mb-1 block text-xs font-semibold text-ink-500">Cost price (PKR)</label>
               <Input
                 value={form.costPrice}
-                onChange={(e) => setForm({ ...form, costPrice: e.target.value })}
+                onChange={(e) => update({ costPrice: e.target.value })}
                 placeholder="0"
                 inputMode="numeric"
               />
@@ -164,19 +160,25 @@ export function UnitForm({
             </label>
             <DatePicker
               value={form.acquiredAt}
-              onChange={(value) => setForm({ ...form, acquiredAt: value })}
+              onChange={(value) => update({ acquiredAt: value })}
             />
           </div>
         </div>
       </div>
       <div className="mt-6 flex justify-end gap-2">
-        <Button variant="grey" onClick={onCancel}>
+        <Button variant="grey" onClick={() => dirty.requestClose(onCancel)}>
           Cancel
         </Button>
-        <Button type="submit" form="unit-form" disabled={saving}>
-          {saving ? "Saving…" : "Save"}
+        <Button type="submit" form="unit-form" loading={saving}>
+          Save
         </Button>
       </div>
+
+      <DiscardConfirmDialog
+        open={dirty.confirmOpen}
+        onConfirm={dirty.confirmDiscard}
+        onCancel={dirty.cancelDiscard}
+      />
     </form>
   );
 }

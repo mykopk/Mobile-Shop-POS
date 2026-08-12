@@ -3,10 +3,9 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { apiRequest } from "@/lib/apiClient";
-import { useAuth } from "@/lib/auth-context";
-import { brandOf, type BankAccount, type Contact, type ReservationConflict, type ReservationDetail, type TransactionDetail } from "@/lib/api-types";
+import { brandOf, type BankAccount, type CompanyProfile, type Contact, type ReservationConflict, type ReservationDetail, type TransactionDetail } from "@/lib/api-types";
 import { useApi } from "@/lib/use-api";
-import { CARRIER_LABELS } from "@/lib/constants";
+import { CARRIER_LABELS, APP } from "@/lib/constants";
 import { formatPKR } from "@/lib/money";
 import { toISODate } from "@/lib/dates";
 import { Button } from "@/components/ui/button";
@@ -19,7 +18,8 @@ import { Sheet } from "@/components/ui/sheet";
 import { Kbd } from "@/components/ui/kbd";
 import { useToast } from "@/components/ui/toast";
 import { useSaveShortcut } from "@/lib/use-save-shortcut";
-import { PlusIcon, PosIcon, PrinterIcon, RefundIcon, ReservationIcon, SearchIcon, XIcon } from "@/components/icons";
+import { PlusIcon, PosIcon, PrinterIcon, RefundIcon, ReservationIcon, XIcon } from "@/components/icons";
+import { SearchInput } from "@/components/ui/search-input";
 
 type SearchResult = {
   id: string;
@@ -65,10 +65,10 @@ const PAYMENT_MODES: { value: PaymentMode; label: string }[] = [
 ];
 
 export default function PosPage() {
-  const { token } = useAuth();
   const { toast } = useToast();
   const { data: contacts, refetch: refetchContacts } = useApi<Contact[]>("/contact");
   const { data: bankData } = useApi<BankAccount[]>("/bank-account");
+  const { data: profile } = useApi<CompanyProfile>("/settings/company");
   useEffect(() => {
     if (bankData) {
       setBankAccounts(bankData);
@@ -169,7 +169,7 @@ export default function PosPage() {
     let cancelled = false;
     (async () => {
       try {
-        const list = await apiRequest<{ number: string }[]>(`/transaction?type=SALE&limit=1`, { token });
+        const list = await apiRequest<{ number: string }[]>(`/transaction?type=SALE&limit=1`);
         const last = list?.[0]?.number ?? "";
         const match = last.match(/SAL-(\d+)$/);
         const next = match ? parseInt(match[1], 10) + 1 : 1;
@@ -181,7 +181,7 @@ export default function PosPage() {
     return () => {
       cancelled = true;
     };
-  }, [token]);
+  }, []);
 
   useEffect(() => {
     function onDown(event: MouseEvent) {
@@ -204,7 +204,6 @@ export default function PosPage() {
       try {
         const found = await apiRequest<SearchResult[]>(
           `/product/search?q=${encodeURIComponent(query)}&statuses=IN_STOCK,RESERVED`,
-          { token },
         );
         setResults(found);
         return found;
@@ -215,7 +214,7 @@ export default function PosPage() {
         setSearching(false);
       }
     },
-    [token],
+    [],
   );
 
   useEffect(() => {
@@ -305,7 +304,7 @@ export default function PosPage() {
     setReservationPickOpen(true);
     setPickLoading(true);
     try {
-      setPickReservations(await apiRequest<ReservationDetail[]>("/reservation?status=ACTIVE", { token }));
+      setPickReservations(await apiRequest<ReservationDetail[]>("/reservation?status=ACTIVE"));
     } catch {
       setPickReservations([]);
     } finally {
@@ -368,7 +367,6 @@ export default function PosPage() {
       try {
         const created = await apiRequest<Contact>("/contact", {
           method: "POST",
-          token,
           body: { name, phone: walkInPhone.trim() || undefined },
         });
         customerId = created.id;
@@ -441,7 +439,6 @@ export default function PosPage() {
       try {
         const found = await apiRequest<ReservationConflict[]>(
           `/reservation/check?unitIds=${encodeURIComponent(unitIds.join(","))}&contactId=${encodeURIComponent(customerId)}`,
-          { token },
         );
         if (found.length > 0) {
           setConflicts(found);
@@ -456,7 +453,6 @@ export default function PosPage() {
     try {
       const txn = await apiRequest<TransactionDetail>("/transaction/sale", {
         method: "POST",
-        token,
         body: {
           contactId: customerId,
           items: cart.map((l) => ({
@@ -466,6 +462,7 @@ export default function PosPage() {
             unitPrice: l.unitPrice,
           })),
           payments,
+          date: saleDate,
         },
       });
       setReceipt(txn);
@@ -519,7 +516,12 @@ export default function PosPage() {
     return (
       <div className="mx-auto max-w-sm">
         <div id="receipt" className="rounded-2xl bg-white p-6 font-mono text-sm">
-          <p className="text-center text-lg font-bold">DOST Mobile</p>
+          {profile?.logoUrl && (
+            <img src={profile.logoUrl} alt="" className="mx-auto mb-2 block max-h-14 object-contain" />
+          )}
+          <p className="mx-auto max-w-full truncate px-2 text-center text-lg font-bold" title={profile?.name ?? APP.nameFull}>
+            {profile?.name ?? APP.nameFull}
+          </p>
           <p className="text-center text-xs">{receipt.number}</p>
           <div className="my-4" />
           <p className="text-xs">{receipt.contact.name}</p>
@@ -601,15 +603,7 @@ export default function PosPage() {
               options={contactOptions}
               onChange={setContactId}
               searchable
-              trigger={
-                <div className="flex items-center justify-between rounded-2xl bg-ink-100 px-4 py-3 text-sm">
-                  <span className="truncate text-ink-900">
-                    {isWalkIn
-                      ? "Walk-in (new)"
-                      : (contacts?.find((c) => c.id === contactId)?.name ?? "Select customer")}
-                  </span>
-                </div>
-              }
+              placeholder="Select customer"
             />
           )}
         </div>
@@ -630,13 +624,6 @@ export default function PosPage() {
             value={mode}
             options={modeOptions}
             onChange={(v) => setMode(v as PaymentMode)}
-            trigger={
-              <div className="flex items-center justify-between rounded-2xl bg-ink-100 px-4 py-3 text-sm">
-                <span className="text-ink-900">
-                  {PAYMENT_MODES.find((m) => m.value === mode)?.label}
-                </span>
-              </div>
-            }
           />
         </div>
       </div>
@@ -668,10 +655,9 @@ export default function PosPage() {
       <section className="mt-6 shrink-0">
         <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-ink-500">Add items</p>
           <div ref={searchWrapRef} className="relative">
-            <SearchIcon className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-ink-400" />
-            <Input
+            <SearchInput
               value={q}
-              onChange={(e) => setQ(e.target.value)}
+              onChange={setQ}
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
                   e.preventDefault();
@@ -680,7 +666,8 @@ export default function PosPage() {
               }}
               placeholder="Scan IMEI or search product…"
               variant="white"
-              className="bg-ink-100 py-4 pl-11 text-base rounded-[16px]"
+              className="bg-ink-100 py-4 text-base rounded-[16px]"
+              iconClassName="h-5 w-5"
             />
 
             {panelPos &&
@@ -868,128 +855,122 @@ export default function PosPage() {
         </section>
       </div>
 
-      <div className="-mx-6 -mb-6 mt-6 shrink-0 bg-white px-6 py-4">
-        <div className="lg:max-w-xl">
-          <div>
-            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">
-              {mode === "SPLIT" ? "Split amounts" : "Amount"}
+      <div className="-mx-6 -mb-6 mt-6 shrink-0 border-t border-ink-100 bg-white px-6 py-5">
+        <div className="w-full max-w-2xl">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">
+              {mode === "SPLIT" ? "Split payment" : "Payment"}
             </p>
-            {mode === "BANK" && (
-              <div className="mb-2">
-                <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">
-                  Paid into bank
-                </p>
-                {bankAccounts.length > 0 ? (
-                  <Dropdown
-                    value={bankId ?? ""}
-                    options={bankAccounts.map((b) => ({
-                      value: b.id,
-                      label: b.bankName,
-                      trailing: (
-                        <span className="text-xs text-ink-400">
-                          {b.name} · {b.accountNo}
-                        </span>
-                      ),
-                    }))}
-                    onChange={(v) => setBankId(v)}
-                    trigger={
-                      <div className="flex items-center justify-between rounded-2xl bg-ink-100 px-4 py-3 text-sm">
-                        <span className="truncate text-ink-900">
-                          {bankAccounts.find((b) => b.id === bankId)?.bankName ?? "Select bank…"}
-                        </span>
-                      </div>
-                    }
-                  />
-                ) : (
-                  <p className="rounded-2xl bg-ink-100 px-4 py-3 text-xs text-ink-500">
-                    No registered bank accounts — add them in Settings.
-                  </p>
-                )}
-              </div>
+            {mode === "SPLIT" && (
+              <p className="text-xs text-ink-400">
+                Total due <span className="font-semibold text-ink-900">{formatPKR(due)}</span>
+              </p>
             )}
-            {mode === "SPLIT" ? (
-              <>
-                <div className="grid grid-cols-3 gap-2">
-                  <Input value={cash} onChange={(e) => setCash(e.target.value)} placeholder="Cash" inputMode="decimal" className="bg-ink-100" />
-                  <Input value={card} onChange={(e) => setCard(e.target.value)} placeholder="Card" inputMode="decimal" className="bg-ink-100" />
-                  <Input value={credit} onChange={(e) => setCredit(e.target.value)} placeholder="Credit" inputMode="decimal" className="bg-ink-100" />
+          </div>
+
+          {mode === "BANK" && (
+            <div className="mt-3">
+              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">
+                Paid into bank
+              </p>
+              {bankAccounts.length > 0 ? (
+                <Dropdown
+                  value={bankId ?? ""}
+                  options={bankAccounts.map((b) => ({
+                    value: b.id,
+                    label: b.bankName,
+                    trailing: (
+                      <span className="text-xs text-ink-400">
+                        {b.name} · {b.accountNo}
+                      </span>
+                    ),
+                  }))}
+                  onChange={(v) => setBankId(v)}
+                  placeholder="Select bank…"
+                />
+              ) : (
+                <p className="rounded-2xl bg-ink-100 px-3.5 py-2 text-xs text-ink-500">
+                  No registered bank accounts — add them in Settings.
+                </p>
+              )}
+            </div>
+          )}
+
+          {mode === "SPLIT" ? (
+            <div className="mt-3 space-y-3">
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Cash</p>
+                  <Input value={cash} onChange={(e) => setCash(e.target.value)} placeholder="0" inputMode="decimal" className="bg-ink-100" />
                 </div>
-                {bankRows.map((row) => (
-                  <div key={row.id} className="mt-2 flex items-center gap-2">
-                    <Input
-                      value={row.amount}
-                      onChange={(e) =>
-                        setBankRows((r) =>
-                          r.map((x) => (x.id === row.id ? { ...x, amount: e.target.value } : x))
-                        )
-                      }
-                      placeholder="Bank amount"
-                      inputMode="decimal"
-                      className="w-28 bg-ink-100"
-                    />
-                    {bankAccounts.length > 0 ? (
-                      <Dropdown
-                        value={row.bankId}
-                        options={bankAccounts
-                          .filter((b) => b.id === row.bankId || !bankRows.some((x) => x.id !== row.id && x.bankId === b.id))
-                          .map((b) => ({
-                            value: b.id,
-                            label: b.bankName,
-                            trailing: (
-                              <span className="text-xs text-ink-400">
-                                {b.name} · {b.accountNo}
-                              </span>
-                            ),
-                          }))}
-                        onChange={(v) =>
+                <div>
+                  <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Card</p>
+                  <Input value={card} onChange={(e) => setCard(e.target.value)} placeholder="0" inputMode="decimal" className="bg-ink-100" />
+                </div>
+                <div>
+                  <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Credit</p>
+                  <Input value={credit} onChange={(e) => setCredit(e.target.value)} placeholder="0" inputMode="decimal" className="bg-ink-100" />
+                </div>
+              </div>
+
+              {bankRows.length > 0 && (
+                <div className="space-y-2 rounded-2xl bg-ink-50 p-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">Bank deposits</p>
+                  {bankRows.map((row) => (
+                    <div key={row.id} className="flex items-center gap-2">
+                      <Input
+                        value={row.amount}
+                        onChange={(e) =>
                           setBankRows((r) =>
-                            r.map((x) => (x.id === row.id ? { ...x, bankId: v } : x))
+                            r.map((x) => (x.id === row.id ? { ...x, amount: e.target.value } : x))
                           )
                         }
-                        trigger={
-                          <div className="flex flex-1 items-center justify-between rounded-2xl bg-ink-100 px-3 py-2.5 text-sm">
-                            <span className="truncate text-ink-900">
-                              {bankAccounts.find((b) => b.id === row.bankId)?.bankName ??
-                                "Pick bank…"}
-                            </span>
-                          </div>
-                        }
+                        placeholder="Amount"
+                        inputMode="decimal"
+                        className="w-32 bg-white"
                       />
-                    ) : (
-                      <p className="flex-1 text-xs text-ink-500">
-                        No registered bank accounts — add them in Settings.
-                      </p>
-                    )}
-                    <button
-                      type="button"
-                      aria-label="Remove bank"
-                      className="text-ink-400 transition hover:text-ink-900"
-                      onClick={() => setBankRows((r) => r.filter((x) => x.id !== row.id))}
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))}
-              </>
-            ) : (
-              <Input
-                value={mode === "CASH" ? cash : mode === "CARD" ? card : mode === "BANK" ? bankAmount : credit}
-                onChange={(e) =>
-                  mode === "CASH"
-                    ? setCash(e.target.value)
-                    : mode === "CARD"
-                      ? setCard(e.target.value)
-                      : mode === "BANK"
-                        ? setBankAmount(e.target.value)
-                        : setCredit(e.target.value)
-                }
-                placeholder={formatPKR(due)}
-                inputMode="decimal"
-                className="bg-ink-100"
-              />
-            )}
-            {mode === "SPLIT" && (
-              <div className="mt-2 flex flex-wrap gap-2">
+                      {bankAccounts.length > 0 ? (
+                        <Dropdown
+                          value={row.bankId}
+                          options={bankAccounts
+                            .filter((b) => b.id === row.bankId || !bankRows.some((x) => x.id !== row.id && x.bankId === b.id))
+                            .map((b) => ({
+                              value: b.id,
+                              label: b.bankName,
+                              trailing: (
+                                <span className="text-xs text-ink-400">
+                                  {b.name} · {b.accountNo}
+                                </span>
+                              ),
+                            }))}
+                          onChange={(v) =>
+                            setBankRows((r) =>
+                              r.map((x) => (x.id === row.id ? { ...x, bankId: v } : x))
+                            )
+                          }
+                          className="flex-1"
+                          triggerClassName="flex-1 bg-white"
+                          placeholder="Pick bank…"
+                        />
+                      ) : (
+                        <p className="flex-1 text-xs text-ink-500">
+                          No registered bank accounts — add them in Settings.
+                        </p>
+                      )}
+                      <button
+                        type="button"
+                        aria-label="Remove bank"
+                        className="rounded-lg p-2 text-ink-400 transition hover:bg-ink-100 hover:text-ink-900"
+                        onClick={() => setBankRows((r) => r.filter((x) => x.id !== row.id))}
+                      >
+                        <XIcon className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <Button
                   variant="secondary"
                   className="px-3 py-1.5 text-xs"
@@ -1002,7 +983,8 @@ export default function PosPage() {
                     })
                   }
                 >
-                  + Add bank
+                  <PlusIcon className="mr-1 h-3.5 w-3.5" />
+                  Add bank
                 </Button>
                 <Button
                   variant="secondary"
@@ -1021,8 +1003,35 @@ export default function PosPage() {
                   Fill remaining as cash
                 </Button>
               </div>
-            )}
-          </div>
+            </div>
+          ) : (
+            <div className="mt-3">
+              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">
+                {mode === "CASH"
+                  ? "Cash received"
+                  : mode === "CARD"
+                    ? "Card amount"
+                    : mode === "BANK"
+                      ? "Bank amount"
+                      : "Credit amount"}
+              </p>
+              <Input
+                value={mode === "CASH" ? cash : mode === "CARD" ? card : mode === "BANK" ? bankAmount : credit}
+                onChange={(e) =>
+                  mode === "CASH"
+                    ? setCash(e.target.value)
+                    : mode === "CARD"
+                      ? setCard(e.target.value)
+                      : mode === "BANK"
+                        ? setBankAmount(e.target.value)
+                        : setCredit(e.target.value)
+                }
+                placeholder={formatPKR(due)}
+                inputMode="decimal"
+                className="bg-ink-100"
+              />
+            </div>
+          )}
           {loadedReservation && (
             <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
               <Badge
@@ -1061,7 +1070,7 @@ export default function PosPage() {
           )}
         </div>
 
-      <div className="mt-4 flex items-center justify-between gap-4">
+      <div className="mt-4 flex items-center justify-between gap-4 border-t border-ink-100 pt-4">
           <div className="flex items-center gap-4">
             <div className="flex items-baseline gap-3">
               <span className="text-sm font-medium text-ink-500">Total</span>

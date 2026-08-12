@@ -120,6 +120,7 @@ model User {
   email     String   @unique
   pinHash   String
   role      Role     @default(CASHIER)
+  permissions Json   @default("[]")
   active    Boolean  @default(true)
   soundPrefs String?
   createdAt DateTime @default(now())
@@ -509,6 +510,8 @@ model CompanyProfile {
   footerText String?
   currency   String   @default("PKR")
   taxRate    Decimal  @default(0)
+  timezone   String   @default("Asia/Karachi")
+  compactPrices Boolean @default(true)
   raastId    String?
   whatsapp   String?
   website    String?

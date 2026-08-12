@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { asyncHandler } from "../../core/lib/asyncHandler";
-import { requireAuth } from "../../core/middleware/auth";
+import { requireAuth, requirePermission } from "../../core/middleware/auth";
+import { PERMISSIONS } from "../../core/lib/permissions";
 import { validate } from "../../core/middleware/validate";
 import {
   createHandler,
@@ -15,10 +16,10 @@ const router = Router();
 
 router.use(requireAuth);
 
-router.get("/", asyncHandler(listHandler));
-router.post("/", validate(bankAccountSchema), asyncHandler(createHandler));
-router.put("/:id", validate(bankAccountUpdateSchema), asyncHandler(updateHandler));
-router.post("/:id/default", asyncHandler(setDefaultHandler));
-router.delete("/:id", asyncHandler(deleteHandler));
+router.get("/", requirePermission(PERMISSIONS.bankView), asyncHandler(listHandler));
+router.post("/", requirePermission(PERMISSIONS.bankCreate), validate(bankAccountSchema), asyncHandler(createHandler));
+router.put("/:id", requirePermission(PERMISSIONS.bankUpdate), validate(bankAccountUpdateSchema), asyncHandler(updateHandler));
+router.post("/:id/default", requirePermission(PERMISSIONS.bankSetDefault), asyncHandler(setDefaultHandler));
+router.delete("/:id", requirePermission(PERMISSIONS.bankDelete), asyncHandler(deleteHandler));
 
 export default router;

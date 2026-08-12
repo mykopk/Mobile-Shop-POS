@@ -2,6 +2,7 @@ export * from "./app";
 export * from "./auth";
 export * from "./brand";
 export * from "./charts";
+export * from "./currencies";
 export * from "./dashboard";
 export * from "./expense";
 export * from "./nav";

@@ -8,3 +8,7 @@ export const APP = {
   storeSub: "Mobile Phone Shop",
   signInTitle: "Sign in to your store",
 } as const;
+
+export const DEFAULT_LOCALE = "en-PK";
+
+export const DEFAULT_TIMEZONE = "Asia/Karachi";

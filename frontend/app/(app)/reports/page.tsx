@@ -9,14 +9,17 @@ import { KpiCard, ReportCard } from "@/components/reports/report-card";
 import { TopList } from "@/components/reports/top-list";
 import type { ReportSummary } from "@/lib/api-types";
 import { formatPKR } from "@/lib/money";
+import { pluralize } from "@/lib/pluralize";
 import { useAuth } from "@/lib/auth-context";
 import { PAYMENT_METHOD_LABELS, REPORT_NAV } from "@/lib/constants";
+import { PERMISSIONS } from "@/lib/constants/permissions";
+import { hasPermission } from "@/lib/roles";
 
 export default function ReportsPage() {
   const { data, loading, range, setRange } = usePeriodReport<ReportSummary>("/report/summary");
   const { user } = useAuth();
-  const admin = user?.role === "ADMIN" || user?.role === "MANAGER";
-  const links = REPORT_NAV.slice(1).filter((i) => !i.adminOnly || admin);
+  const canViewAdminReports = hasPermission(user, PERMISSIONS.reportProfit);
+  const links = REPORT_NAV.slice(1).filter((i) => !i.adminOnly || canViewAdminReports);
 
   return (
     <div className="space-y-4">
@@ -36,19 +39,19 @@ export default function ReportsPage() {
             <KpiCard
               label="Sales"
               value={formatPKR(data.sales.revenue)}
-              sub={`${data.sales.count} sale(s) · ${data.itemsSold.total} item(s)`}
+              sub={`${pluralize(data.sales.count, "sale")} · ${pluralize(data.itemsSold.total, "item")}`}
             />
             <KpiCard
               label="Purchases"
               value={formatPKR(data.purchases.amount)}
-              sub={`${data.purchases.count} purchase(s)`}
+              sub={pluralize(data.purchases.count, "purchase")}
             />
             <KpiCard
               label="Expenses"
               value={formatPKR(data.expenses.amount)}
-              sub={`${data.expenses.count} expense(s)`}
+              sub={pluralize(data.expenses.count, "expense")}
             />
-            {admin && data.profit !== null ? (
+            {canViewAdminReports && data.profit !== null ? (
               <KpiCard label="Gross profit" value={formatPKR(data.profit)} sub="Revenue minus cost of goods" />
             ) : (
               <KpiCard
@@ -65,6 +68,7 @@ export default function ReportsPage() {
             <TopList
               title="Payment split"
               rows={data.paymentSplit.map((p) => ({
+                id: p.method,
                 label: PAYMENT_METHOD_LABELS[p.method] ?? p.method,
                 value: p.amount,
               }))}

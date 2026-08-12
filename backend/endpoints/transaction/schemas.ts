@@ -21,6 +21,7 @@ export const createSaleSchema = z.object({
   payments: z.array(paymentSchema).optional().default([]),
   discount: z.coerce.number().min(0).default(0),
   note: z.string().trim().optional(),
+  date: z.string().trim().optional(),
 });
 
 export const purchaseItemSchema = z.object({

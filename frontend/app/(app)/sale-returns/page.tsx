@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiRequest } from "@/lib/apiClient";
-import { useAuth } from "@/lib/auth-context";
 import type { ReturnEligibility, Unit } from "@/lib/api-types";
 import { CARRIER_LABELS } from "@/lib/constants";
 import { formatPKR } from "@/lib/money";
@@ -16,7 +15,8 @@ import { Kbd } from "@/components/ui/kbd";
 import { useSaveShortcut } from "@/lib/use-save-shortcut";
 import { playSuccess } from "@/lib/sound";
 import { Scanner } from "@/components/scanner";
-import { CameraIcon, SearchIcon } from "@/components/icons";
+import { SearchInput } from "@/components/ui/search-input";
+import { CameraIcon } from "@/components/icons";
 
 type SearchResult = {
   id: string;
@@ -44,7 +44,6 @@ type ReturnLine = {
 };
 
 export default function SaleReturnsPage() {
-  const { token } = useAuth();
   const { toast } = useToast();
   const [customerId, setCustomerId] = useState<string | null>(null);
   const [cart, setCart] = useState<ReturnLine[]>([]);
@@ -98,7 +97,7 @@ export default function SaleReturnsPage() {
     let cancelled = false;
     (async () => {
       try {
-        const list = await apiRequest<{ number: string }[]>(`/transaction?type=SALE_RETURN&limit=1`, { token });
+        const list = await apiRequest<{ number: string }[]>(`/transaction?type=SALE_RETURN&limit=1`);
         const last = list?.[0]?.number ?? "";
         const match = last.match(/RET-(\d+)$/);
         const next = match ? parseInt(match[1], 10) + 1 : 1;
@@ -110,7 +109,7 @@ export default function SaleReturnsPage() {
     return () => {
       cancelled = true;
     };
-  }, [token]);
+  }, []);
 
   const runSearch = useCallback(
     async (term: string): Promise<SearchResult[]> => {
@@ -123,7 +122,6 @@ export default function SaleReturnsPage() {
       try {
         const found = await apiRequest<SearchResult[]>(
           `/product/search?q=${encodeURIComponent(query)}`,
-          { token },
         );
         setResults(found);
         return found;
@@ -134,7 +132,7 @@ export default function SaleReturnsPage() {
         setSearching(false);
       }
     },
-    [token],
+    [],
   );
 
   useEffect(() => {
@@ -168,7 +166,6 @@ export default function SaleReturnsPage() {
     try {
       const res = await apiRequest<EligibilityResult>(
         `/unit/sale-return-eligible?imei=${encodeURIComponent(imei)}`,
-        { token },
       );
       if (!res.eligible || !res.unit || !res.saleId || !res.contact) {
         toast(eligibilityMessage(res), "error");
@@ -348,7 +345,6 @@ export default function SaleReturnsPage() {
         allocated += payments.find((p) => p.method === "CASH")?.amount ?? 0;
         await apiRequest<{ number: string }>("/transaction/sale/returns", {
           method: "POST",
-          token,
           body: {
             saleId,
             items: lines.map((l) => ({ productId: l.productId, unitId: l.unitId })),
@@ -368,7 +364,6 @@ export default function SaleReturnsPage() {
       setPayMode("CASH");
       const list = await apiRequest<{ number: string }[]>(
         `/transaction?type=SALE_RETURN&limit=1`,
-        { token },
       );
       const last = list?.[0]?.number ?? "";
       const match = last.match(/RET-(\d+)$/);
@@ -406,7 +401,7 @@ export default function SaleReturnsPage() {
         <div className="grid gap-3 md:grid-cols-3 md:items-end">
           <div>
             <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Customer</p>
-            <div className="rounded-2xl bg-ink-100 px-4 py-3 text-sm">
+            <div className="rounded-2xl bg-ink-100 px-3.5 py-2 text-sm">
               <span className="truncate text-ink-900">
                 {customerId ? "Auto-assigned from the unit" : "Auto-assigns from the unit"}
               </span>
@@ -430,10 +425,9 @@ export default function SaleReturnsPage() {
               IMEI / barcode / product
             </p>
             <div className="relative">
-              <SearchIcon className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400" />
-              <Input
+              <SearchInput
                 value={q}
-                onChange={(e) => setQ(e.target.value)}
+                onChange={setQ}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
                     e.preventDefault();
@@ -442,7 +436,9 @@ export default function SaleReturnsPage() {
                 }}
                 placeholder="Scan IMEI of a sold unit, barcode, or search product…"
                 variant="white"
-                className="bg-ink-100 py-3 pl-11"
+                className="bg-ink-100 py-3"
+                wrapperClassName="w-full"
+                iconClassName="left-4 h-4 w-4"
               />
             </div>
 
@@ -560,13 +556,6 @@ export default function SaleReturnsPage() {
                   { value: "SPLIT", label: "Cash + Credit", trailing: <span className="text-xs text-ink-400">part cash, rest on credit</span> },
                 ]}
                 onChange={(v) => onPayModeChange(v as "CASH" | "CREDIT" | "SPLIT")}
-                trigger={
-                  <div className="flex items-center justify-between rounded-2xl bg-ink-100 px-4 py-3 text-sm">
-                    <span className="truncate text-ink-900">
-                      {payMode === "CREDIT" ? "Credit" : payMode === "SPLIT" ? "Cash + Credit" : "Cash"}
-                    </span>
-                  </div>
-                }
               />
             </div>
             {payMode === "SPLIT" ? (
@@ -627,7 +616,7 @@ export default function SaleReturnsPage() {
         <div className="mt-3 grid gap-3 lg:max-w-2xl lg:grid-cols-[1fr_2fr]">
           <div>
             <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Refund total</p>
-            <p className="rounded-2xl bg-ink-100 px-4 py-3 text-sm font-bold text-ink-900">
+            <p className="rounded-2xl bg-ink-100 px-3.5 py-2 text-sm font-bold text-ink-900">
               {formatPKR(refundTotal)}
             </p>
           </div>

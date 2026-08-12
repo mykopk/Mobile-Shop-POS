@@ -61,9 +61,10 @@ model User {
   name      String
   email     String   @unique
   pinHash   String                    // bcrypt hash of the 4-digit PIN
-  role      Role     @default(CASHIER)
-  active    Boolean  @default(true)
-  createdAt DateTime @default(now())
+  role        Role     @default(CASHIER)   // seed default only; stored permissions win
+  permissions Json     @default("[]")      // explicit per-user permission keys; empty list falls back to ROLE_PERMISSIONS[role]
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   auditLogs       AuditLog[]

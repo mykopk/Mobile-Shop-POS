@@ -3,6 +3,8 @@
 import { useState } from "react";
 import type { Brand, Category, Color } from "@/lib/api-types";
 import { RAM_OPTIONS, SCREEN_SIZE_OPTIONS, STORAGE_OPTIONS } from "@/lib/constants";
+import { useDirtyForm } from "@/lib/use-dirty-form";
+import { DiscardConfirmDialog } from "@/components/ui/discard-confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dropdown } from "@/components/ui/dropdown";
@@ -56,6 +58,13 @@ export function ProductForm({
   onCancel: () => void;
 }) {
   const [form, setForm] = useState<ProductFormValues>(initial);
+  const dirty = useDirtyForm(initial);
+
+  function update(next: Partial<ProductFormValues>) {
+    const updated = { ...form, ...next };
+    setForm(updated);
+    dirty.markDirty(updated);
+  }
 
   return (
     <form
@@ -72,19 +81,13 @@ export function ProductForm({
             <Dropdown
               value={form.brandId}
               options={brands.map((b) => ({ value: b.id, label: b.name }))}
-              onChange={(value) => setForm({ ...form, brandId: value })}
-              trigger={
-                <div className="flex items-center justify-between rounded-2xl bg-ink-50 px-4 py-3 text-sm">
-                  <span className="text-ink-900">
-                    {brands.find((b) => b.id === form.brandId)?.name ?? "Select…"}
-                  </span>
-                </div>
-              }
+              onChange={(value) => update({ brandId: value })}
+              placeholder="Select…"
             />
           </div>
           <Input
             value={form.model}
-            onChange={(e) => setForm({ ...form, model: e.target.value })}
+            onChange={(e) => update({ model: e.target.value })}
             placeholder="Model"
             className="self-end"
           />
@@ -95,14 +98,10 @@ export function ProductForm({
             <Dropdown
               value={form.storage}
               options={STORAGE_OPTIONS.map((s) => ({ value: s, label: s }))}
-              onChange={(value) => setForm({ ...form, storage: value })}
+              onChange={(value) => update({ storage: value })}
               searchable
               allowCustom
-              trigger={
-                <div className="flex items-center justify-between rounded-2xl bg-ink-50 px-4 py-3 text-sm">
-                  <span className="text-ink-900">{form.storage || "Select…"}</span>
-                </div>
-              }
+              placeholder="Select…"
             />
           </div>
           <div>
@@ -110,14 +109,10 @@ export function ProductForm({
             <Dropdown
               value={form.ram}
               options={RAM_OPTIONS.map((r) => ({ value: r, label: r }))}
-              onChange={(value) => setForm({ ...form, ram: value })}
+              onChange={(value) => update({ ram: value })}
               searchable
               allowCustom
-              trigger={
-                <div className="flex items-center justify-between rounded-2xl bg-ink-50 px-4 py-3 text-sm">
-                  <span className="text-ink-900">{form.ram || "Select…"}</span>
-                </div>
-              }
+              placeholder="Select…"
             />
           </div>
         </div>
@@ -127,14 +122,10 @@ export function ProductForm({
             <Dropdown
               value={form.screenSize}
               options={SCREEN_SIZE_OPTIONS.map((s) => ({ value: s, label: s }))}
-              onChange={(value) => setForm({ ...form, screenSize: value })}
+              onChange={(value) => update({ screenSize: value })}
               searchable
               allowCustom
-              trigger={
-                <div className="flex items-center justify-between rounded-2xl bg-ink-50 px-4 py-3 text-sm">
-                  <span className="text-ink-900">{form.screenSize || "Select…"}</span>
-                </div>
-              }
+              placeholder="Select…"
             />
           </div>
           <div>
@@ -142,39 +133,27 @@ export function ProductForm({
             <Dropdown
               value={form.colorId}
               options={colors.map((c) => ({ value: c.id, label: c.name }))}
-              onChange={(value) => setForm({ ...form, colorId: value })}
+              onChange={(value) => update({ colorId: value })}
               searchable
-              trigger={
-                <div className="flex items-center justify-between rounded-2xl bg-ink-50 px-4 py-3 text-sm">
-                  <span className="text-ink-900">
-                    {colors.find((c) => c.id === form.colorId)?.name ?? "Select…"}
-                  </span>
-                </div>
-              }
+              placeholder="Select…"
             />
           </div>
         </div>
         <div>
           <label className="mb-1 block text-xs font-semibold text-ink-500">Category</label>
-          <Dropdown
-            value={form.categoryId}
-            options={categories.map((c) => ({ value: c.id, label: c.name }))}
-            onChange={(value) => setForm({ ...form, categoryId: value })}
-            trigger={
-              <div className="flex items-center justify-between rounded-2xl bg-ink-50 px-4 py-3 text-sm">
-                <span className="text-ink-900">
-                  {categories.find((c) => c.id === form.categoryId)?.name ?? "Select…"}
-                </span>
-              </div>
-            }
-          />
+            <Dropdown
+              value={form.categoryId}
+              options={categories.map((c) => ({ value: c.id, label: c.name }))}
+              onChange={(value) => update({ categoryId: value })}
+              placeholder="Select…"
+            />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="mb-1 block text-xs font-semibold text-ink-500">Sell price (PKR)</label>
             <Input
               value={form.sellPrice}
-              onChange={(e) => setForm({ ...form, sellPrice: e.target.value })}
+              onChange={(e) => update({ sellPrice: e.target.value })}
               placeholder="0"
               inputMode="numeric"
             />
@@ -184,7 +163,7 @@ export function ProductForm({
               <label className="mb-1 block text-xs font-semibold text-ink-500">Cost price (PKR)</label>
               <Input
                 value={form.costPrice}
-                onChange={(e) => setForm({ ...form, costPrice: e.target.value })}
+                onChange={(e) => update({ costPrice: e.target.value })}
                 placeholder="0"
                 inputMode="numeric"
               />
@@ -197,7 +176,7 @@ export function ProductForm({
           </label>
           <Input
             value={form.retailPrice}
-            onChange={(e) => setForm({ ...form, retailPrice: e.target.value })}
+            onChange={(e) => update({ retailPrice: e.target.value })}
             placeholder="0"
             inputMode="numeric"
           />
@@ -206,17 +185,23 @@ export function ProductForm({
           <label className="mb-1 block text-xs font-semibold text-ink-500">
             Image <span className="font-normal text-ink-400">(optional)</span>
           </label>
-          <ImagePicker value={form.image} onChange={(value) => setForm({ ...form, image: value })} />
+          <ImagePicker value={form.image} onChange={(value) => update({ image: value })} />
         </div>
       </div>
       <div className="mt-6 flex justify-end gap-2">
-        <Button variant="grey" onClick={onCancel}>
+        <Button variant="grey" onClick={() => dirty.requestClose(onCancel)}>
           Cancel
         </Button>
-        <Button type="submit" form="product-form" disabled={saving}>
-          {saving ? "Saving…" : "Save"}
+        <Button type="submit" form="product-form" loading={saving}>
+          Save
         </Button>
       </div>
+
+      <DiscardConfirmDialog
+        open={dirty.confirmOpen}
+        onConfirm={dirty.confirmDiscard}
+        onCancel={dirty.cancelDiscard}
+      />
     </form>
   );
 }

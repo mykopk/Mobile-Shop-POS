@@ -1,5 +1,4 @@
 import type { Request, Response } from "express";
-import { ApiError } from "../../core/middleware/error";
 import {
   createPurchase,
   createPurchaseReturn,
@@ -36,29 +35,17 @@ export async function createSaleHandler(req: Request, res: Response) {
 }
 
 export async function createPurchaseHandler(req: Request, res: Response) {
-  if (req.user?.role === "CASHIER") {
-    throw new ApiError(403, "auth.forbidden", "Forbidden");
-  }
   res.status(201).json({ data: await createPurchase(req.body as CreatePurchaseInput, req.user!.id) });
 }
 
 export async function saleReturnHandler(req: Request, res: Response) {
-  if (req.user?.role === "CASHIER") {
-    throw new ApiError(403, "auth.forbidden", "Forbidden");
-  }
   res.status(201).json({ data: await createSaleReturn(req.body as SaleReturnInput, req.user!.id) });
 }
 
 export async function purchaseReturnHandler(req: Request, res: Response) {
-  if (req.user?.role === "CASHIER") {
-    throw new ApiError(403, "auth.forbidden", "Forbidden");
-  }
   res.status(201).json({ data: await createPurchaseReturn(req.body as PurchaseReturnInput, req.user!.id) });
 }
 
 export async function voidReturnHandler(req: Request, res: Response) {
-  if (req.user?.role === "CASHIER") {
-    throw new ApiError(403, "auth.forbidden", "Forbidden");
-  }
   res.json({ data: await voidReturn(req.params.id, req.user!.id) });
 }

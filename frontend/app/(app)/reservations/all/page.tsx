@@ -3,17 +3,16 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { apiRequest } from "@/lib/apiClient";
-import { useAuth } from "@/lib/auth-context";
 import { brandOf, type ReservationDetail } from "@/lib/api-types";
 import { useApi } from "@/lib/use-api";
 import { formatPKR } from "@/lib/money";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import type { BadgeVariant } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import { Dialog } from "@/components/ui/dialog";
+import { SearchInput } from "@/components/ui/search-input";
 import { useToast } from "@/components/ui/toast";
-import { PlusIcon, SearchIcon, XIcon } from "@/components/icons";
+import { PlusIcon, XIcon } from "@/components/icons";
 
 type TypeFilter = "ALL" | "RESERVATION" | "CONSIGNMENT";
 type StatusFilter = "ALL" | "ACTIVE" | "COMPLETED" | "CANCELLED";
@@ -57,7 +56,6 @@ function daysOut(createdAt: string) {
 }
 
 export default function AllReservationsPage() {
-  const { token } = useAuth();
   const { toast } = useToast();
   const { data, loading, refetch } = useApi<ReservationDetail[]>("/reservation");
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("ALL");
@@ -98,7 +96,6 @@ export default function AllReservationsPage() {
       if (kind === "cancel") {
         await apiRequest(`/reservation/${reservation.id}/cancel`, {
           method: "POST",
-          token,
           body: { refunded },
         });
         toast(
@@ -108,10 +105,10 @@ export default function AllReservationsPage() {
           "success",
         );
       } else if (kind === "refund") {
-        await apiRequest(`/reservation/${reservation.id}/refund`, { method: "POST", token });
+        await apiRequest(`/reservation/${reservation.id}/refund`, { method: "POST" });
         toast(`${reservation.number} — advance refunded to ${reservation.contact.name}`, "success");
       } else {
-        await apiRequest(`/reservation/${reservation.id}/return`, { method: "POST", token });
+        await apiRequest(`/reservation/${reservation.id}/return`, { method: "POST" });
         toast(`${reservation.number} returned — phones are back in stock`, "success");
       }
       setAction(null);
@@ -169,15 +166,13 @@ export default function AllReservationsPage() {
             </button>
           ))}
         </div>
-        <div className="relative ml-auto w-64">
-          <SearchIcon className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400" />
-          <Input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Search number, customer…"
-            className="bg-ink-100 pl-10"
-          />
-        </div>
+        <SearchInput
+          value={q}
+          onChange={setQ}
+          placeholder="Search number, customer…"
+          className="bg-ink-100"
+          wrapperClassName="ml-auto w-64"
+        />
       </div>
 
       <div className="mt-4 flex-1 overflow-y-auto overscroll-none">

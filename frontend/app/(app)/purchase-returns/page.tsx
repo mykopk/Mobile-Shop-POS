@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiRequest } from "@/lib/apiClient";
-import { useAuth } from "@/lib/auth-context";
 import type { Contact, Unit } from "@/lib/api-types";
 import { useApi } from "@/lib/use-api";
 import { CARRIER_LABELS } from "@/lib/constants";
@@ -17,7 +16,8 @@ import { Kbd } from "@/components/ui/kbd";
 import { useSaveShortcut } from "@/lib/use-save-shortcut";
 import { playSuccess } from "@/lib/sound";
 import { Scanner } from "@/components/scanner";
-import { CameraIcon, SearchIcon } from "@/components/icons";
+import { CameraIcon } from "@/components/icons";
+import { SearchInput } from "@/components/ui/search-input";
 
 type SearchResult = {
   id: string;
@@ -52,7 +52,6 @@ type ReturnLine = {
 };
 
 export default function ReturnsPage() {
-  const { token } = useAuth();
   const { toast } = useToast();
   const { data: contacts } = useApi<Contact[]>("/contact");
   const [contactId, setContactId] = useState<string | null>(null);
@@ -91,7 +90,7 @@ export default function ReturnsPage() {
     let cancelled = false;
     (async () => {
       try {
-        const list = await apiRequest<{ number: string }[]>(`/transaction?type=PURCHASE_RETURN&limit=1`, { token });
+        const list = await apiRequest<{ number: string }[]>(`/transaction?type=PURCHASE_RETURN&limit=1`);
         const last = list?.[0]?.number ?? "";
         const match = last.match(/PCR-(\d+)$/);
         const next = match ? parseInt(match[1], 10) + 1 : 1;
@@ -103,7 +102,7 @@ export default function ReturnsPage() {
     return () => {
       cancelled = true;
     };
-  }, [token]);
+  }, []);
 
   useEffect(() => {
     if (!showPanel) {
@@ -144,7 +143,6 @@ export default function ReturnsPage() {
       try {
         const found = await apiRequest<SearchResult[]>(
           `/product/search?q=${encodeURIComponent(query)}`,
-          { token },
         );
         setResults(found);
         return found;
@@ -155,7 +153,7 @@ export default function ReturnsPage() {
         setSearching(false);
       }
     },
-    [token],
+    [],
   );
 
   useEffect(() => {
@@ -193,7 +191,6 @@ export default function ReturnsPage() {
     try {
       const res = await apiRequest<EligibilityResult>(
         `/unit/return-eligible?imei=${encodeURIComponent(imei)}`,
-        { token },
       );
       if (!res.eligible || !res.unit || !res.purchaseId || !res.contact) {
         toast(eligibilityMessage(res), "error");
@@ -371,7 +368,6 @@ export default function ReturnsPage() {
         allocated += payments.find((p) => p.method === "CASH")?.amount ?? 0;
         await apiRequest<{ number: string }>("/transaction/purchase/returns", {
           method: "POST",
-          token,
           body: {
             purchaseId,
             unitIds: lines.map((l) => l.unitId),
@@ -391,7 +387,6 @@ export default function ReturnsPage() {
       setPayMode("CREDIT");
       const list = await apiRequest<{ number: string }[]>(
         `/transaction?type=PURCHASE_RETURN&limit=1`,
-        { token },
       );
       const last = list?.[0]?.number ?? "";
       const match = last.match(/PCR-(\d+)$/);
@@ -430,19 +425,13 @@ export default function ReturnsPage() {
           <div>
             <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Seller</p>
             {contactOptions.length > 0 && (
-              <Dropdown
-                value={contactId}
-                options={contactOptions}
-                onChange={setContactId}
-                searchable
-                trigger={
-                  <div className="flex items-center justify-between rounded-2xl bg-ink-100 px-4 py-3 text-sm">
-                    <span className="truncate text-ink-900">
-                      {contactOptions.find((c) => c.value === contactId)?.label ?? "Select…"}
-                    </span>
-                  </div>
-                }
-              />
+            <Dropdown
+              value={contactId}
+              options={contactOptions}
+              onChange={setContactId}
+              searchable
+              placeholder="Select…"
+            />
             )}
           </div>
 
@@ -463,10 +452,9 @@ export default function ReturnsPage() {
               IMEI / barcode / product
             </p>
             <div className="relative">
-              <SearchIcon className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400" />
-              <Input
+              <SearchInput
                 value={q}
-                onChange={(e) => setQ(e.target.value)}
+                onChange={setQ}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
                     e.preventDefault();
@@ -475,7 +463,9 @@ export default function ReturnsPage() {
                 }}
                 placeholder="Scan IMEI, barcode, or search product…"
                 variant="white"
-                className="bg-ink-100 py-3 pl-11"
+                className="bg-ink-100 py-3"
+                wrapperClassName="w-full"
+                iconClassName="left-4 h-4 w-4"
               />
             </div>
 
@@ -593,13 +583,6 @@ export default function ReturnsPage() {
                   { value: "SPLIT", label: "Cash + Credit", trailing: <span className="text-xs text-ink-400">part cash, rest on credit</span> },
                 ]}
                 onChange={(v) => onPayModeChange(v as "CASH" | "CREDIT" | "SPLIT")}
-                trigger={
-                  <div className="flex items-center justify-between rounded-2xl bg-ink-100 px-4 py-3 text-sm">
-                    <span className="truncate text-ink-900">
-                      {payMode === "CREDIT" ? "Credit" : payMode === "SPLIT" ? "Cash + Credit" : "Cash"}
-                    </span>
-                  </div>
-                }
               />
             </div>
             {payMode === "SPLIT" ? (
@@ -660,7 +643,7 @@ export default function ReturnsPage() {
         <div className="mt-3 grid gap-3 lg:max-w-2xl lg:grid-cols-[1fr_2fr]">
           <div>
             <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Refund total</p>
-            <p className="rounded-2xl bg-ink-100 px-4 py-3 text-sm font-bold text-ink-900">
+            <p className="rounded-2xl bg-ink-100 px-3.5 py-2 text-sm font-bold text-ink-900">
               {formatPKR(refundTotal)}
             </p>
           </div>

@@ -63,11 +63,8 @@ export function PaginationBar({
           value={String(pageSize)}
           onChange={(v) => onPageSize(Number(v))}
           className="w-24"
-          trigger={
-            <div className="flex items-center justify-between rounded-2xl bg-white px-3 py-2 text-sm">
-              <span className="text-ink-900">{pageSize} / pg</span>
-            </div>
-          }
+          label={`${pageSize} / pg`}
+          triggerClassName="bg-white"
           options={PAGE_SIZE_OPTIONS.map((v) => ({ value: v, label: v }))}
         />
         <Button variant="grey" disabled={page <= 1} onClick={onPrev}>

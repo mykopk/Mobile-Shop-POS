@@ -1,15 +1,15 @@
 import type { ReactNode } from "react";
 
 const VARIANTS = {
-  neutral: "bg-brand-50 text-brand-700",
-  muted: "bg-brand-100 text-brand-700",
+  neutral: "bg-ink-100 text-ink-700",
+  muted: "bg-ink-200 text-ink-500",
   success: "bg-brand-50 text-brand-700",
   warning: "bg-brand-100 text-brand-700",
   danger: "bg-brand-600 text-white",
-  info: "bg-brand-50 text-brand-700",
-  brand: "bg-brand-50 text-brand-700",
-  violet: "bg-brand-100 text-brand-700",
-  blue: "bg-brand-50 text-brand-700",
+  info: "bg-brand-300 text-brand-900",
+  brand: "bg-brand-600 text-white",
+  violet: "bg-ink-900 text-white",
+  blue: "bg-ink-800 text-white",
   brandSolid: "bg-brand-600 text-white",
 } as const;
 

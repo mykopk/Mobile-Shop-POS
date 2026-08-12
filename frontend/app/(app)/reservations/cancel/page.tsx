@@ -3,7 +3,6 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { apiRequest } from "@/lib/apiClient";
-import { useAuth } from "@/lib/auth-context";
 import { brandOf, type ReservationDetail } from "@/lib/api-types";
 import { useApi } from "@/lib/use-api";
 import { formatPKR } from "@/lib/money";
@@ -14,7 +13,6 @@ import { useToast } from "@/components/ui/toast";
 import { PlusIcon, ReservationIcon, XIcon } from "@/components/icons";
 
 export default function CancelReservationPage() {
-  const { token } = useAuth();
   const { toast } = useToast();
   const { data, loading, refetch } = useApi<ReservationDetail[]>(
     "/reservation?status=ACTIVE&type=RESERVATION",
@@ -39,7 +37,6 @@ export default function CancelReservationPage() {
     try {
       await apiRequest(`/reservation/${cancelling.id}/cancel`, {
         method: "POST",
-        token,
         body: { refunded },
       });
       toast(

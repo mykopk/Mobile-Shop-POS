@@ -29,12 +29,12 @@ export const MOVEMENT_LABELS: Record<MovementType, string> = {
 };
 
 export const MOVEMENT_STYLE: Record<MovementType, string> = {
-  IN: "bg-emerald-50 text-emerald-700",
-  OUT: "bg-red-50 text-red-700",
-  ADJUST: "bg-amber-50 text-amber-700",
-  TRANSFER: "bg-blue-50 text-blue-700",
-  RESERVED: "bg-amber-50 text-amber-700",
-  RELEASED: "bg-emerald-50 text-emerald-700",
+  IN: "bg-brand-50 text-brand-700",
+  OUT: "bg-brand-600 text-white",
+  ADJUST: "bg-brand-100 text-brand-700",
+  TRANSFER: "bg-ink-200 text-ink-800",
+  RESERVED: "bg-brand-300 text-brand-900",
+  RELEASED: "bg-brand-50 text-brand-700",
 };
 
 export type InventoryColumnKey = "imei" | "color" | "category" | "status" | "carrier" | "vendor" | "purchased" | "sell" | "retail" | "cost";

@@ -1,32 +1,40 @@
 "use client";
 
 import { useRef } from "react";
+import type { RefObject } from "react";
 
 export function OtpInput({
   length,
   value,
   onChange,
   disabled = false,
+  inputRef,
 }: {
   length: number;
   value: string;
   onChange: (value: string) => void;
   disabled?: boolean;
+  inputRef?: RefObject<HTMLInputElement | null>;
 }) {
-  const inputRef = useRef<HTMLInputElement>(null);
+  const internalRef = useRef<HTMLInputElement>(null);
+  const ref = inputRef ?? internalRef;
 
   return (
     <div
       className="relative flex cursor-text justify-center gap-3"
-      onClick={() => inputRef.current?.focus()}
+      onClick={() => ref.current?.focus()}
       role="group"
       aria-label="PIN entry"
     >
       <input
-        ref={inputRef}
-        type="tel"
+        ref={ref}
+        type="text"
         inputMode="numeric"
-        autoComplete="one-time-code"
+        autoComplete="off"
+        name=""
+        data-1p-ignore
+        data-lpignore="true"
+        data-form-type="other"
         autoFocus
         value={value}
         onChange={(event) => {
@@ -48,7 +56,7 @@ export function OtpInput({
                 : "bg-ink-50 text-ink-900"
             } ${isActive ? "ring-2 ring-brand-600" : ""}`}
           >
-            {isFilled ? value[i] : ""}
+            {isFilled ? "•" : ""}
           </span>
         );
       })}

@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { apiRequest } from "@/lib/apiClient";
-import { useAuth } from "@/lib/auth-context";
+import { useDirtyForm } from "@/lib/use-dirty-form";
+import { DiscardConfirmDialog } from "@/components/ui/discard-confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dropdown } from "@/components/ui/dropdown";
@@ -47,9 +48,15 @@ export function ContactForm({
   onSave: (values: ContactFormValues) => void;
   onCancel: () => void;
 }) {
-  const { token } = useAuth();
   const [form, setForm] = useState<ContactFormValues>(initial);
   const [duplicates, setDuplicates] = useState<Duplicate[]>([]);
+  const dirty = useDirtyForm(initial);
+
+  function update(next: Partial<ContactFormValues>) {
+    const updated = { ...form, ...next };
+    setForm(updated);
+    dirty.markDirty(updated);
+  }
 
   useEffect(() => {
     const t = setTimeout(async () => {
@@ -60,7 +67,6 @@ export function ContactForm({
       try {
         const found = await apiRequest<Duplicate[]>(
           `/contact/dedupe?phone=${encodeURIComponent(form.phone)}`,
-          { token },
         );
         setDuplicates(found);
       } catch {
@@ -68,7 +74,7 @@ export function ContactForm({
       }
     }, 400);
     return () => clearTimeout(t);
-  }, [form.phone, token]);
+  }, [form.phone]);
 
   return (
     <form
@@ -84,21 +90,14 @@ export function ContactForm({
           <Dropdown
             value={form.type}
             options={TYPE_OPTIONS}
-            onChange={(value) => setForm({ ...form, type: value as ContactFormValues["type"] })}
-            trigger={
-              <div className="flex items-center justify-between rounded-2xl bg-ink-50 px-4 py-3 text-sm">
-                <span className="text-ink-900">
-                  {TYPE_OPTIONS.find((o) => o.value === form.type)?.label}
-                </span>
-              </div>
-            }
+            onChange={(value) => update({ type: value as ContactFormValues["type"] })}
           />
         </div>
         <div>
           <label className="mb-1 block text-xs font-semibold text-ink-500">Name</label>
           <Input
             value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
+            onChange={(e) => update({ name: e.target.value })}
             placeholder="Full name"
           />
         </div>
@@ -108,7 +107,7 @@ export function ContactForm({
           </label>
           <Input
             value={form.phone}
-            onChange={(e) => setForm({ ...form, phone: e.target.value })}
+            onChange={(e) => update({ phone: e.target.value })}
             placeholder="0300 1234567"
             inputMode="tel"
           />
@@ -131,7 +130,7 @@ export function ContactForm({
           </label>
           <Input
             value={form.email}
-            onChange={(e) => setForm({ ...form, email: e.target.value })}
+            onChange={(e) => update({ email: e.target.value })}
             placeholder="name@example.com"
             inputMode="email"
           />
@@ -142,7 +141,7 @@ export function ContactForm({
           </label>
           <Input
             value={form.address}
-            onChange={(e) => setForm({ ...form, address: e.target.value })}
+            onChange={(e) => update({ address: e.target.value })}
             placeholder="Shop / area"
           />
         </div>
@@ -152,7 +151,7 @@ export function ContactForm({
           </label>
           <Input
             value={form.notes}
-            onChange={(e) => setForm({ ...form, notes: e.target.value })}
+            onChange={(e) => update({ notes: e.target.value })}
             placeholder="Anything to remember"
           />
         </div>
@@ -162,20 +161,26 @@ export function ContactForm({
           </label>
           <Input
             value={form.creditLimit}
-            onChange={(e) => setForm({ ...form, creditLimit: e.target.value })}
+            onChange={(e) => update({ creditLimit: e.target.value })}
             placeholder="0"
             inputMode="numeric"
           />
         </div>
       </div>
       <div className="mt-6 flex justify-end gap-2">
-        <Button variant="grey" onClick={onCancel}>
+        <Button variant="grey" onClick={() => dirty.requestClose(onCancel)}>
           Cancel
         </Button>
-        <Button type="submit" form="contact-form" disabled={saving}>
-          {saving ? "Saving…" : "Save"}
+        <Button type="submit" form="contact-form" loading={saving}>
+          Save
         </Button>
       </div>
+
+      <DiscardConfirmDialog
+        open={dirty.confirmOpen}
+        onConfirm={dirty.confirmDiscard}
+        onCancel={dirty.cancelDiscard}
+      />
     </form>
   );
 }

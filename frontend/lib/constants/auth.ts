@@ -1,7 +1,10 @@
 export const AUTH = {
-  storageKey: "dost.auth.user",
-  tokenKey: "dost.auth.token",
-  demoHint: "Demo: arslan · saima · ali (PINs 1111 · 2222 · 3333)",
+  unauthorizedEvent: "dost.auth.unauthorized",
+  rememberedUsersKey: "dost.auth.rememberedUsers",
+  rememberedTitle: "Recent users",
+  rememberHint: "Select a user to fill in the username.",
+  removeAll: "Clear",
+  removedAll: "Cleared recent users",
   title: "Sign in to continue",
   username: "Username",
   usernamePlaceholder: "e.g. arslan",

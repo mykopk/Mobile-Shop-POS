@@ -1,3 +1,5 @@
+import { AUTH } from "@/lib/constants";
+
 export class ApiClientError extends Error {
   constructor(
     public readonly status: number,
@@ -12,23 +14,27 @@ export class ApiClientError extends Error {
 type RequestOptions = {
   method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   body?: unknown;
-  token?: string | null;
+  signal?: AbortSignal;
 };
 
 export async function apiRequest<T>(
   path: string,
-  { method = "GET", body, token }: RequestOptions = {},
+  { method = "GET", body, signal }: RequestOptions = {},
 ): Promise<T> {
   const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}${path}`, {
     method,
+    credentials: "include",
     headers: {
       "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     body: body === undefined ? undefined : JSON.stringify(body),
+    signal,
   });
 
   if (!res.ok) {
+    if (res.status === 401 && typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent(AUTH.unauthorizedEvent));
+    }
     const payload = (await res.json().catch(() => null)) as {
       error?: { code?: string; message?: string };
     } | null;

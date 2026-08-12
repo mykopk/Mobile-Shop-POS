@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { asyncHandler } from "../../core/lib/asyncHandler";
-import { requireAuth } from "../../core/middleware/auth";
+import { requireAuth, requirePermission } from "../../core/middleware/auth";
+import { PERMISSIONS } from "../../core/lib/permissions";
 import { validate } from "../../core/middleware/validate";
 import {
   createPurchaseHandler,
@@ -22,12 +23,12 @@ const router = Router();
 
 router.use(requireAuth);
 
-router.get("/", asyncHandler(listHandler));
-router.get("/:id", asyncHandler(getHandler));
-router.post("/sale", validate(createSaleSchema), asyncHandler(createSaleHandler));
-router.post("/sale/returns", validate(saleReturnSchema), asyncHandler(saleReturnHandler));
-router.post("/purchase", validate(createPurchaseSchema), asyncHandler(createPurchaseHandler));
-router.post("/purchase/returns", validate(purchaseReturnSchema), asyncHandler(purchaseReturnHandler));
-router.post("/returns/:id/void", asyncHandler(voidReturnHandler));
+router.get("/", requirePermission(PERMISSIONS.transactionView), asyncHandler(listHandler));
+router.get("/:id", requirePermission(PERMISSIONS.transactionView), asyncHandler(getHandler));
+router.post("/sale", requirePermission(PERMISSIONS.saleCreate), validate(createSaleSchema), asyncHandler(createSaleHandler));
+router.post("/sale/returns", requirePermission(PERMISSIONS.saleReturn), validate(saleReturnSchema), asyncHandler(saleReturnHandler));
+router.post("/purchase", requirePermission(PERMISSIONS.purchaseCreate), validate(createPurchaseSchema), asyncHandler(createPurchaseHandler));
+router.post("/purchase/returns", requirePermission(PERMISSIONS.purchaseReturn), validate(purchaseReturnSchema), asyncHandler(purchaseReturnHandler));
+router.post("/returns/:id/void", requirePermission(PERMISSIONS.returnVoid), asyncHandler(voidReturnHandler));
 
 export default router;

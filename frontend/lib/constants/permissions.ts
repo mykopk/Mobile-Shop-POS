@@ -1,0 +1,317 @@
+import type { Role } from "@/lib/constants/users";
+
+export const PERMISSIONS = {
+  // Catalog
+  productView: "product.view",
+  productCreate: "product.create",
+  productUpdate: "product.update",
+  productDelete: "product.delete",
+  productImport: "product.import",
+  unitView: "unit.view",
+  unitCreate: "unit.create",
+  unitUpdate: "unit.update",
+  unitDelete: "unit.delete",
+  unitImport: "unit.import",
+  unitAdjust: "unit.adjust",
+  brandView: "brand.view",
+  brandCreate: "brand.create",
+  brandUpdate: "brand.update",
+  brandDelete: "brand.delete",
+  categoryView: "category.view",
+  categoryCreate: "category.create",
+  categoryUpdate: "category.update",
+  categoryDelete: "category.delete",
+  colorView: "color.view",
+  colorCreate: "color.create",
+  colorUpdate: "color.update",
+  colorDelete: "color.delete",
+  inventoryView: "inventory.view",
+
+  // Contacts
+  contactView: "contact.view",
+  contactCreate: "contact.create",
+  contactUpdate: "contact.update",
+  contactDelete: "contact.delete",
+  contactImport: "contact.import",
+
+  // Transactions & payments
+  transactionView: "transaction.view",
+  saleCreate: "sale.create",
+  saleReturn: "sale.return",
+  purchaseCreate: "purchase.create",
+  purchaseReturn: "purchase.return",
+  returnVoid: "return.void",
+  paymentCollect: "payment.collect",
+  creditView: "credit.view",
+
+  // Money records
+  voucherView: "voucher.view",
+  voucherCreate: "voucher.create",
+  voucherUpdate: "voucher.update",
+  voucherReverse: "voucher.reverse",
+  expenseView: "expense.view",
+  expenseCreate: "expense.create",
+  expenseUpdate: "expense.update",
+  expenseDelete: "expense.delete",
+  bankView: "bank.view",
+  bankCreate: "bank.create",
+  bankUpdate: "bank.update",
+  bankDelete: "bank.delete",
+  bankSetDefault: "bank.setDefault",
+
+  // Reports & dashboard
+  reportView: "report.view",
+  reportProfit: "report.profit",
+  reportStock: "report.stock",
+  dashboardView: "dashboard.view",
+
+  // Reservations
+  reservationView: "reservation.view",
+  reservationCreate: "reservation.create",
+  reservationCancel: "reservation.cancel",
+  reservationReturn: "reservation.return",
+  reservationRefund: "reservation.refund",
+
+  // Settings & admin
+  settingsView: "settings.view",
+  settingsWrite: "settings.write",
+  printView: "print.view",
+  printCreate: "print.create",
+  printUpdate: "print.update",
+  printDelete: "print.delete",
+  printSetDefault: "print.setDefault",
+  userManage: "user.manage",
+  auditView: "audit.view",
+} as const;
+
+export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
+
+const ALL: readonly Permission[] = Object.values(PERMISSIONS);
+
+const ADMIN_ONLY: readonly Permission[] = [
+  PERMISSIONS.userManage,
+  PERMISSIONS.auditView,
+];
+
+export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
+  ADMIN: ALL,
+  MANAGER: ALL.filter((p) => !ADMIN_ONLY.includes(p)),
+  CASHIER: [
+    PERMISSIONS.transactionView,
+    PERMISSIONS.saleCreate,
+    PERMISSIONS.paymentCollect,
+    PERMISSIONS.creditView,
+    PERMISSIONS.productView,
+    PERMISSIONS.unitView,
+    PERMISSIONS.brandView,
+    PERMISSIONS.categoryView,
+    PERMISSIONS.colorView,
+    PERMISSIONS.contactView,
+    PERMISSIONS.inventoryView,
+    PERMISSIONS.voucherView,
+    PERMISSIONS.expenseView,
+    PERMISSIONS.bankView,
+    PERMISSIONS.reportView,
+    PERMISSIONS.dashboardView,
+    PERMISSIONS.reservationView,
+    PERMISSIONS.reservationCreate,
+    PERMISSIONS.settingsView,
+    PERMISSIONS.printView,
+  ],
+};
+
+export type PermissionGroup = { title: string; keys: Permission[] };
+
+export const PERMISSION_LABELS: Record<Permission, string> = {
+  // Catalog & Inventory
+  "product.view": "View products",
+  "product.create": "Add products",
+  "product.update": "Edit products",
+  "product.delete": "Delete products",
+  "product.import": "Import products",
+  "unit.view": "View stock units",
+  "unit.create": "Add stock units (IMEI)",
+  "unit.update": "Edit stock units",
+  "unit.delete": "Delete stock units",
+  "unit.import": "Import stock units",
+  "unit.adjust": "Adjust stock counts",
+  "brand.view": "View brands",
+  "brand.create": "Add brands",
+  "brand.update": "Edit brands",
+  "brand.delete": "Delete brands",
+  "category.view": "View categories",
+  "category.create": "Add categories",
+  "category.update": "Edit categories",
+  "category.delete": "Delete categories",
+  "color.view": "View colors",
+  "color.create": "Add colors",
+  "color.update": "Edit colors",
+  "color.delete": "Delete colors",
+  "inventory.view": "View inventory",
+
+  // Contacts
+  "contact.view": "View customers & suppliers",
+  "contact.create": "Add customers & suppliers",
+  "contact.update": "Edit customers & suppliers",
+  "contact.delete": "Delete customers & suppliers",
+  "contact.import": "Import contacts",
+
+  // Sales & Payments
+  "transaction.view": "View sales & purchases",
+  "sale.create": "Make sales",
+  "sale.return": "Process sale returns",
+  "purchase.create": "Make purchases",
+  "purchase.return": "Process purchase returns",
+  "return.void": "Void returns",
+  "payment.collect": "Collect payments",
+  "credit.view": "View credit balances",
+
+  // Money Records
+  "voucher.view": "View vouchers",
+  "voucher.create": "Create vouchers",
+  "voucher.update": "Edit vouchers",
+  "voucher.reverse": "Reverse vouchers",
+  "expense.view": "View expenses",
+  "expense.create": "Add expenses",
+  "expense.update": "Edit expenses",
+  "expense.delete": "Delete expenses",
+  "bank.view": "View bank accounts",
+  "bank.create": "Add bank accounts",
+  "bank.update": "Edit bank accounts",
+  "bank.delete": "Delete bank accounts",
+  "bank.setDefault": "Set default bank account",
+
+  // Reports & Dashboard
+  "report.view": "View reports",
+  "report.profit": "View profit & costs",
+  "report.stock": "View stock valuation",
+  "dashboard.view": "View dashboard",
+
+  // Reservations
+  "reservation.view": "View reservations",
+  "reservation.create": "Create reservations",
+  "reservation.cancel": "Cancel reservations",
+  "reservation.return": "Return consignments to stock",
+  "reservation.refund": "Process refunds",
+
+  // Settings & Admin
+  "settings.view": "View settings",
+  "settings.write": "Edit settings",
+  "print.view": "View print layouts",
+  "print.create": "Create print layouts",
+  "print.update": "Edit print layouts",
+  "print.delete": "Delete print layouts",
+  "print.setDefault": "Set default print layout",
+  "user.manage": "Manage users",
+  "audit.view": "View activity log",
+};
+
+export function permissionLabel(key: Permission) {
+  return PERMISSION_LABELS[key] ?? key;
+}
+
+export const PERMISSION_GROUPS: PermissionGroup[] = [
+  {
+    title: "Catalog & Inventory",
+    keys: [
+      PERMISSIONS.productView,
+      PERMISSIONS.productCreate,
+      PERMISSIONS.productUpdate,
+      PERMISSIONS.productDelete,
+      PERMISSIONS.productImport,
+      PERMISSIONS.unitView,
+      PERMISSIONS.unitCreate,
+      PERMISSIONS.unitUpdate,
+      PERMISSIONS.unitDelete,
+      PERMISSIONS.unitImport,
+      PERMISSIONS.unitAdjust,
+      PERMISSIONS.brandView,
+      PERMISSIONS.brandCreate,
+      PERMISSIONS.brandUpdate,
+      PERMISSIONS.brandDelete,
+      PERMISSIONS.categoryView,
+      PERMISSIONS.categoryCreate,
+      PERMISSIONS.categoryUpdate,
+      PERMISSIONS.categoryDelete,
+      PERMISSIONS.colorView,
+      PERMISSIONS.colorCreate,
+      PERMISSIONS.colorUpdate,
+      PERMISSIONS.colorDelete,
+      PERMISSIONS.inventoryView,
+    ],
+  },
+  {
+    title: "Contacts",
+    keys: [
+      PERMISSIONS.contactView,
+      PERMISSIONS.contactCreate,
+      PERMISSIONS.contactUpdate,
+      PERMISSIONS.contactDelete,
+      PERMISSIONS.contactImport,
+    ],
+  },
+  {
+    title: "Sales & Payments",
+    keys: [
+      PERMISSIONS.transactionView,
+      PERMISSIONS.saleCreate,
+      PERMISSIONS.saleReturn,
+      PERMISSIONS.purchaseCreate,
+      PERMISSIONS.purchaseReturn,
+      PERMISSIONS.returnVoid,
+      PERMISSIONS.paymentCollect,
+      PERMISSIONS.creditView,
+    ],
+  },
+  {
+    title: "Money Records",
+    keys: [
+      PERMISSIONS.voucherView,
+      PERMISSIONS.voucherCreate,
+      PERMISSIONS.voucherUpdate,
+      PERMISSIONS.voucherReverse,
+      PERMISSIONS.expenseView,
+      PERMISSIONS.expenseCreate,
+      PERMISSIONS.expenseUpdate,
+      PERMISSIONS.expenseDelete,
+      PERMISSIONS.bankView,
+      PERMISSIONS.bankCreate,
+      PERMISSIONS.bankUpdate,
+      PERMISSIONS.bankDelete,
+      PERMISSIONS.bankSetDefault,
+    ],
+  },
+  {
+    title: "Reports & Dashboard",
+    keys: [
+      PERMISSIONS.reportView,
+      PERMISSIONS.reportProfit,
+      PERMISSIONS.reportStock,
+      PERMISSIONS.dashboardView,
+    ],
+  },
+  {
+    title: "Reservations",
+    keys: [
+      PERMISSIONS.reservationView,
+      PERMISSIONS.reservationCreate,
+      PERMISSIONS.reservationCancel,
+      PERMISSIONS.reservationReturn,
+      PERMISSIONS.reservationRefund,
+    ],
+  },
+  {
+    title: "Settings & Admin",
+    keys: [
+      PERMISSIONS.settingsView,
+      PERMISSIONS.settingsWrite,
+      PERMISSIONS.printView,
+      PERMISSIONS.printCreate,
+      PERMISSIONS.printUpdate,
+      PERMISSIONS.printDelete,
+      PERMISSIONS.printSetDefault,
+      PERMISSIONS.userManage,
+      PERMISSIONS.auditView,
+    ],
+  },
+];

@@ -29,8 +29,6 @@ export default function LedgerPage() {
 
   const { data, loading } = useApi<LedgerReport>(contactId ? buildPath(contactId, range) : null);
 
-  const selectedName = contacts?.find((c) => c.id === contactId)?.name ?? "Select a contact…";
-
   return (
     <div className="space-y-4">
       <div>
@@ -52,11 +50,8 @@ export default function LedgerPage() {
               trailing: c.phone ? <span className="text-xs text-ink-400">{c.phone}</span> : undefined,
             }))}
             onChange={setContactId}
-            trigger={
-              <div className="flex min-w-56 items-center justify-between rounded-2xl bg-white px-4 py-3 text-sm">
-                <span className="truncate text-ink-900">{selectedName}</span>
-              </div>
-            }
+            placeholder="Select a contact…"
+            triggerClassName="min-w-56 bg-white"
             searchable
           />
         )}
@@ -98,6 +93,7 @@ export default function LedgerPage() {
                 { key: "balance", label: "Balance", align: "right", render: (r) => <span className="font-semibold text-ink-900">{formatPKR(r.balance)}</span> },
               ]}
               rows={data.rows}
+              rowKey={(r) => r.id}
               empty="No movements for this contact in the selected period."
             />
           </ReportCard>

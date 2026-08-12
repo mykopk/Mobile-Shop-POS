@@ -1,11 +1,14 @@
 import { prisma } from "../../core/lib/prisma";
 import { ApiError } from "../../core/middleware/error";
+import { dayKeyInTz, dateAtZone, DEFAULT_TIMEZONE } from "../../core/lib/time";
+import { hasPermissionList, PERMISSIONS, type Permission } from "../../core/lib/permissions";
 
-export type Range = { from?: string; to?: string };
+export type Range = { from?: string; to?: string; tz?: string };
 
 const n = (v: unknown) => Number(v ?? 0);
 const round = (v: number) => Math.round(v * 100) / 100;
-const canViewCosts = (role: string) => role === "ADMIN" || role === "MANAGER";
+const canViewCosts = (permissions: readonly Permission[]) =>
+  hasPermissionList(permissions, PERMISSIONS.reportProfit);
 
 type RangeWhere = {
   createdAt?: { gte?: Date; lte?: Date };
@@ -15,23 +18,25 @@ type RangeWhere = {
 
 function rangeWhere(r: Range, field: "createdAt" | "date" | "paidAt" = "createdAt"): RangeWhere {
   const cond: { gte?: Date; lte?: Date } = {};
-  if (r.from) cond.gte = new Date(r.from);
-  if (r.to) cond.lte = new Date(`${r.to}T23:59:59`);
+  const tz = r.tz ?? DEFAULT_TIMEZONE;
+  if (r.from) cond.gte = dateAtZone(r.from, "00:00:00", tz);
+  if (r.to) cond.lte = dateAtZone(r.to, "23:59:59", tz);
   if (!cond.gte && !cond.lte) return {};
   return { [field]: cond };
 }
 
-function dayKey(d: Date) {
-  return d.toISOString().slice(0, 10);
+function dayKey(d: Date, r: Range) {
+  return dayKeyInTz(d, r.tz ?? DEFAULT_TIMEZONE);
 }
 
-function buildDays(items: { date: Date }[], from?: string, to?: string) {
+function buildDays(items: { date: Date }[], r: Range) {
+  const tz = r.tz ?? DEFAULT_TIMEZONE;
   const days: { key: string; date: Date }[] = [];
-  if (from && to) {
-    const cursor = new Date(from);
-    const end = new Date(`${to}T23:59:59`);
+  if (r.from && r.to) {
+    const cursor = dateAtZone(r.from, "00:00:00", tz);
+    const end = dateAtZone(r.to, "23:59:59", tz);
     while (cursor.getTime() <= end.getTime()) {
-      days.push({ key: dayKey(cursor), date: new Date(cursor) });
+      days.push({ key: dayKeyInTz(cursor, tz), date: new Date(cursor) });
       cursor.setDate(cursor.getDate() + 1);
     }
   } else if (items.length > 0) {
@@ -42,25 +47,22 @@ function buildDays(items: { date: Date }[], from?: string, to?: string) {
       if (t < min.getTime()) min = new Date(it.date);
       if (t > max.getTime()) max = new Date(it.date);
     }
-    const cursor = new Date(min);
-    cursor.setHours(0, 0, 0, 0);
+    const cursor = dateAtZone(dayKeyInTz(min, tz), "00:00:00", tz);
     const end = new Date(max);
-    end.setHours(23, 59, 59, 999);
     while (cursor.getTime() <= end.getTime()) {
-      days.push({ key: dayKey(cursor), date: new Date(cursor) });
+      days.push({ key: dayKeyInTz(cursor, tz), date: new Date(cursor) });
       cursor.setDate(cursor.getDate() + 1);
     }
   } else {
-    const today = new Date();
-    days.push({ key: dayKey(today), date: new Date(today) });
+    days.push({ key: dayKeyInTz(new Date(), tz), date: new Date() });
   }
   return days;
 }
 
 // ============ SUMMARY ============
 
-export async function summary(role: string, r: Range) {
-  const cost = canViewCosts(role);
+export async function summary(permissions: readonly Permission[], r: Range) {
+  const cost = canViewCosts(permissions);
 
   const [salesAgg, purchasesAgg, expenseAgg, saleItems, paymentSplit, balancesData] = await Promise.all([
     prisma.transaction.aggregate({
@@ -190,13 +192,13 @@ export async function salesReport(r: Range) {
     condMap.set(cond, curD);
   }
 
-  const days = buildDays(txns.map((t) => ({ date: t.createdAt })), r.from, r.to);
+  const days = buildDays(txns.map((t) => ({ date: t.createdAt })), r);
   const dayIndex = new Map(days.map((d, i) => [d.key, i]));
   const daily = days.map((d) => ({ date: d.key, revenue: 0, count: 0 }));
   const userMap = new Map<string, { name: string; count: number; revenue: number }>();
 
   for (const t of txns) {
-    const idx = dayIndex.get(dayKey(t.createdAt));
+    const idx = dayIndex.get(dayKey(t.createdAt, r));
     if (idx !== undefined) {
       daily[idx].revenue += n(t.total);
       daily[idx].count += 1;
@@ -267,12 +269,12 @@ export async function purchasesReport(r: Range) {
     vendorMap.set(vendor, curV);
   }
 
-  const days = buildDays(txns.map((t) => ({ date: t.createdAt })), r.from, r.to);
+  const days = buildDays(txns.map((t) => ({ date: t.createdAt })), r);
   const dayIndex = new Map(days.map((d, i) => [d.key, i]));
   const daily = days.map((d) => ({ date: d.key, amount: 0, count: 0 }));
 
   for (const t of txns) {
-    const idx = dayIndex.get(dayKey(t.createdAt));
+    const idx = dayIndex.get(dayKey(t.createdAt, r));
     if (idx !== undefined) {
       daily[idx].amount += n(t.total);
       daily[idx].count += 1;
@@ -312,7 +314,7 @@ export async function profitReport(r: Range) {
   });
 
   const rows = items.map((i) => ({
-    key: dayKey(i.transaction.createdAt),
+    key: dayKey(i.transaction.createdAt, r),
     condition: i.unit?.condition ?? "ACCESSORY",
     brand: i.product.brand.name,
     model: `${i.product.brand.name} ${i.product.model}`,
@@ -347,7 +349,7 @@ export async function profitReport(r: Range) {
     byModel.set(row.model, m);
   }
 
-  const dayList = buildDays(items.map((i) => ({ date: i.transaction.createdAt })), r.from, r.to);
+  const dayList = buildDays(items.map((i) => ({ date: i.transaction.createdAt })), r);
   const daily = dayList.map((d) => {
     const v = byDay.get(d.key);
     const revenue = v?.revenue ?? 0;
@@ -398,11 +400,11 @@ export async function expensesReport(r: Range) {
     catMap.set(e.category, cur);
   }
 
-  const days = buildDays(rows, r.from, r.to);
+  const days = buildDays(rows, r);
   const dayIndex = new Map(days.map((d, i) => [d.key, i]));
   const daily = days.map((d) => ({ date: d.key, total: 0, count: 0 }));
   for (const e of rows) {
-    const idx = dayIndex.get(dayKey(e.date));
+    const idx = dayIndex.get(dayKey(e.date, r));
     if (idx !== undefined) {
       daily[idx].total += n(e.amount);
       daily[idx].count += 1;
@@ -419,8 +421,8 @@ export async function expensesReport(r: Range) {
 
 // ============ STOCK VALUATION ============
 
-export async function stockReport(role: string) {
-  const cost = canViewCosts(role);
+export async function stockReport(permissions: readonly Permission[]) {
+  const cost = canViewCosts(permissions);
   const units = await prisma.unit.findMany({
     where: { status: "IN_STOCK" },
     select: {

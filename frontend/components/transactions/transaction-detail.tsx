@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { apiRequest } from "@/lib/apiClient";
-import { useAuth } from "@/lib/auth-context";
 import type { TransactionDetail } from "@/lib/api-types";
 import { formatPKR } from "@/lib/money";
 import { formatDateTime } from "@/lib/dates";
@@ -28,7 +27,6 @@ export function TransactionDetailModal({
   onClose: () => void;
   onChanged?: () => void;
 }) {
-  const { token } = useAuth();
   const { toast } = useToast();
   const [detail, setDetail] = useState<TransactionDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -38,7 +36,7 @@ export function TransactionDetailModal({
     let cancelled = false;
     (async () => {
       try {
-        const d = await apiRequest<TransactionDetail>(`/transaction/${id}`, { token });
+        const d = await apiRequest<TransactionDetail>(`/transaction/${id}`);
         if (!cancelled) setDetail(d);
       } catch (err) {
         if (!cancelled) toast(err instanceof Error ? err.message : "Failed to load", "error");
@@ -49,13 +47,13 @@ export function TransactionDetailModal({
     return () => {
       cancelled = true;
     };
-  }, [id, token]);
+  }, [id]);
 
   async function voidReturn() {
     if (!detail) return;
     setVoiding(true);
     try {
-      await apiRequest(`/transaction/returns/${detail.id}/void`, { method: "POST", token });
+      await apiRequest(`/transaction/returns/${detail.id}/void`, { method: "POST" });
       toast(`${detail.number} voided`, "success");
       onChanged?.();
       onClose();

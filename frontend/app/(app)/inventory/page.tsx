@@ -6,7 +6,8 @@ import { apiRequest } from "@/lib/apiClient";
 import { useAuth } from "@/lib/auth-context";
 import type { Category, InventoryData, InventoryProduct, Unit } from "@/lib/api-types";
 import { useApi } from "@/lib/use-api";
-import { canViewCosts } from "@/lib/roles";
+import { canViewCosts, hasPermission } from "@/lib/roles";
+import { PERMISSIONS } from "@/lib/constants/permissions";
 import { formatPKR } from "@/lib/money";
 import { parseCsvLine, downloadCsv } from "@/lib/csv";
 import {
@@ -20,7 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import type { BadgeVariant } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
+import { SearchInput } from "@/components/ui/search-input";
 import { Dropdown } from "@/components/ui/dropdown";
 import { Dialog } from "@/components/ui/dialog";
 import { Sheet } from "@/components/ui/sheet";
@@ -30,7 +31,7 @@ import { useToast } from "@/components/ui/toast";
 import { ManageWindow } from "@/components/products/manage-window";
 import { TransactionDetailModal } from "@/components/transactions/transaction-detail";
 import { Scanner } from "@/components/scanner";
-import { AlertIcon, CameraIcon, DownloadIcon, FilterIcon, PlusIcon, PrinterIcon, RefundIcon, SearchIcon, SettingsIcon, TrashIcon, UploadIcon } from "@/components/icons";
+import { AlertIcon, CameraIcon, DownloadIcon, FilterIcon, PlusIcon, PrinterIcon, RefundIcon, SettingsIcon, TrashIcon, UploadIcon } from "@/components/icons";
 
 type SortKey = "imei" | "category" | "status" | "carrier" | "vendor" | "purchased" | "sellPrice" | "retailPrice" | "costPrice";
 
@@ -68,7 +69,6 @@ const STATUS_VARIANT: Record<string, BadgeVariant> = {
 
 export default function InventoryPage() {
   const { user } = useAuth();
-  const { token } = useAuth();
   const { toast } = useToast();
   const { data, loading, refetch } = useApi<InventoryData>("/inventory");
   const { data: categories } = useApi<Category[]>("/category");
@@ -92,7 +92,12 @@ export default function InventoryPage() {
   const [selectedTxnId, setSelectedTxnId] = useState<string | null>(null);
   const [view, setView] = useState<InventoryViewSettings>(DEFAULT_INVENTORY_VIEW);
 
-  const viewCosts = canViewCosts(user?.role);
+  const viewCosts = canViewCosts(user);
+  const canImport = hasPermission(user, PERMISSIONS.unitImport);
+  const canDelete = hasPermission(user, PERMISSIONS.unitDelete);
+  const canManage = hasPermission(user, PERMISSIONS.unitUpdate);
+  const canPurchase = hasPermission(user, PERMISSIONS.purchaseCreate);
+  const canReturn = hasPermission(user, PERMISSIONS.purchaseReturn);
   const units = data?.units ?? [];
   const products = data?.products ?? [];
   const activeCategories = (categories ?? []).filter((c) => c.active);
@@ -296,7 +301,7 @@ export default function InventoryPage() {
     try {
       const result = await apiRequest<{ deleted: number; blocked: { id: string; imei: string }[] }>(
         "/unit",
-        { method: "DELETE", body: { ids: [...selected] }, token },
+        { method: "DELETE", body: { ids: [...selected] } },
       );
       setSelected(new Set());
       refetch();
@@ -392,7 +397,7 @@ export default function InventoryPage() {
       const result = await apiRequest<{
         created: { imei: string; product: string }[];
         skipped: { imei: string; reason: string }[];
-      }>("/unit/import", { method: "POST", body: { units: rows }, token });
+      }>("/unit/import", { method: "POST", body: { units: rows } });
       const skippedSummary =
         result.skipped.length > 0
           ? `, ${result.skipped.length} skipped (${result.skipped[0].reason}${result.skipped.length > 1 ? "…" : ""})`
@@ -454,10 +459,12 @@ export default function InventoryPage() {
     <div className="flex h-full flex-col gap-4">
       <div className="flex shrink-0 items-center justify-between gap-3">
         <div className="flex flex-wrap items-center justify-end gap-2">
-          <Button variant="grey" onClick={() => setImportOpen(true)}>
-            <UploadIcon className="h-4 w-4" />
-            Import
-          </Button>
+          {canImport && (
+            <Button variant="grey" onClick={() => setImportOpen(true)}>
+              <UploadIcon className="h-4 w-4" />
+              Import
+            </Button>
+          )}
           <Button variant="grey" onClick={exportCsv}>
             <DownloadIcon className="h-4 w-4" />
             Export CSV
@@ -468,44 +475,49 @@ export default function InventoryPage() {
               Print
             </Button>
           </Link>
-          <Button variant="grey" onClick={() => setManageOpen(true)}>
-            <SettingsIcon className="h-4 w-4" />
-            Manage
-          </Button>
-          <Button
-            variant="destructive"
-            onClick={() => setConfirmDelete(true)}
-            disabled={deleting || selected.size === 0}
-          >
-            <TrashIcon className="h-4 w-4" />
-            {deleting ? "Deleting…" : "Delete selected"}
-          </Button>
-          <Link href="/purchases">
-            <Button>
-              <PlusIcon className="h-4 w-4" />
-              New Purchase
+          {canManage && (
+            <Button variant="grey" onClick={() => setManageOpen(true)}>
+              <SettingsIcon className="h-4 w-4" />
+              Manage
             </Button>
-          </Link>
-          <Link href="/purchase-returns">
-            <Button variant="secondary">
-              <RefundIcon className="h-4 w-4" />
-              Return Item
+          )}
+          {canDelete && (
+            <Button
+              variant="destructive"
+              onClick={() => setConfirmDelete(true)}
+              disabled={deleting || selected.size === 0}
+            >
+              <TrashIcon className="h-4 w-4" />
+              {deleting ? "Deleting…" : "Delete selected"}
             </Button>
-          </Link>
+          )}
+          {canPurchase && (
+            <Link href="/purchases">
+              <Button>
+                <PlusIcon className="h-4 w-4" />
+                New Purchase
+              </Button>
+            </Link>
+          )}
+          {canReturn && (
+            <Link href="/purchase-returns">
+              <Button variant="secondary">
+                <RefundIcon className="h-4 w-4" />
+                Return Item
+              </Button>
+            </Link>
+          )}
         </div>
       </div>
 
       <div className="flex shrink-0 flex-wrap items-center gap-3">
-        <div className="relative min-w-[220px] flex-1">
-          <SearchIcon className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400" />
-          <Input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Search by IMEI, brand or model…"
-            variant="white"
-            className="pl-10"
-          />
-        </div>
+        <SearchInput
+          value={q}
+          onChange={setQ}
+          placeholder="Search by IMEI, brand or model…"
+          variant="white"
+          wrapperClassName="min-w-[220px] flex-1"
+        />
         <Button variant="grey" onClick={() => setScannerOpen(true)}>
           <CameraIcon className="h-4 w-4" />
           Scan IMEI
@@ -876,15 +888,7 @@ export default function InventoryPage() {
               value={categoryId}
               onChange={setCategoryId}
               searchable
-              trigger={
-                <div className="flex items-center justify-between rounded-2xl bg-ink-50 px-4 py-3 text-sm">
-                  <span className="text-ink-900">
-                    {categoryId === ""
-                      ? "All categories"
-                      : activeCategories.find((c) => c.id === categoryId)?.name ?? "Category"}
-                  </span>
-                </div>
-              }
+              placeholder="All categories"
               options={[
                 { value: "", label: "All categories" },
                 ...activeCategories.map((c) => ({ value: c.id, label: c.name })),
@@ -896,14 +900,8 @@ export default function InventoryPage() {
             <Dropdown
               value={status}
               onChange={setStatus}
-              trigger={
-                <div className="flex items-center justify-between rounded-2xl bg-ink-50 px-4 py-3 text-sm">
-                  <span className="text-ink-900">
-                    {STATUS_FILTER_OPTIONS.find((o) => o.value === status)?.label ?? "All statuses"}
-                  </span>
-                </div>
-              }
               options={STATUS_FILTER_OPTIONS}
+              placeholder="All statuses"
             />
           </div>
           <div>
@@ -911,14 +909,8 @@ export default function InventoryPage() {
             <Dropdown
               value={carrier}
               onChange={setCarrier}
-              trigger={
-                <div className="flex items-center justify-between rounded-2xl bg-ink-50 px-4 py-3 text-sm">
-                  <span className="text-ink-900">
-                    {CARRIER_FILTER_OPTIONS.find((o) => o.value === carrier)?.label ?? "All carriers"}
-                  </span>
-                </div>
-              }
               options={CARRIER_FILTER_OPTIONS}
+              placeholder="All carriers"
             />
           </div>
           <div>
@@ -926,14 +918,8 @@ export default function InventoryPage() {
             <Dropdown
               value={condition}
               onChange={setCondition}
-              trigger={
-                <div className="flex items-center justify-between rounded-2xl bg-ink-50 px-4 py-3 text-sm">
-                  <span className="text-ink-900">
-                    {CONDITION_FILTER_OPTIONS.find((o) => o.value === condition)?.label ?? "All conditions"}
-                  </span>
-                </div>
-              }
               options={CONDITION_FILTER_OPTIONS}
+              placeholder="All conditions"
             />
           </div>
           <div>
@@ -942,13 +928,7 @@ export default function InventoryPage() {
               value={vendor}
               onChange={setVendor}
               searchable
-              trigger={
-                <div className="flex items-center justify-between rounded-2xl bg-ink-50 px-4 py-3 text-sm">
-                  <span className="text-ink-900">
-                    {vendor === "" ? "All vendors" : vendor}
-                  </span>
-                </div>
-              }
+              placeholder="All vendors"
               options={[
                 { value: "", label: "All vendors" },
                 ...vendorOptions.map((v) => ({ value: v, label: v })),
@@ -1025,7 +1005,7 @@ export default function InventoryPage() {
             Products at or below their restock threshold.
           </p>
           {(data?.lowStock ?? []).map((l) => (
-            <div key={l.id} className="flex items-center justify-between gap-3 rounded-2xl bg-ink-50 px-4 py-3">
+            <div key={l.id} className="flex items-center justify-between gap-3 rounded-2xl bg-ink-50 px-3.5 py-2">
               <div className="min-w-0">
                 <p className="truncate font-semibold text-ink-900">
                   {l.brand} {l.model}

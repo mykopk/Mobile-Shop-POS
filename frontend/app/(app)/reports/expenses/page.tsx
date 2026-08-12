@@ -8,6 +8,7 @@ import { TopList } from "@/components/reports/top-list";
 import { DailyBars } from "@/components/reports/daily-bars";
 import type { ExpenseReport } from "@/lib/api-types";
 import { formatPKR } from "@/lib/money";
+import { pluralize } from "@/lib/pluralize";
 import { EXPENSE_CATEGORY_LABELS } from "@/lib/constants";
 
 export default function ExpensesReportPage() {
@@ -28,7 +29,7 @@ export default function ExpensesReportPage() {
       ) : data ? (
         <>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <KpiCard label="Total expenses" value={formatPKR(data.total)} sub={`${data.count} expense(s)`} />
+            <KpiCard label="Total expenses" value={formatPKR(data.total)} sub={pluralize(data.count, "expense")} />
             <KpiCard
               label="Daily average"
               value={formatPKR(data.daily.length > 0 ? data.total / data.daily.length : 0)}
@@ -42,6 +43,7 @@ export default function ExpensesReportPage() {
           <TopList
             title="By category"
             rows={data.byCategory.map((c) => ({
+              id: c.category,
               label: EXPENSE_CATEGORY_LABELS[c.category] ?? c.category,
               sub: `${c.count} time(s)`,
               value: c.total,

@@ -128,7 +128,7 @@ export function DatePicker({
         ref={triggerRef}
         type="button"
         onClick={() => setOpen((prev) => !prev)}
-        className="flex w-full items-center justify-between rounded-2xl bg-ink-100 px-4 py-3 text-sm"
+        className="flex w-full items-center justify-between rounded-2xl bg-ink-100 px-3.5 py-2 text-sm"
       >
         <span className="flex items-center gap-2 text-ink-900">
           <CalendarIcon className="h-4 w-4 text-ink-400" />

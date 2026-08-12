@@ -3,10 +3,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { apiRequest } from "@/lib/apiClient";
-import { useAuth } from "@/lib/auth-context";
-import { brandOf, type Contact, type ReservationDetail } from "@/lib/api-types";
+import { brandOf, type CompanyProfile, type Contact, type ReservationDetail } from "@/lib/api-types";
 import { useApi } from "@/lib/use-api";
-import { CARRIER_LABELS } from "@/lib/constants";
+import { CARRIER_LABELS, APP } from "@/lib/constants";
 import { formatPKR } from "@/lib/money";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -15,7 +14,8 @@ import { Dropdown } from "@/components/ui/dropdown";
 import { Kbd } from "@/components/ui/kbd";
 import { useToast } from "@/components/ui/toast";
 import { useSaveShortcut } from "@/lib/use-save-shortcut";
-import { ChevronLeftIcon, PlusIcon, PrinterIcon, ReservationIcon, SearchIcon, SmartphoneIcon, XIcon } from "@/components/icons";
+import { ChevronLeftIcon, PlusIcon, PrinterIcon, ReservationIcon, SmartphoneIcon, XIcon } from "@/components/icons";
+import { SearchInput } from "@/components/ui/search-input";
 
 type SearchResult = {
   id: string;
@@ -62,9 +62,9 @@ function ReservationsToolbar() {
 }
 
 export default function ReservationsPage() {
-  const { token } = useAuth();
   const { toast } = useToast();
   const { data: contacts, refetch: refetchContacts } = useApi<Contact[]>("/contact");
+  const { data: profile } = useApi<CompanyProfile>("/settings/company");
   const [q, setQ] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
@@ -115,7 +115,7 @@ export default function ReservationsPage() {
     let cancelled = false;
     (async () => {
       try {
-        const list = await apiRequest<ReservationDetail[]>(`/reservation`, { token });
+        const list = await apiRequest<ReservationDetail[]>(`/reservation`);
         const last = list?.[0]?.number ?? "";
         const match = last.match(/RES-(\d+)$/);
         const next = match ? parseInt(match[1], 10) + 1 : 1;
@@ -127,7 +127,7 @@ export default function ReservationsPage() {
     return () => {
       cancelled = true;
     };
-  }, [token]);
+  }, []);
 
   useEffect(() => {
     function onDown(event: MouseEvent) {
@@ -150,7 +150,6 @@ export default function ReservationsPage() {
       try {
         const found = await apiRequest<SearchResult[]>(
           `/product/search?q=${encodeURIComponent(query)}`,
-          { token },
         );
         setResults(found);
         return found;
@@ -161,7 +160,7 @@ export default function ReservationsPage() {
         setSearching(false);
       }
     },
-    [token],
+    [],
   );
 
   useEffect(() => {
@@ -274,7 +273,6 @@ export default function ReservationsPage() {
       try {
         const created = await apiRequest<Contact>("/contact", {
           method: "POST",
-          token,
           body: { name, phone: walkInPhone.trim() || undefined },
         });
         customerId = created.id;
@@ -294,7 +292,6 @@ export default function ReservationsPage() {
     try {
       const created = await apiRequest<ReservationDetail>("/reservation", {
         method: "POST",
-        token,
         body: {
           contactId: customerId,
           type: flow,
@@ -356,7 +353,12 @@ export default function ReservationsPage() {
         <ReservationsToolbar />
         <div className="mx-auto mt-4 max-w-sm">
         <div className="rounded-2xl bg-white p-6 font-mono text-sm">
-          <p className="text-center text-lg font-bold">DOST Mobile</p>
+          {profile?.logoUrl && (
+            <img src={profile.logoUrl} alt="" className="mx-auto mb-2 block max-h-14 object-contain" />
+          )}
+          <p className="mx-auto max-w-full truncate px-2 text-center text-lg font-bold" title={profile?.name ?? APP.nameFull}>
+            {profile?.name ?? APP.nameFull}
+          </p>
           <p className="text-center text-xs">{reservation.number}</p>
           <Badge
             variant={reservation.type === "CONSIGNMENT" ? "info" : "warning"}
@@ -506,15 +508,7 @@ export default function ReservationsPage() {
               options={contactOptions}
               onChange={setContactId}
               searchable
-              trigger={
-                <div className="flex items-center justify-between rounded-2xl bg-ink-100 px-4 py-3 text-sm">
-                  <span className="truncate text-ink-900">
-                    {isWalkIn
-                      ? "Walk-in (new)"
-                      : (contacts?.find((c) => c.id === contactId)?.name ?? "Select customer")}
-                  </span>
-                </div>
-              }
+              placeholder="Select customer"
             />
           )}
         </div>
@@ -571,10 +565,9 @@ export default function ReservationsPage() {
       <section className="mt-6 shrink-0">
         <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-ink-500">Add items</p>
           <div ref={searchWrapRef} className="relative">
-            <SearchIcon className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-ink-400" />
-            <Input
+            <SearchInput
               value={q}
-              onChange={(e) => setQ(e.target.value)}
+              onChange={setQ}
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
                   e.preventDefault();
@@ -583,7 +576,8 @@ export default function ReservationsPage() {
               }}
               placeholder="Scan IMEI or search product…"
               variant="white"
-              className="bg-ink-100 py-4 pl-11 text-base rounded-[16px]"
+              className="bg-ink-100 py-4 text-base rounded-[16px]"
+              iconClassName="h-5 w-5"
             />
 
             {panelPos &&

@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { CameraIcon } from "@/components/icons";
 
 function compressImage(file: File): Promise<string> {
@@ -31,13 +32,26 @@ function compressImage(file: File): Promise<string> {
   });
 }
 
-export function ImagePicker({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+export function ImagePicker({
+  value,
+  onChange,
+  shape = "rounded",
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  shape?: "square" | "rounded";
+}) {
   const fileRef = useRef<HTMLInputElement>(null);
   const dragDepth = useRef(0);
   const [busy, setBusy] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [urlMode, setUrlMode] = useState(false);
   const [urlDraft, setUrlDraft] = useState(value);
+
+  const isSquare = shape === "square";
+  const previewClasses = isSquare
+    ? "h-20 w-20 shrink-0 rounded-2xl object-cover"
+    : "h-16 w-16 shrink-0 rounded-xl object-cover";
 
   async function onFile(file: File) {
     setBusy(true);
@@ -87,23 +101,18 @@ export function ImagePicker({ value, onChange }: { value: string; onChange: (val
           autoFocus
         />
         <div className="mt-2 flex items-center gap-2">
-          <button
-            type="button"
+          <Button
+            size="sm"
             onClick={() => {
               onChange(urlDraft.trim());
               setUrlMode(false);
             }}
-            className="rounded-xl bg-brand-600 px-4 py-2 text-xs font-semibold text-white hover:bg-brand-700"
           >
             Apply URL
-          </button>
-          <button
-            type="button"
-            onClick={() => setUrlMode(false)}
-            className="text-xs font-medium text-ink-500 hover:underline"
-          >
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => setUrlMode(false)}>
             Cancel
-          </button>
+          </Button>
         </div>
       </div>
     );
@@ -122,39 +131,42 @@ export function ImagePicker({ value, onChange }: { value: string; onChange: (val
             dragging ? "border-2 border-dashed border-brand-500 bg-brand-50" : "border-2 border-transparent bg-ink-50"
           }`}
         >
-          <img src={value} alt="" className="h-16 w-16 shrink-0 rounded-xl object-cover" />
+          <img src={value} alt="" className={previewClasses} />
           <div className="flex flex-col items-start gap-1.5">
-            <button
-              type="button"
+            <Button
+              variant="grey"
+              size="sm"
               onClick={() => fileRef.current?.click()}
-              className="rounded-xl bg-white px-3.5 py-2 text-xs font-semibold text-ink-700 shadow-sm hover:bg-ink-100"
             >
               Change image
-            </button>
-            <button
-              type="button"
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => onChange("")}
-              className="text-xs font-medium text-red-600 hover:underline"
+              className="text-red-600 hover:text-red-700"
             >
               Remove
-            </button>
+            </Button>
           </div>
         </div>
       ) : (
-        <button
-          type="button"
-          onClick={() => fileRef.current?.click()}
-          className={`flex h-28 w-full flex-col items-center justify-center gap-2 rounded-2xl border border-dashed bg-ink-50 transition ${
+        <Button
+          variant="ghost"
+          className={`flex w-full flex-col items-center justify-center gap-2 border border-dashed bg-ink-50 transition ${
+            isSquare ? "h-28 rounded-2xl" : "h-28 rounded-2xl"
+          } ${
             dragging
               ? "border-brand-500 bg-brand-50 text-brand-600"
               : "border-ink-200 text-ink-400 hover:bg-ink-100 hover:text-ink-600"
           }`}
+          onClick={() => fileRef.current?.click()}
         >
           <CameraIcon className="h-6 w-6" />
           <span className="text-xs font-semibold">
             {busy ? "Processing…" : dragging ? "Drop to upload" : "Click or drag to add image"}
           </span>
-        </button>
+        </Button>
       )}
       <input
         ref={fileRef}

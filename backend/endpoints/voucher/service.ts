@@ -2,9 +2,8 @@ import { prisma } from "../../core/lib/prisma";
 import { ApiError } from "../../core/middleware/error";
 import { writeAudit } from "../../core/lib/audit";
 import { nextNumber } from "../../core/lib/numbering";
+import { COMPANY_ID } from "../../core/lib/company";
 import type { VoucherInput, VoucherUpdateInput, VoucherType } from "./schemas";
-
-const COMPANY_ID = "store";
 
 const PREFIX: Record<VoucherType, string> = {
   RECEIVING: "CRV",

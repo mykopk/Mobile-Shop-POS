@@ -237,7 +237,7 @@ The product treats new and used phones as **clearly separated experiences**:
 - **Mobile-first UI** — usable on a tablet/phone screen, but responsive for desktop.
 - **Offline resilience** (P1): POS should survive a brief network drop (local queue).
 - **Performance**: POS search < 300ms on 10k+ units.
-- **Security**: auth required, role-based access, audit logging, no cost data leaked to cashiers.
+- **Security**: auth required, per-user permission-based access (seeded from role), audit logging, no cost data leaked to cashiers.
 - **Data integrity**: IMEI uniqueness enforced at DB level; all money movements logged.
 
 ---

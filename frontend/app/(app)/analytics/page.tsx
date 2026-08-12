@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useApi } from "@/lib/use-api";
 import type { StockMovement, Transaction } from "@/lib/api-types";
 import { formatPKR } from "@/lib/money";
+import { pluralize } from "@/lib/pluralize";
 import { formatDateTime } from "@/lib/dates";
 import { TRANSACTION_TYPE_LABELS } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
@@ -233,10 +234,10 @@ export default function AnalyticsPage() {
         {tab === "overview" && (
           <div className="space-y-4">
             <div className="grid gap-3 md:grid-cols-4">
-              <SummaryCard label="Sales" value={formatPKR(totals.salesAmount)} sub={`${totals.salesCount} sale(s)`} />
-              <SummaryCard label="Purchases" value={formatPKR(totals.purchasesAmount)} sub={`${totals.purchasesCount} purchase(s)`} />
-              <SummaryCard label="Sale returns" value={formatPKR(totals.saleReturnsAmount)} sub={`${totals.saleReturnsCount} return(s)`} />
-              <SummaryCard label="Purchase returns" value={formatPKR(totals.purchaseReturnsAmount)} sub={`${totals.purchaseReturnsCount} return(s)`} />
+              <SummaryCard label="Sales" value={formatPKR(totals.salesAmount)} sub={pluralize(totals.salesCount, "sale")} />
+              <SummaryCard label="Purchases" value={formatPKR(totals.purchasesAmount)} sub={pluralize(totals.purchasesCount, "purchase")} />
+              <SummaryCard label="Sale returns" value={formatPKR(totals.saleReturnsAmount)} sub={pluralize(totals.saleReturnsCount, "return")} />
+              <SummaryCard label="Purchase returns" value={formatPKR(totals.purchaseReturnsAmount)} sub={pluralize(totals.purchaseReturnsCount, "return")} />
             </div>
             <div className="rounded-2xl bg-white p-4">
               <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-500">Recent returns</p>

@@ -1,45 +1,42 @@
 export type Role = "ADMIN" | "MANAGER" | "CASHIER";
 
-export type PreregisteredUser = {
-  id: string;
-  username: string;
-  name: string;
-  email: string;
-  pin: string;
-  role: Role;
-};
-
 export const PIN_LENGTH = 4;
-
-export const PREREGISTERED_USERS: PreregisteredUser[] = [
-  {
-    id: "u-admin",
-    username: "arslan",
-    name: "Arslan Wahab",
-    email: "admin@dost.com",
-    pin: "1111",
-    role: "ADMIN",
-  },
-  {
-    id: "u-manager",
-    username: "saima",
-    name: "Saima Riaz",
-    email: "manager@dost.com",
-    pin: "2222",
-    role: "MANAGER",
-  },
-  {
-    id: "u-cashier",
-    username: "ali",
-    name: "Ali Hassan",
-    email: "cashier@dost.com",
-    pin: "3333",
-    role: "CASHIER",
-  },
-];
 
 export const ROLE_META: Record<Role, { label: string; color: string }> = {
   ADMIN: { label: "Admin", color: "#e63b20" },
   MANAGER: { label: "Manager", color: "#d97706" },
   CASHIER: { label: "Cashier", color: "#e11d48" },
 };
+
+export const USER_TEXT = {
+  title: "Users & Roles",
+  subtitle: "Manage staff accounts and their permissions",
+  newUser: "New user",
+  editUser: "Edit user",
+  username: "Username",
+  usernamePlaceholder: "e.g. bilal",
+  name: "Full name",
+  namePlaceholder: "e.g. Bilal Ahmed",
+  email: "Email (optional)",
+  emailPlaceholder: "bilal@dost.com",
+  pin: "PIN",
+  pinHint: "Exactly 4 digits",
+  pinRequired: "PIN must be exactly 4 digits",
+  pinPlaceholder: "••••",
+  role: "Role",
+  active: "Active",
+  activeHint: "Inactive users cannot sign in.",
+  permissions: "Permissions",
+  permissionHint: "Stored per user. Empty falls back to the role defaults.",
+  useRoleDefaults: "Use role defaults",
+  useRoleDefaultsHint: "Reset to this role's standard permission set.",
+  save: "Save user",
+  cancel: "Cancel",
+  created: "User created",
+  updated: "User updated",
+  saved: "User saved",
+  noData: "No users yet",
+  retry: "Try again",
+  permissionCount: "permissions",
+  selfGuard: "You cannot deactivate your own account or remove your own admin access.",
+} as const;

@@ -40,12 +40,13 @@ export default function ProfitReportPage() {
           <div className="grid gap-3 lg:grid-cols-3">
             <TopList
               title="By brand"
-              rows={data.byBrand.map((b) => ({ label: b.name, sub: `margin ${((b.profit / (b.revenue || 1)) * 100).toFixed(0)}%`, value: b.profit }))}
+              rows={data.byBrand.map((b) => ({ id: b.name, label: b.name, sub: `margin ${((b.profit / (b.revenue || 1)) * 100).toFixed(0)}%`, value: b.profit }))}
               format={formatPKR}
             />
             <TopList
               title="By condition"
               rows={data.byCondition.map((c) => ({
+                id: c.condition,
                 label: REPORT_CONDITION_LABELS[c.condition] ?? c.condition,
                 value: c.profit,
               }))}
@@ -59,6 +60,7 @@ export default function ProfitReportPage() {
                 { key: "profit", label: "Profit", align: "right", render: (r) => <span className="font-semibold text-ink-900">{formatPKR(r.profit)}</span> },
               ]}
               rows={data.byModel}
+              rowKey={(r) => r.name}
             />
           </div>
         </>

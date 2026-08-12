@@ -1,5 +1,4 @@
 import type { Request, Response } from "express";
-import { ApiError } from "../../core/middleware/error";
 import {
   getCompanyProfile,
   getSoundPrefs,
@@ -13,9 +12,6 @@ export async function companyGetHandler(req: Request, res: Response) {
 }
 
 export async function companyPutHandler(req: Request, res: Response) {
-  if (req.user?.role === "CASHIER") {
-    throw new ApiError(403, "auth.forbidden", "Forbidden");
-  }
   res.json({ data: await updateCompanyProfile(req.body as CompanyProfileInput, req.user!.id) });
 }
 

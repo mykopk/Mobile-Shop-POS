@@ -7,6 +7,9 @@ export const CHART = {
   credit: "#f59e0b",
   new: "#f2543a",
   used: "#8b5cf6",
+  pta: "#10b981",
+  nonPta: "#f59e0b",
+  simLocked: "#78716c",
   grid: "#e7e5e4",
   ink: "#78716c",
 } as const;

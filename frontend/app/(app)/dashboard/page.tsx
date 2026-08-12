@@ -17,16 +17,30 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { ContactsIcon, InventoryIcon, PosIcon, ProductsIcon, PurchasesIcon, ReportsIcon } from "@/components/icons";
-import { ChartPieIcon, TrendingUpIcon, WalletIcon } from "@/components/icons";
+import {
+  ChartPieIcon,
+  ContactsIcon,
+  InventoryIcon,
+  PosIcon,
+  ProductsIcon,
+  PurchasesIcon,
+  RefundIcon,
+  ReportsIcon,
+  ReservationIcon,
+  ReturnsIcon,
+  TrendingUpIcon,
+  VoucherIcon,
+  WalletIcon,
+} from "@/components/icons";
 import { useAuth } from "@/lib/auth-context";
-import type { DashboardOverview } from "@/lib/api-types";
+import type { ActivityLog, CompanyProfile, DashboardOverview } from "@/lib/api-types";
 import { useApi } from "@/lib/use-api";
 import { canViewCosts } from "@/lib/roles";
-import { formatPKR } from "@/lib/money";
+import { formatMoney, formatMoneyCompact } from "@/lib/money";
+import { pluralize } from "@/lib/pluralize";
 import { CHART } from "@/lib/constants";
 import { Badge } from "@/components/ui/badge";
-import { TRANSACTION_TYPE_LABELS } from "@/lib/constants";
+import { ACTIVITY_ACTION_LABELS, TRANSACTION_TYPE_LABELS } from "@/lib/constants";
 
 function Card({
   title,
@@ -40,7 +54,7 @@ function Card({
   className?: string;
 }) {
   return (
-    <div className={`rounded-2xl bg-white ${className}`}>
+    <div className={`rounded-3xl bg-white ${className}`}>
       {(title || action) && (
         <div className="flex items-center justify-between px-5 py-4">
           {title && <h3 className="text-sm font-semibold text-ink-900">{title}</h3>}
@@ -61,7 +75,7 @@ function KpiCard({ label, value, sub, tone, icon }: {
 }) {
   const Icon = icon;
   return (
-    <div className="rounded-2xl bg-white p-5">
+    <div className="rounded-3xl bg-white p-5">
       <div className="flex items-center justify-between">
         <p className="text-xs font-medium uppercase tracking-wide text-ink-500">{label}</p>
         {Icon && <span className="rounded-xl bg-brand-50 p-1.5 text-brand-600"><Icon className="h-4 w-4" /></span>}
@@ -81,13 +95,14 @@ const SHORTCUTS = [
   { href: "/reports", label: "Reports", icon: ReportsIcon },
 ];
 
-function ChartTooltip({ active, payload, label, money, percent, noHeader }: {
+function ChartTooltip({ active, payload, label, money, percent, noHeader, symbol = "Rs" }: {
   active?: boolean;
   payload?: { name?: string; value?: number; color?: string }[];
   label?: string | number;
   money?: boolean;
   percent?: boolean;
   noHeader?: boolean;
+  symbol?: string;
 }) {
   if (!active || !payload || payload.length === 0) return null;
   const total = payload.reduce((sum, p) => sum + (p.value ?? 0), 0);
@@ -110,7 +125,7 @@ function ChartTooltip({ active, payload, label, money, percent, noHeader }: {
               {p.name}
             </span>
             <span className="text-xs font-semibold text-ink-900">
-              {money ? formatPKR(p.value) : p.value}
+              {money ? formatMoney(p.value, symbol) : p.value}
               {percent && total > 0 ? ` · ${Math.round(((p.value ?? 0) / total) * 100)}%` : ""}
             </span>
           </div>
@@ -155,11 +170,47 @@ function TodayDot({ cx, cy, payload, todayKey }: {
   );
 }
 
+function actionLabel(action: string) {
+  return (
+    ACTIVITY_ACTION_LABELS[action] ??
+    action
+      .split(".").pop()
+      ?.toLowerCase()
+      .replace(/_/g, " ")
+      .replace(/\b\w/g, (c) => c.toUpperCase()) ??
+    action
+  );
+}
+
+function entityLabel(entity: string) {
+  return entity.replace(/([a-z])([A-Z])/g, "$1 $2");
+}
+
+function timeAgo(iso: string) {
+  const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60_000);
+  if (mins < 1) return "Just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  return new Date(iso).toLocaleDateString("en-PK", { day: "numeric", month: "short" });
+}
+
 export default function DashboardPage() {
   const { user } = useAuth();
   const { data, loading } = useApi<DashboardOverview>("/dashboard/overview");
+  const { data: activity } = useApi<ActivityLog[]>("/dashboard/activity");
+  const { data: profile } = useApi<CompanyProfile>("/settings/company");
 
-  const viewCosts = canViewCosts(user?.role);
+  const currencySymbol = profile?.currencySymbol ?? "Rs";
+  const compact = profile?.compactPrices ?? true;
+  const fmt = (n: number | string) => {
+    const sym = currencySymbol;
+    return compact ? formatMoneyCompact(n, sym) : formatMoney(n, sym);
+  };
+
+  const viewCosts = canViewCosts(user);
 
   const paymentData = data
     ? [
@@ -186,6 +237,20 @@ export default function DashboardPage() {
     : [];
   const todayKey = trendData.length > 0 ? trendData[trendData.length - 1].day : "";
 
+  const carrierData = data
+    ? [
+        { name: "PTA", value: data.carrierSplit.PTA, color: CHART.pta },
+        { name: "Non-PTA", value: data.carrierSplit.NON_PTA, color: CHART.nonPta },
+        { name: "SIM locked", value: data.carrierSplit.SIM_LOCKED, color: CHART.simLocked },
+      ].filter((c) => c.value > 0)
+    : [];
+  const carrierTotal = carrierData.reduce((sum, c) => sum + c.value, 0);
+
+  const soldTotal = data
+    ? data.soldByCategory.PHONE + data.soldByCategory.ACCESSORY
+    : 0;
+  const netCash = data ? data.today.cashIn - data.today.cashOut : 0;
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -197,7 +262,7 @@ export default function DashboardPage() {
           <Link
             key={s.href}
             href={s.href}
-            className="flex flex-col items-center gap-2 rounded-2xl bg-white px-3 py-4 text-center transition hover:bg-brand-50"
+            className="flex flex-col items-center gap-2 rounded-3xl bg-white px-3 py-4 text-center transition hover:bg-brand-50"
           >
             <span className="rounded-xl bg-brand-50 p-2 text-brand-600">
               <s.icon className="h-5 w-5" />
@@ -210,22 +275,22 @@ export default function DashboardPage() {
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <KpiCard
           label="Today's Sales"
-          value={loading || !data ? "…" : formatPKR(data.today.revenue)}
-          sub={loading || !data ? undefined : `${data.today.salesCount} invoice(s)`}
+          value={loading || !data ? "…" : fmt(data.today.revenue)}
+          sub={loading || !data ? undefined : pluralize(data.today.salesCount, "invoice")}
           tone="text-brand-600"
           icon={WalletIcon}
         />
         {viewCosts ? (
           <KpiCard
             label="Today's Profit"
-            value={loading || !data || data.today.profit === null ? "…" : formatPKR(data.today.profit)}
+            value={loading || !data || data.today.profit === null ? "…" : fmt(data.today.profit)}
             tone="text-amber-600"
             icon={TrendingUpIcon}
           />
         ) : (
           <KpiCard
             label="Purchases Today"
-            value={loading || !data ? "…" : formatPKR(data.today.purchasesAmount)}
+            value={loading || !data ? "…" : fmt(data.today.purchasesAmount)}
             icon={PurchasesIcon}
           />
         )}
@@ -237,9 +302,77 @@ export default function DashboardPage() {
         />
         <KpiCard
           label="Total Revenue"
-          value={loading || !data ? "…" : formatPKR(data.all.revenue)}
+          value={loading || !data ? "…" : fmt(data.all.revenue)}
           sub={loading || !data ? undefined : `${data.all.salesCount} sales`}
           icon={ChartPieIcon}
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-6">
+        <KpiCard
+          label="Expenses Today"
+          value={loading || !data ? "…" : fmt(data.today.expensesAmount)}
+          sub={loading || !data ? undefined : pluralize(data.today.expensesCount, "expense")}
+          icon={WalletIcon}
+        />
+        <KpiCard
+          label="Net Cash Today"
+          value={loading || !data ? "…" : fmt(netCash)}
+          sub={
+            loading || !data
+              ? undefined
+              : `${fmt(data.today.cashIn)} in · ${fmt(data.today.cashOut)} out`
+          }
+          tone={
+            loading || !data || netCash >= 0 ? "text-emerald-600" : "text-red-600"
+          }
+          icon={VoucherIcon}
+        />
+        <KpiCard
+          label="Outstanding Credit"
+          value={loading || !data ? "…" : fmt(data.credit.receivables)}
+          sub={
+            loading || !data
+              ? undefined
+              : data.credit.payables > 0
+                ? `Payables ${fmt(data.credit.payables)}`
+                : undefined
+          }
+          icon={RefundIcon}
+        />
+        <KpiCard
+          label="Active Reservations"
+          value={loading || !data ? "…" : String(data.reservations.active)}
+          sub={
+            loading || !data
+              ? undefined
+              : `${pluralize(data.reservations.consignments, "consignment")} · ${fmt(data.reservations.advance)} advance`
+          }
+          icon={ReservationIcon}
+        />
+        <KpiCard
+          label="Inventory Value"
+          value={loading || !data ? "…" : fmt(data.stockValue.retail)}
+          sub={
+            loading || !data || data.stockValue.cost === null
+              ? undefined
+              : `${fmt(data.stockValue.cost)} cost`
+          }
+          icon={InventoryIcon}
+        />
+        <KpiCard
+          label="Returns Today"
+          value={
+            loading || !data
+              ? "…"
+              : String(data.today.returns.sale + data.today.returns.purchase)
+          }
+          sub={
+            loading || !data
+              ? undefined
+              : `${pluralize(data.today.returns.sale, "sale")} · ${pluralize(data.today.returns.purchase, "purchase")}`
+          }
+          icon={ReturnsIcon}
         />
       </div>
 
@@ -264,7 +397,7 @@ export default function DashboardPage() {
                   tick={{ fontSize: 11, fill: CHART.ink }}
                   tickFormatter={(v: number) => (v >= 1000 ? `${Math.round(v / 1000)}k` : String(v))}
                 />
-                <Tooltip content={<ChartTooltip money />} cursor={{ stroke: CHART.ink, strokeWidth: 1, strokeDasharray: "3 3" }} />
+                <Tooltip content={<ChartTooltip money symbol={currencySymbol} />} cursor={{ stroke: CHART.ink, strokeWidth: 1, strokeDasharray: "3 3" }} />
                 <ReferenceLine x={todayKey} stroke={CHART.sales} strokeDasharray="4 4" strokeOpacity={0.5} />
                 <Line
                   type="monotone"
@@ -299,7 +432,7 @@ export default function DashboardPage() {
                     <Cell key={entry.name} fill={entry.color} />
                   ))}
                 </Pie>
-                <Tooltip content={<ChartTooltip money percent noHeader />} />
+                <Tooltip content={<ChartTooltip money percent noHeader symbol={currencySymbol} />} />
               </PieChart>
             </ResponsiveContainer>
           </div>
@@ -352,6 +485,131 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
+        <Card title="Recent activity" className="lg:col-span-2">
+          {!activity ? (
+            <p className="px-5 pb-5 text-sm text-ink-400">Loading…</p>
+          ) : activity.length > 0 ? (
+            <ul className="">
+              {activity.slice(0, 6).map((a) => (
+                <li key={a.id} className="flex items-center justify-between px-5 py-3">
+                  <div>
+                    <p className="text-sm font-medium text-ink-900">{actionLabel(a.action)}</p>
+                    <p className="text-xs text-ink-500">
+                      {a.user.name} · {entityLabel(a.entity)}
+                    </p>
+                  </div>
+                  <p className="shrink-0 pl-3 text-xs text-ink-400">{timeAgo(a.createdAt)}</p>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="px-5 pb-5 text-sm text-ink-400">No recent activity.</p>
+          )}
+        </Card>
+
+        <Card title="Stock · PTA status">
+          {loading || !data ? (
+            <p className="px-5 pb-5 text-sm text-ink-400">Loading…</p>
+          ) : carrierTotal > 0 ? (
+            <div className="px-5 pb-5 pt-1">
+              <div className="flex h-3 overflow-hidden rounded-full bg-ink-100">
+                {carrierData.map((c) => (
+                  <div
+                    key={c.name}
+                    style={{ width: `${(c.value / carrierTotal) * 100}%` }}
+                    className="h-full"
+                    title={c.name}
+                  />
+                ))}
+              </div>
+              <ul className="mt-3 space-y-1.5">
+                {carrierData.map((c) => (
+                  <li key={c.name} className="flex items-center justify-between text-sm">
+                    <span className="flex items-center gap-2 text-ink-600">
+                      <span className="h-2 w-2 rounded-full" style={{ backgroundColor: c.color }} />
+                      {c.name}
+                    </span>
+                    <span className="font-semibold text-ink-900">{c.value}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : (
+            <p className="px-5 pb-5 text-sm text-ink-400">No units in stock.</p>
+          )}
+        </Card>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Card title="Top sellers today">
+          {loading || !data ? (
+            <p className="px-5 pb-5 text-sm text-ink-400">Loading…</p>
+          ) : data.topSellers.length > 0 ? (
+            <ul className="px-5">
+              {data.topSellers.map((s, i) => (
+                <li key={s.id} className="flex items-center justify-between gap-3 py-2.5 text-sm">
+                  <span className="flex min-w-0 items-center gap-2.5 text-ink-700">
+                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-brand-50 text-[10px] font-bold text-brand-600">
+                      {i + 1}
+                    </span>
+                    <span className="truncate">{s.name}</span>
+                  </span>
+                  <span className="shrink-0 font-semibold text-ink-900">{fmt(s.revenue)}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="px-5 pb-5 text-sm text-ink-400">No sales today.</p>
+          )}
+        </Card>
+
+        <Card
+          title="Sold · Phones vs Accessories"
+          action={<span className="text-xs text-ink-400">Last 14 days</span>}
+          className="lg:col-span-2"
+        >
+          {loading || !data ? (
+            <p className="px-5 pb-5 text-sm text-ink-400">Loading…</p>
+          ) : soldTotal > 0 ? (
+            <>
+              <div className="grid grid-cols-2 gap-4 px-5 pb-3">
+                <div className="rounded-3xl bg-brand-50 p-4">
+                  <p className="text-xs font-medium uppercase tracking-wide text-ink-500">Phones</p>
+                  <p className="mt-1 text-2xl font-bold text-ink-900">{data.soldByCategory.PHONE}</p>
+                </div>
+                <div className="rounded-3xl bg-ink-100 p-4">
+                  <p className="text-xs font-medium uppercase tracking-wide text-ink-500">Accessories</p>
+                  <p className="mt-1 text-2xl font-bold text-ink-900">{data.soldByCategory.ACCESSORY}</p>
+                </div>
+              </div>
+              <div className="mx-5 flex h-3 overflow-hidden rounded-full bg-ink-100">
+                <div
+                  className="h-full bg-brand-500"
+                  style={{ width: `${(data.soldByCategory.PHONE / soldTotal) * 100}%` }}
+                />
+                <div
+                  className="h-full bg-ink-400"
+                  style={{ width: `${(data.soldByCategory.ACCESSORY / soldTotal) * 100}%` }}
+                />
+              </div>
+              <div className="flex justify-center gap-4 px-5 pb-4 pt-3">
+                <span className="flex items-center gap-1.5 text-xs text-ink-500">
+                  <span className="h-2 w-2 rounded-full bg-brand-500" />
+                  Phones · {data.soldByCategory.PHONE}
+                </span>
+                <span className="flex items-center gap-1.5 text-xs text-ink-500">
+                  <span className="h-2 w-2 rounded-full bg-ink-400" />
+                  Accessories · {data.soldByCategory.ACCESSORY}
+                </span>
+              </div>
+            </>
+          ) : (
+            <p className="px-5 pb-5 text-sm text-ink-400">No units sold yet.</p>
+          )}
+        </Card>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-3">
         {data && data.lowStock.length > 0 && (
           <Card title="Low stock">
             <ul className=" px-5">
@@ -391,7 +649,7 @@ export default function DashboardPage() {
                       {t.contact.name} · {t.user.name}
                     </p>
                   </div>
-                  <p className="text-sm font-semibold text-ink-900">{formatPKR(t.total)}</p>
+                  <p className="text-sm font-semibold text-ink-900">{fmt(t.total)}</p>
                 </li>
               ))}
             </ul>

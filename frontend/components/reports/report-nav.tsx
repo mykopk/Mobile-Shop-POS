@@ -4,13 +4,14 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { REPORT_NAV } from "@/lib/constants";
+import { PERMISSIONS } from "@/lib/constants/permissions";
+import { hasPermission } from "@/lib/roles";
 
 export function ReportNav() {
   const pathname = usePathname();
   const { user } = useAuth();
-  const items = REPORT_NAV.filter(
-    (i) => !i.adminOnly || user?.role === "ADMIN" || user?.role === "MANAGER",
-  );
+  const canViewAdminReports = hasPermission(user, PERMISSIONS.reportProfit);
+  const items = REPORT_NAV.filter((i) => !i.adminOnly || canViewAdminReports);
 
   return (
     <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">

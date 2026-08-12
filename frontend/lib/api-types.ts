@@ -1,4 +1,36 @@
+import type { Role } from "@/lib/constants/users";
+
 export type CategoryType = "PHONE" | "ACCESSORY";
+
+export type CompanyProfile = {
+  id: string;
+  name: string;
+  tagline: string | null;
+  address: string | null;
+  phone: string | null;
+  email: string | null;
+  logoUrl: string | null;
+  footerText: string | null;
+  currency: string;
+  currencySymbol: string;
+  taxRate: string;
+  timezone: string | null;
+  compactPrices: boolean;
+  raastId: string | null;
+  whatsapp: string | null;
+  website: string | null;
+};
+
+export type AdminUser = {
+  id: string;
+  username: string;
+  name: string;
+  email: string;
+  role: Role;
+  active: boolean;
+  permissions: string[];
+  createdAt: string;
+};
 
 export type Category = {
   id: string;
@@ -335,6 +367,11 @@ export type DashboardOverview = {
     profit: number | null;
     purchasesCount: number;
     purchasesAmount: number;
+    expensesAmount: number;
+    expensesCount: number;
+    cashIn: number;
+    cashOut: number;
+    returns: { sale: number; purchase: number };
   };
   all: {
     salesCount: number;
@@ -343,6 +380,12 @@ export type DashboardOverview = {
     purchasesAmount: number;
   };
   stock: { NEW: number; USED: number; total: number };
+  stockValue: { cost: number | null; retail: number };
+  carrierSplit: { PTA: number; NON_PTA: number; SIM_LOCKED: number };
+  reservations: { active: number; total: number; advance: number; consignments: number };
+  credit: { receivables: number; payables: number };
+  topSellers: { id: string; name: string; count: number; revenue: number }[];
+  soldByCategory: { PHONE: number; ACCESSORY: number };
   lowStock: {
     id: string;
     brand: string;
@@ -365,6 +408,16 @@ export type DashboardOverview = {
     contact: { name: string };
     user: { name: string };
   }[];
+};
+
+export type ActivityLog = {
+  id: string;
+  action: string;
+  entity: string;
+  entityId: string;
+  details: string | null;
+  createdAt: string;
+  user: { id: string; name: string; username: string };
 };
 
 export type PaymentMethod = "CASH" | "CARD" | "BANK_TRANSFER" | "CREDIT";

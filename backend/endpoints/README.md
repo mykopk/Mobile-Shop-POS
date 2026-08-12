@@ -5,10 +5,11 @@ Every REST endpoint of the API is its own folder under `endpoints/`. The folder 
 | URL | Folder |
 |---|---|
 | `POST /api/auth/login` | `endpoints/auth/` |
-| `GET /api/user` | `endpoints/user/` |
-| `GET /api/user/invoice` | `endpoints/user/invoice/` (sub-resource) |
+| `GET /api/contact` | `endpoints/contact/` |
 | `GET /api/product` | `endpoints/product/` |
 | `GET /api/unit/imei/:imei` | `endpoints/unit/` |
+| `POST /api/transaction/sale` | `endpoints/transaction/` |
+| `GET /api/report/sales` | `endpoints/report/` |
 
 Each endpoint folder owns **all** of its code:
 
@@ -22,6 +23,7 @@ endpoints/user/
 
 Rules:
 - No shared business logic lives in handlers — cross-endpoint logic goes in `core/`.
-- One endpoint = one router mounted in `server.ts` (e.g. `app.use('/api/user', userRouter)`).
-- Sub-resources are nested folders (`user/invoice/`) and are mounted under the parent (`/api/user/invoice`).
-- Shared infra (Prisma client, JWT, auth/error middleware, permissions, audit) lives in `core/`.
+- One endpoint = one router mounted in `app.ts` (e.g. `app.use('/api/user', userRouter)`).
+- Shared infra (Prisma client, JWT, auth/permission middleware, audit, time) lives in `core/`.
+- Every route (read and write) is gated with `requirePermission(...)` from `core/lib/permissions.ts` — each resource has `<resource>.view/create/update/delete` keys.
+- Permissions are stored per user (`User.permissions` JSON) and enforced from the DB on every request via async `requireAuth`. An empty stored list falls back to `ROLE_PERMISSIONS[role]`. Admins edit them via `PUT /api/user/:id`.

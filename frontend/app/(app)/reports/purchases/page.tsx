@@ -9,6 +9,7 @@ import { DailyBars } from "@/components/reports/daily-bars";
 import { ReportTable } from "@/components/reports/report-table";
 import type { PurchaseReport } from "@/lib/api-types";
 import { formatPKR } from "@/lib/money";
+import { pluralize } from "@/lib/pluralize";
 import { REPORT_CONDITION_LABELS } from "@/lib/constants";
 
 export default function PurchasesReportPage() {
@@ -29,7 +30,7 @@ export default function PurchasesReportPage() {
       ) : data ? (
         <>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <KpiCard label="Amount" value={formatPKR(data.amount)} sub={`${data.count} purchase(s)`} />
+            <KpiCard label="Amount" value={formatPKR(data.amount)} sub={pluralize(data.count, "purchase")} />
             <KpiCard label="Units bought" value={String(data.units)} sub="Across all purchases" />
             <KpiCard label="Discounts" value={formatPKR(data.discount)} sub={`Subtotal ${formatPKR(data.subtotal)}`} />
             <KpiCard label="Avg. purchase" value={formatPKR(data.count > 0 ? data.amount / data.count : 0)} sub="Amount per purchase" />
@@ -41,8 +42,9 @@ export default function PurchasesReportPage() {
             <TopList
               title="By condition"
               rows={data.byCondition.map((c) => ({
+                id: c.condition,
                 label: REPORT_CONDITION_LABELS[c.condition] ?? c.condition,
-                sub: `${c.units} unit(s)`,
+                sub: `${pluralize(c.units, "unit")}`,
                 value: c.amount,
               }))}
               format={formatPKR}
@@ -55,6 +57,7 @@ export default function PurchasesReportPage() {
                 { key: "amount", label: "Amount", align: "right", render: (r) => <span className="font-semibold text-ink-900">{formatPKR(r.amount)}</span> },
               ]}
               rows={data.byVendor}
+              rowKey={(r) => r.name}
             />
           </div>
         </>

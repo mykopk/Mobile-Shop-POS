@@ -44,6 +44,18 @@ export function errorHandler(
     return;
   }
 
+  const httpError = err as { status?: number; type?: string; message?: string };
+  if (httpError.status && httpError.status >= 400 && httpError.status < 500) {
+    const tooLarge = httpError.type === "entity.too.large";
+    res.status(httpError.status).json({
+      error: {
+        code: tooLarge ? "payload_too_large" : "bad_request",
+        message: tooLarge ? "Request body too large" : (httpError.message ?? "Invalid request"),
+      },
+    });
+    return;
+  }
+
   console.error(err);
   res.status(500).json({
     error: { code: "internal_error", message: "Internal server error" },

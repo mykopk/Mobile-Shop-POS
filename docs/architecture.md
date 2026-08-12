@@ -7,7 +7,7 @@
 | **Backend** | **Node.js + Express** (REST API) + TypeScript |
 | **Frontend** | **Next.js (App Router)** + TypeScript (SPA-style, talks to API) |
 | **ORM** | **Prisma** |
-| **DB** | **SQLite (embedded, `backend/data/dost.db`)** — single client, offline desktop |
+| **DB** | **SQLite** (embedded in Local mode; `backend/data/dost.db` in dev) — Postgres via Prisma for Remote mode |
 | **Auth** | **Simple JWT login** — preregistered users only (**username + 4-digit PIN**). No OAuth, no signup. |
 | **Validation** | Zod |
 | **Styling / UI** | Tailwind CSS + shadcn/ui |
@@ -19,7 +19,7 @@
 - Frontend is only UI — swapable, no DB access, no business logic.
 - Clear contract between the two (REST endpoints + JSON) → both can be built in parallel.
 
-> **Deployment shape (decided):** the app runs **fully offline on one machine** — a desktop app later packaged with Electron where the embedded Express API (this `backend/`) + SQLite DB + Next.js UI all live in one app file. No server, no Postgres, no internet required. A future online/multi-terminal mode is possible by swapping SQLite → Postgres through Prisma with no schema or frontend changes.
+> **Deployment shape (decided):** **dual-mode desktop app.** Only the **frontend** ships as the desktop app (Electron shell over a static Next.js export). The backend has two runtime-selectable modes — **Local**: the app bundles the Express API + SQLite and runs them on the same machine (fully offline, single terminal); **Remote**: the app is a thin shell pointing at a hosted backend URL (multi-terminal). The switch is a runtime setting, not a rebuild — same frontend, same API contract, no schema changes.
 
 ## 2. Project Structure (monorepo)
 
@@ -29,14 +29,15 @@ dost-mobile-pos/
 │   ├── endpoints/                # ONE FOLDER PER ENDPOINT (mirrors the URL)
 │   │   ├── auth/                 #   /api/auth  → routes.ts, handlers.ts,
 │   │   │                         #                 service.ts, schemas.ts
-│   │   ├── user/                 #   /api/user
-│   │   │   └── invoice/          #   /api/user/invoice   (sub-resource)
+│   │   ├── user/                 #   /api/user (admin: users & roles)
 │   │   ├── contact/  product/    #   /api/contact, /api/product
-│   │   ├── unit/     sale/       #   /api/unit (IMEI/inventory), /api/sale
-│   │   ├── purchase/ payment/    #   /api/purchase (new+used), /api/payment
-│   │   ├── bank-account/ report/ #   /api/bank-account, /api/report
-│   │   ├── dashboard/ settings/  #   /api/dashboard, /api/settings
-│   │   └── log/                  #   /api/log (audit)
+│   │   ├── unit/     transaction/#   /api/unit (IMEI/inventory), /api/transaction
+│   │   │                         #   (purchases, sales & returns)
+│   │   ├── payment/ bank-account/#   /api/payment, /api/bank-account
+│   │   ├── report/  dashboard/   #   /api/report, /api/dashboard
+│   │   ├── settings/             #   /api/settings (company profile)
+│   │   └── ...                   #   brand, category, color, inventory,
+│   │                             #   reservation, voucher, expense, print-layout
 │   ├── core/                     # shared infra (not per-endpoint)
 │   │   ├── config/               # env, constants
 │   │   ├── middleware/           # auth (JWT verify), error handler, zod validate
@@ -89,42 +90,36 @@ dost-mobile-pos/
 | `GET/POST /api/brand` · `PUT/DELETE /api/brand/:id` | `endpoints/brand/` | Product brands (add/rename/deactivate) |
 | `GET/POST /api/color` · `PUT/DELETE /api/color/:id` | `endpoints/color/` | Product colors (add/rename/deactivate) |
 | `GET/POST /api/unit` · `GET /api/unit/imei/:imei` · `POST /api/unit/adjust` | `endpoints/unit/` | Units, IMEI trace, stock adjustment |
-| `GET/POST /api/purchase` · `/new` · `/used` · `/returns` | `endpoints/purchase/` | Purchases (new & used) + returns |
-| `GET/POST /api/sale` · `/returns` · `/api/sale/:id` | `endpoints/sale/` | Sales + returns |
+| `GET /api/transaction` · `POST /sale` · `POST /purchase` · `/sale/returns` · `/purchase/returns` · `/returns/:id/void` | `endpoints/transaction/` | Sales, purchases and returns in one model |
 | `GET/POST /api/payment/collect` | `endpoints/payment/` | Credit collections |
 | `GET/POST /api/bank-account` | `endpoints/bank-account/` | Shop bank accounts |
 | `GET /api/report/*` | `endpoints/report/` | Sales, profit, stock valuation, statements, payments-by-account |
 | `GET /api/dashboard` + widgets | `endpoints/dashboard/` | Analytics data + saved layouts |
-| `GET/POST /api/user` · `PATCH /api/user/:id` | `endpoints/user/` | Users & roles (admin) |
-| `GET /api/user/invoice` | `endpoints/user/invoice/` | Invoices for a user (sub-resource) |
-| `GET/PUT /api/settings/company` · `/print-formats` | `endpoints/settings/` | Company profile, formats |
-| `GET /api/log` | `endpoints/log/` | Audit log (admin) |
+| `GET/POST /api/user` · `PUT /api/user/:id` | `endpoints/user/` | Users & roles (admin) |
+| `GET/PUT /api/settings/company` · `/sound` | `endpoints/settings/` | Company profile, sound prefs |
+| `GET/POST /api/voucher` · `/voucher/:id/reverse` | `endpoints/voucher/` | Cash vouchers (CRV/CPV) + reversal |
 
 ## 5. Page / Screen Map (frontend)
 
 | Route | Screen | Who |
 |---|---|---|
 | `/login` | Simple login page | all |
-| `/dashboard` | Customizable widgets dashboard | Manager, Admin |
+| `/dashboard` | Analytics dashboard with KPIs + charts | Manager, Admin |
 | `/pos` | **Point of Sale** — search, cart, payment, receipt | Cashier, Manager, Admin |
-| `/pos/:txnId` | View sale detail + reprint receipt | Cashier+ |
-| `/purchases` | List purchases + "Buy new / Buy used" | Manager, Admin |
-| `/purchases/new` | **Buy new** stock (vendor) — enter IMEIs | Manager, Admin |
-| `/purchases/used` | **Buy used** phone (walk-in/vendor) — grade + price | Manager, Admin |
-| `/purchases/returns` | Purchase returns | Manager, Admin |
-| `/inventory/new` | **NEW phones** inventory view | Manager, Admin |
-| `/inventory/used` | **USED phones** inventory view (grades) | Manager, Admin |
-| `/inventory` | All units + filters (condition/status) | Manager, Admin |
-| `/inventory/imei/:imei` | Full IMEI history timeline | Manager, Admin |
-| `/inventory/movements` | Stock movement log | Manager, Admin |
-| `/products` | Catalog list + variant editing | Manager, Admin |
-| `/contacts` | Unified contacts list | All (view limited) |
-| `/contacts/:id` | Ledger + credit | All (view limited) |
-| `/reports` | Report hub (sales, profit, stock valuation, statements) | Manager, Admin |
-| `/users` | Users & roles (preregistered users live here) | Admin |
-| `/bank-accounts` | Register/manage shop bank accounts | Manager, Admin |
-| `/settings` | Company profile (logo), tax, printer & formats, backup | Admin |
-| `/logs` | Audit log | Admin |
+| `/purchases` | List purchases + **Buy New / Buy Used / Buy Accessory** flows (tabs) | Manager, Admin |
+| `/purchase-returns` | Purchase returns (IMEI-based, partial) | Manager, Admin |
+| `/sale-returns` | Sale returns (IMEI-based, refund/cash-back) | Manager, Admin |
+| `/inventory` | All units + filters (condition/status/carrier), scan & IMEI search | Manager, Admin |
+| `/products` | Catalog list + variant editing + manage categories/brands/colors | Manager, Admin |
+| `/contacts` | Unified contacts list (customers + vendors + walk-ins) | All (view limited) |
+| `/reservations` | Reservations (hold with advance, convert to sale, cancel) | Cashier+ |
+| `/vouchers` | Cash vouchers (CRV / CPV), modify & reverse | Manager, Admin |
+| `/expenses` | Expenses with categories + contact linking | Manager, Admin |
+| `/reports` | Report hub (sales, profit, stock valuation, ledger, statements) | Manager, Admin |
+| `/analytics` | Extended analytics & exports | Manager, Admin |
+| `/users` | Users & roles (preregistered users + permissions) | Admin |
+| `/settings` | Company profile, tax, timezone, bank accounts, sound prefs | Admin |
+| `/print` | Print studio (80mm/A4 templates, layouts, QR targets) | Cashier+ |
 
 ## 6. NEW vs USED — Convenient Separation
 
@@ -151,25 +146,36 @@ Built on **shadcn/ui** primitives:
 - **Company**: `CompanyProfileForm` (name, address, **logo upload**, footer text, currency, tax).
 - **Shared**: `Money`, `ConfirmDialog`, `EmptyState`, `SearchInput`, `Pagination`, `PrintButton`.
 
-## 8. Permissions Matrix
+## 8. Permissions
 
-| Capability | Cashier | Manager | Admin |
+The granular matrix lives in one place — `backend/core/lib/permissions.ts` (mirrored for the frontend in `frontend/lib/constants/permissions.ts`). Every resource has a per-action set (`<resource>.view/create/update/delete`) plus action keys (`product.import`, `unit.adjust`, `voucher.reverse`, `bank.setDefault`, `print.setDefault`, …). **Reads are permission-gated too** — every GET route carries a `<resource>.view` permission, and every write route carries its specific create/update/delete key.
+
+**Permissions are stored per user in the database** (`User.permissions` JSON column, backfilled per role on migration). `requireAuth` loads the user's stored permissions fresh on every request (via `effectivePermissions`), so changes apply immediately without re-login. `requirePermission(...)` enforces against that stored list; cost/profit stripping (`report.profit`) is permission-derived too. An empty stored list falls back to the role's default set.
+
+The login response includes the granted permission strings; the frontend mirrors them to hide UI. Admin-only user management lives at `endpoints/user/` (`GET/POST /api/user`, `PUT /api/user/:id`) gated by `user.manage` — it can edit a user's role, active flag, and full permission list.
+
+Explicit per-role sets:
+
+| Permission group | Cashier | Manager | Admin |
 |---|:---:|:---:|:---:|
-| Make a sale | ✅ | ✅ | ✅ |
-| Buy new / used (purchase) | ❌ | ✅ | ✅ |
-| Refund / void a sale | ❌ | ✅ | ✅ |
-| Override price / discount | ❌ | ✅ | ✅ |
-| View costs / profit | ❌ | ✅ | ✅ |
-| Manage inventory (adjust) | ❌ | ✅ | ✅ |
-| View reports & dashboard | ❌ | ✅ | ✅ |
-| Manage contacts | view | ✅ | ✅ |
-| Manage users / roles | ❌ | ❌ | ✅ |
-| Settings & backup | ❌ | ❌ | ✅ |
-| View audit log | ❌ | ❌ | ✅ |
+| `sale.create` · `payment.collect` · `credit.view` | ✅ | ✅ | ✅ |
+| `transaction.view` · all catalog `*.view` · `contact.view` · `inventory.view` | ✅ | ✅ | ✅ |
+| `voucher.view` · `expense.view` · `bank.view` | ✅ | ✅ | ✅ |
+| `report.view` · `dashboard.view` | ✅ | ✅ | ✅ |
+| `reservation.view` · `reservation.create` | ✅ | ✅ | ✅ |
+| `settings.view` · `print.view` | ✅ | ✅ | ✅ |
+| All other `*.create` · `*.update` · `*.delete` · `*.import` · `*.adjust` · `*.reverse` · `*.setDefault` | ❌ | ✅ | ✅ |
+| `report.profit` (cost/profit visibility) | ❌ | ✅ | ✅ |
+| `report.stock` | ❌ | ✅ | ✅ |
+| `user.manage` · `audit.view` (admin-only) | ❌ | ❌ | ✅ |
 
-Enforced **server-side** in backend middleware/service guards; frontend only hides UI.
+`user.manage` powers the Users admin page; `audit.view` is reserved for a future audit-log surface. Enforced **server-side** in route middleware; the frontend hides UI based on the same permissions returned at login.
 
-## 9. Key Flows
+## 9. Timezone
+
+`CompanyProfile.timezone` (default `Asia/Karachi`) controls how reports and the dashboard bucket daily totals (`backend/core/lib/time.ts`). A sale at 00:30 PKR counts toward the PKR day (e.g. `2026-08-12`), not the UTC day. The settings page exposes the field; existing stores keep the default unless changed.
+
+## 10. Key Flows
 
 ### Sell a phone (with NEW/USED split)
 1. Cashier opens `/pos`, types model or scans IMEI.
@@ -194,14 +200,55 @@ Enforced **server-side** in backend middleware/service guards; frontend only hid
 ### Trace an IMEI
 1. `/inventory/imei/:imei` → unit card (condition, cost, status, grade) + timeline of movements & transactions.
 
-## 10. Env / Config
+## 11. Env / Config
 
-Backend `.env`: `DATABASE_URL` (`file:./data/dost.db`), `JWT_SECRET`, `PORT` (**4100** — 4000 is used by other dev servers), `BCRYPT_ROUNDS`.
-Frontend `.env.local`: `NEXT_PUBLIC_API_URL` (e.g. `http://127.0.0.1:4100/api`).
+Backend `.env`: `DATABASE_URL` (`file:./data/dost.db`), `HOST` (`localhost`), `JWT_SECRET`, `PORT` (**4100** — 4000 is used by other dev servers), `BCRYPT_ROUNDS`.
+Frontend `.env.local`: `NEXT_PUBLIC_API_URL` (e.g. `http://localhost:4100/api`) — **dev fallback only**. In the desktop app the API base is resolved at **runtime** from the app's connection settings (Local or Remote), falling back to this env var. In Local mode the frontend and API share the same host (`localhost`, not `127.0.0.1`) so the `SameSite=Lax` session cookie is sent on fetch requests.
 
-## 11. Deploy (offline desktop)
+## 12. Deploy — Desktop App (Dual Mode)
 
-- **Single machine, fully offline.** The Express API + SQLite DB run locally (`127.0.0.1:4100`); the frontend talks to it over `NEXT_PUBLIC_API_URL`.
-- Production packaging: **Electron app** bundling the Next.js frontend + the Express engine + SQLite in one file — no separate server, DB server, or internet.
-- Backups: copy `backend/data/dost.db` (or on-demand export in Settings).
-- Future online/multi-terminal: swap Prisma provider SQLite → Postgres; move `backend` to a host; no schema or frontend contract changes.
+Only the **frontend** ships as the desktop app. The backend is either **bundled locally** or **hosted remotely**, selected at runtime in Settings → Connection. Both modes share one build.
+
+### Modes
+
+| | **Local (offline, single terminal)** | **Remote (hosted, multi-terminal)** |
+|---|---|---|
+| Backend | Bundled Express API + SQLite, spawned by the app | Hosted server the app connects to |
+| DB | `dost.db` in the app's user-data directory | Server's DB (SQLite or Postgres) |
+| Internet | Not required | Required |
+| App UI origin | Served by the embedded backend (`http://localhost:<port>`) → **same origin as API** | Static export served from the shell → **cross-origin** |
+| Auth | Existing cookie (`SameSite=Lax`) unchanged | `Authorization: Bearer` token (backend reads it first) |
+| Backups | Copy `dost.db` from the user-data dir (or on-demand export in Settings) | Server-side backups |
+
+### Packaging (`desktop/`)
+
+- `desktop/electron/main.ts` — creates the window, reads the connection setting, and in Local mode spawns the bundled backend, waiting on its health check before loading the UI.
+- `desktop/electron/preload.ts` — exposes `window.dostAPI` (get/set connection settings, resolve API base).
+- Static frontend build via Next.js `output: 'export'` — the app is SPA-style (fetch + `window.print()`), no SSR needed.
+- electron-builder config must `asarUnpack` the Prisma engines (`@prisma/engines`, `.prisma`) or the bundled app crashes on first DB call.
+
+### Local mode flow
+
+1. App launches → main process resolves the writable user-data directory.
+2. Spawns the bundled backend with `DATABASE_URL=file:<userData>/dost.db`, `HOST=localhost`, `PORT` from config.
+3. Polls `GET /api/health` until ready, then loads `http://localhost:<port>` (frontend served by the backend itself — same origin, so cookie auth works unchanged).
+4. On quit, main process shuts the backend down gracefully (Prisma disconnect → no SQLite corruption).
+
+### Remote mode flow
+
+1. Admin enters the hosted backend URL in Settings → Connection → Remote.
+2. App skips spawning the local backend and loads the static frontend.
+3. `apiClient` uses the remote base URL and attaches the JWT via `Authorization: Bearer` (backend's `getAuthToken` reads the header first, `core/lib/cookie.ts`).
+4. Backend CORS must allow the app's origin (`CORS_ORIGIN`).
+
+### Backend additions (needed for desktop)
+
+- `GET /api/health` — readiness check the app waits on in Local mode.
+- Graceful shutdown handlers (SIGTERM/SIGINT → `prisma.$disconnect`).
+- `DATABASE_URL` is already env-driven — ensure the data directory is created on boot.
+
+### Frontend additions
+
+- `apiClient` resolves the base URL at runtime (app settings → `NEXT_PUBLIC_API_URL`) and sends the Bearer token when present.
+- Settings → Connection: Local/Remote toggle, URL field, "Test connection".
+- `output: 'export'` in `next.config.mjs`.

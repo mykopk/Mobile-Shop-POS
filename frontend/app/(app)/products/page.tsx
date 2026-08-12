@@ -1,33 +1,34 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { apiRequest } from "@/lib/apiClient";
 import { useAuth } from "@/lib/auth-context";
 import type { Brand, Category, Color, ProductSummary } from "@/lib/api-types";
 import { useApi } from "@/lib/use-api";
-import { canViewCosts } from "@/lib/roles";
+import { canViewCosts, hasPermission } from "@/lib/roles";
+import { PERMISSIONS } from "@/lib/constants/permissions";
 import { formatPKR } from "@/lib/money";
 import { parseCsvLine, downloadCsv } from "@/lib/csv";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
 import { Dropdown } from "@/components/ui/dropdown";
 import { Dialog } from "@/components/ui/dialog";
 import { Sheet } from "@/components/ui/sheet";
+import { SearchInput } from "@/components/ui/search-input";
+import { CsvImportSheet } from "@/components/ui/csv-import-sheet";
 import { ProductForm, EMPTY_PRODUCT_FORM, type ProductFormValues } from "@/components/products/product-form";
 import { ManageWindow } from "@/components/products/manage-window";
 import { SortHeader } from "@/components/ui/sort-header";
 import { PaginationBar, usePagination } from "@/components/ui/pagination";
 import { useToast } from "@/components/ui/toast";
-import { CameraIcon, FilterIcon, PlusIcon, SearchIcon, SettingsIcon, TrashIcon, UploadIcon, DownloadIcon } from "@/components/icons";
+import { CameraIcon, FilterIcon, PlusIcon, SettingsIcon, TrashIcon, UploadIcon, DownloadIcon } from "@/components/icons";
 import { CONDITION_FILTER_OPTIONS } from "@/lib/constants/products";
 
 type SortKey = "brand" | "color" | "categoryName" | "sku" | "sellPrice" | "retailPrice" | "costPrice";
 
 export default function ProductsPage() {
   const { user } = useAuth();
-  const { token } = useAuth();
   const { data, loading, refetch } = useApi<ProductSummary[]>("/product");
   const { data: categories, refetch: refetchCategories } = useApi<Category[]>("/category");
   const { data: brands, refetch: refetchBrands } = useApi<Brand[]>("/brand");
@@ -42,7 +43,6 @@ export default function ProductsPage() {
   const [importOpen, setImportOpen] = useState(false);
   const [importing, setImporting] = useState(false);
   const [sort, setSort] = useState<{ key: SortKey; dir: "asc" | "desc" }>({ key: "brand", dir: "asc" });
-  const fileRef = useRef<HTMLInputElement>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -53,7 +53,11 @@ export default function ProductsPage() {
   const [manageTab, setManageTab] = useState<"category" | "brand" | "color">("category");
   const [formKey, setFormKey] = useState(0);
 
-  const viewCosts = canViewCosts(user?.role);
+  const viewCosts = canViewCosts(user);
+  const canCreate = hasPermission(user, PERMISSIONS.productCreate);
+  const canEdit = hasPermission(user, PERMISSIONS.productUpdate);
+  const canDelete = hasPermission(user, PERMISSIONS.productDelete);
+  const canImport = hasPermission(user, PERMISSIONS.productImport);
   const activeCategories = (categories ?? []).filter((c) => c.active);
   const activeBrands = (brands ?? []).filter((b) => b.active);
   const activeColors = (colors ?? []).filter((c) => c.active);
@@ -225,10 +229,10 @@ export default function ProductsPage() {
         image: values.image || undefined,
       };
       if (editingId) {
-        await apiRequest(`/product/${editingId}`, { method: "PUT", body, token });
+        await apiRequest(`/product/${editingId}`, { method: "PUT", body });
         toast("Product updated", "success");
       } else {
-        await apiRequest("/product", { method: "POST", body, token });
+        await apiRequest("/product", { method: "POST", body });
         toast("Product created", "success");
       }
       setOpen(false);
@@ -247,7 +251,7 @@ export default function ProductsPage() {
     try {
       const result = await apiRequest<{ deleted: number; blocked: { brand: string; model: string }[] }>(
         "/product",
-        { method: "DELETE", body: { ids: [...selected] }, token },
+        { method: "DELETE", body: { ids: [...selected] } },
       );
       setSelected(new Set());
       refetch();
@@ -313,7 +317,7 @@ export default function ProductsPage() {
       const result = await apiRequest<{
         created: { brand: string; model: string; sku: string }[];
         skipped: { brand: string; model: string; reason: string }[];
-      }>("/product/import", { method: "POST", body: { products: rows }, token });
+      }>("/product/import", { method: "POST", body: { products: rows } });
       const skippedSummary =
         result.skipped.length > 0
           ? `, ${result.skipped.length} skipped (${result.skipped[0].reason}${result.skipped.length > 1 ? "…" : ""})`
@@ -325,7 +329,6 @@ export default function ProductsPage() {
       toast(err instanceof Error ? err.message : "Failed to import", "error");
     } finally {
       setImporting(false);
-      if (fileRef.current) fileRef.current.value = "";
     }
   }
 
@@ -353,44 +356,49 @@ export default function ProductsPage() {
           <span />
         )}
         <div className="flex flex-wrap items-center justify-end gap-2">
-          <Button variant="grey" onClick={() => setImportOpen(true)}>
-            <UploadIcon className="h-4 w-4" />
-            Import
-          </Button>
+          {canImport && (
+            <Button variant="grey" onClick={() => setImportOpen(true)}>
+              <UploadIcon className="h-4 w-4" />
+              Import
+            </Button>
+          )}
           <Button variant="grey" onClick={exportCsv}>
             <DownloadIcon className="h-4 w-4" />
             Export CSV
           </Button>
-          <Button variant="grey" onClick={() => { setManageTab("category"); setManageOpen(true); }}>
-            <SettingsIcon className="h-4 w-4" />
-            Manage
-          </Button>
-          <Button
-            variant="destructive"
-            onClick={() => setConfirmDelete(true)}
-            disabled={deleting || selected.size === 0}
-          >
-            <TrashIcon className="h-4 w-4" />
-            {deleting ? "Deleting…" : "Delete selected"}
-          </Button>
-          <Button onClick={openCreate}>
-            <PlusIcon className="h-4 w-4" />
-            New product
-          </Button>
+          {canEdit && (
+            <Button variant="grey" onClick={() => { setManageTab("category"); setManageOpen(true); }}>
+              <SettingsIcon className="h-4 w-4" />
+              Manage
+            </Button>
+          )}
+          {canDelete && (
+            <Button
+              variant="destructive"
+              onClick={() => setConfirmDelete(true)}
+              disabled={deleting || selected.size === 0}
+            >
+              <TrashIcon className="h-4 w-4" />
+              {deleting ? "Deleting…" : "Delete selected"}
+            </Button>
+          )}
+          {canCreate && (
+            <Button onClick={openCreate}>
+              <PlusIcon className="h-4 w-4" />
+              New product
+            </Button>
+          )}
         </div>
       </div>
 
       <div className="flex shrink-0 flex-wrap items-center gap-3">
-        <div className="relative min-w-[220px] flex-1">
-          <SearchIcon className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400" />
-          <Input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Search by brand, model or SKU…"
-            variant="white"
-            className="pl-10"
-          />
-        </div>
+        <SearchInput
+          value={q}
+          onChange={setQ}
+          placeholder="Search by brand, model or SKU…"
+          variant="white"
+          wrapperClassName="min-w-[220px] flex-1"
+        />
         <Button variant="grey" onClick={() => setFiltersOpen(true)}>
           <FilterIcon className="h-4 w-4" />
           Filters
@@ -428,7 +436,7 @@ export default function ProductsPage() {
                 return (
                   <tr
                     key={p.id}
-                    onClick={() => openEdit(p)}
+                    onClick={() => (canEdit ? openEdit(p) : undefined)}
                     className={`cursor-pointer transition ${
                       isSelected ? "bg-brand-50/40" : "hover:bg-ink-50"
                     }`}
@@ -536,14 +544,8 @@ export default function ProductsPage() {
             <Dropdown
               value={condition}
               onChange={setCondition}
-              trigger={
-                <div className="flex items-center justify-between rounded-2xl bg-ink-50 px-4 py-3 text-sm">
-                  <span className="text-ink-900">
-                    {CONDITION_FILTER_OPTIONS.find((o) => o.value === condition)?.label ?? "All conditions"}
-                  </span>
-                </div>
-              }
               options={CONDITION_FILTER_OPTIONS}
+              placeholder="All conditions"
             />
           </div>
           <div>
@@ -552,15 +554,7 @@ export default function ProductsPage() {
               value={categoryId}
               onChange={setCategoryId}
               searchable
-              trigger={
-                <div className="flex items-center justify-between rounded-2xl bg-ink-50 px-4 py-3 text-sm">
-                  <span className="text-ink-900">
-                    {categoryId === ""
-                      ? "All categories"
-                      : activeCategories.find((c) => c.id === categoryId)?.name ?? "Category"}
-                  </span>
-                </div>
-              }
+              placeholder="All categories"
               options={[
                 { value: "", label: "All categories" },
                 ...activeCategories.map((c) => ({ value: c.id, label: c.name })),
@@ -573,15 +567,7 @@ export default function ProductsPage() {
               value={brandId}
               onChange={setBrandId}
               searchable
-              trigger={
-                <div className="flex items-center justify-between rounded-2xl bg-ink-50 px-4 py-3 text-sm">
-                  <span className="text-ink-900">
-                    {brandId === ""
-                      ? "All brands"
-                      : activeBrands.find((b) => b.id === brandId)?.name ?? "Brand"}
-                  </span>
-                </div>
-              }
+              placeholder="All brands"
               options={[
                 { value: "", label: "All brands" },
                 ...activeBrands.map((b) => ({ value: b.id, label: b.name })),
@@ -594,15 +580,7 @@ export default function ProductsPage() {
               value={colorId}
               onChange={setColorId}
               searchable
-              trigger={
-                <div className="flex items-center justify-between rounded-2xl bg-ink-50 px-4 py-3 text-sm">
-                  <span className="text-ink-900">
-                    {colorId === ""
-                      ? "All colors"
-                      : activeColors.find((c) => c.id === colorId)?.name ?? "Color"}
-                  </span>
-                </div>
-              }
+              placeholder="All colors"
               options={[
                 { value: "", label: "All colors" },
                 ...activeColors.map((c) => ({ value: c.id, label: c.name })),
@@ -621,43 +599,21 @@ export default function ProductsPage() {
         </div>
       </Sheet>
 
-      <Sheet
+      <CsvImportSheet
         open={importOpen}
         title="Import products from CSV"
-        onClose={() => setImportOpen(false)}
-        width="max-w-lg"
-      >
-        <div className="space-y-4">
-          <p className="text-sm text-ink-500">
+        description={
+          <>
             Upload a CSV with columns:{" "}
             <span className="font-semibold text-ink-700">Brand, Model, Storage, RAM, Screen size, Color, Category, SKU, Sell price, Cost price, Retail price</span>.
             Brand, Model and Category are required. New brands, colors and categories are created automatically;
             existing products are skipped.
-          </p>
-          <div className="rounded-2xl border border-dashed border-ink-200 bg-ink-50 p-6 text-center">
-            <input
-              ref={fileRef}
-              type="file"
-              accept=".csv,text/csv"
-              className="hidden"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) void handleImportFile(file);
-              }}
-            />
-            <Button variant="grey" onClick={() => fileRef.current?.click()} disabled={importing}>
-              <UploadIcon className="h-4 w-4" />
-              {importing ? "Importing…" : "Choose CSV file"}
-            </Button>
-            <p className="mt-2 text-xs text-ink-400">Tip: use Export CSV to get the exact format.</p>
-          </div>
-          <div className="flex justify-end">
-            <Button variant="ghost" onClick={() => setImportOpen(false)} disabled={importing}>
-              Close
-            </Button>
-          </div>
-        </div>
-      </Sheet>
+          </>
+        }
+        importing={importing}
+        onFile={(file) => void handleImportFile(file)}
+        onClose={() => setImportOpen(false)}
+      />
 
       {manageOpen && (
         <ManageWindow
@@ -665,7 +621,6 @@ export default function ProductsPage() {
           brands={brands ?? []}
           colors={colors ?? []}
           initialTab={manageTab}
-          token={token}
           onClose={() => setManageOpen(false)}
           onChanged={() => {
             refetchCategories();

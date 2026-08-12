@@ -1,4 +1,6 @@
 import { prisma } from "../../core/lib/prisma";
+import { COMPANY_ID } from "../../core/lib/company";
+import { currencySymbol } from "../../core/lib/money";
 import { writeAudit } from "../../core/lib/audit";
 import type { CompanyProfileInput, SoundPrefsInput } from "./schemas";
 
@@ -10,12 +12,13 @@ const DEFAULT_SOUND_PREFS = {
 } as const;
 
 export async function getCompanyProfile() {
-  return prisma.companyProfile.findUnique({ where: { id: "store" } });
+  const profile = await prisma.companyProfile.findUnique({ where: { id: COMPANY_ID } });
+  return profile ? { ...profile, currencySymbol: currencySymbol(profile.currency) } : null;
 }
 
 export async function updateCompanyProfile(input: CompanyProfileInput, userId: string) {
   const profile = await prisma.companyProfile.upsert({
-    where: { id: "store" },
+    where: { id: COMPANY_ID },
     update: {
       name: input.name,
       tagline: input.tagline ?? null,
@@ -23,22 +26,28 @@ export async function updateCompanyProfile(input: CompanyProfileInput, userId: s
       phone: input.phone ?? null,
       email: input.email ?? null,
       footerText: input.footerText ?? null,
+      logoUrl: input.logoUrl || null,
       currency: input.currency,
       taxRate: input.taxRate,
+      compactPrices: input.compactPrices ?? true,
+      timezone: input.timezone ?? undefined,
       raastId: input.raastId || null,
       whatsapp: input.whatsapp || null,
       website: input.website || null,
     },
     create: {
-      id: "store",
+      id: COMPANY_ID,
       name: input.name,
       tagline: input.tagline ?? null,
       address: input.address ?? null,
       phone: input.phone ?? null,
       email: input.email ?? null,
       footerText: input.footerText ?? null,
+      logoUrl: input.logoUrl || null,
       currency: input.currency,
       taxRate: input.taxRate,
+      compactPrices: input.compactPrices ?? true,
+      timezone: input.timezone ?? undefined,
       raastId: input.raastId || null,
       whatsapp: input.whatsapp || null,
       website: input.website || null,
@@ -48,9 +57,9 @@ export async function updateCompanyProfile(input: CompanyProfileInput, userId: s
     userId,
     action: "COMPANY.UPDATE",
     entity: "CompanyProfile",
-    entityId: "store",
+    entityId: COMPANY_ID,
   });
-  return profile;
+  return { ...profile, currencySymbol: currencySymbol(profile.currency) };
 }
 
 export async function getSoundPrefs(userId: string) {

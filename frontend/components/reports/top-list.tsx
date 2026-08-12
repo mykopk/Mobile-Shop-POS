@@ -1,12 +1,19 @@
 import { ReportCard } from "@/components/reports/report-card";
 
+export type TopRow = {
+  id?: string;
+  label: string;
+  sub?: string;
+  value: number;
+};
+
 export function TopList({
   title,
   rows,
   format,
 }: {
   title: string;
-  rows: { label: string; sub?: string; value: number }[];
+  rows: TopRow[];
   format?: (value: number) => string;
 }) {
   const max = Math.max(...rows.map((r) => r.value), 1);
@@ -16,7 +23,7 @@ export function TopList({
       <div className="space-y-2.5">
         {rows.length === 0 && <p className="text-sm text-ink-400">No data.</p>}
         {rows.map((r) => (
-          <div key={r.label} className="space-y-1">
+          <div key={r.id ?? r.label} className="space-y-1">
             <div className="flex items-baseline justify-between gap-2 text-sm">
               <span className="min-w-0 truncate font-medium text-ink-900">{r.label}</span>
               <span className="shrink-0 text-ink-700">

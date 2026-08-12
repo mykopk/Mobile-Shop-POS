@@ -3,11 +3,12 @@
 import { useState } from "react";
 import type { ReactNode } from "react";
 import { apiRequest } from "@/lib/apiClient";
-import { useAuth } from "@/lib/auth-context";
 import type { BankAccount, Contact, Voucher } from "@/lib/api-types";
 import { VOUCHER_METHOD_LABELS, VOUCHER_TYPE_LABELS } from "@/lib/constants";
 import { formatPKR } from "@/lib/money";
 import { toISODate } from "@/lib/dates";
+import { useDirtyForm } from "@/lib/use-dirty-form";
+import { DiscardConfirmDialog } from "@/components/ui/discard-confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dropdown } from "@/components/ui/dropdown";
@@ -125,7 +126,6 @@ export function VoucherForm({
   onClose: () => void;
   onSaved: () => void;
 }) {
-  const { token } = useAuth();
   const { toast } = useToast();
   const [vType, setVType] = useState<"RECEIVING" | "PAYMENT">(editing?.type ?? "RECEIVING");
   const [amount, setAmount] = useState(editing?.amount ?? "");
@@ -138,6 +138,20 @@ export function VoucherForm({
     return toISODate(new Date());
   });
   const [submitting, setSubmitting] = useState(false);
+
+  const dirty = useDirtyForm({ vType, amount, method, bankId, contactId, narration, date });
+
+  function update(partial: Partial<{ vType: "RECEIVING" | "PAYMENT"; amount: string; method: "CASH" | "BANK_TRANSFER"; bankId: string; contactId: string; narration: string; date: string }>) {
+    const next = { vType, amount, method, bankId, contactId, narration, date, ...partial };
+    if (partial.vType !== undefined) setVType(partial.vType);
+    if (partial.amount !== undefined) setAmount(partial.amount);
+    if (partial.method !== undefined) setMethod(partial.method);
+    if (partial.bankId !== undefined) setBankId(partial.bankId);
+    if (partial.contactId !== undefined) setContactId(partial.contactId);
+    if (partial.narration !== undefined) setNarration(partial.narration);
+    if (partial.date !== undefined) setDate(partial.date);
+    dirty.markDirty(next);
+  }
 
   const contactOptions = (contacts ?? []).map((c) => ({
     value: c.id,
@@ -171,10 +185,10 @@ export function VoucherForm({
         date,
       };
       if (editing) {
-        await apiRequest(`/voucher/${editing.id}`, { token, method: "PUT", body });
+        await apiRequest(`/voucher/${editing.id}`, { method: "PUT", body });
         toast(`${editing.number} updated`, "success");
       } else {
-        const created = await apiRequest<Voucher>("/voucher", { token, method: "POST", body });
+        const created = await apiRequest<Voucher>("/voucher", { method: "POST", body });
         toast(`${created.number} created`, "success");
       }
       onSaved();
@@ -202,24 +216,13 @@ export function VoucherForm({
             <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">
               Voucher type
             </p>
-            <TypeToggle value={vType} onChange={setVType} />
+            <TypeToggle value={vType} onChange={(value) => update({ vType: value })} />
           </div>
 
           <Field label="Method &amp; date">
             <div className="grid gap-3 md:grid-cols-2">
-              <Dropdown
-                value={method}
-                options={METHOD_OPTIONS}
-                onChange={setMethod}
-                trigger={
-                  <div className="flex items-center justify-between rounded-2xl bg-ink-100 px-4 py-3 text-sm">
-                    <span className="truncate text-ink-900">
-                      {VOUCHER_METHOD_LABELS[method]}
-                    </span>
-                  </div>
-                }
-              />
-              <DatePicker value={date} onChange={setDate} />
+              <Dropdown value={method} options={METHOD_OPTIONS} onChange={(value) => update({ method: value })} />
+              <DatePicker value={date} onChange={(value) => update({ date: value })} />
             </div>
           </Field>
 
@@ -227,29 +230,21 @@ export function VoucherForm({
             <Dropdown
               value={contactId}
               options={contactOptions}
-              onChange={setContactId}
+              onChange={(value) => update({ contactId: value })}
               searchable
-              trigger={
-                <div className="flex items-center justify-between rounded-2xl bg-ink-100 px-4 py-3 text-sm">
-                  <span className="truncate text-ink-900">
-                    {contactId
-                      ? (contacts?.find((c) => c.id === contactId)?.name ?? "Select contact")
-                      : "Select contact"}
-                  </span>
-                </div>
-              }
+              placeholder="Select contact"
             />
             <p className="mt-1.5 text-xs text-ink-400">
               The voucher is recorded against this contact and moves their balance.
             </p>
           </Field>
 
-          <AmountField value={amount} onChange={setAmount} />
+          <AmountField value={amount} onChange={(value) => update({ amount: value })} />
 
           <Field label="Narration" hint="(reason)">
             <Input
               value={narration}
-              onChange={(e) => setNarration(e.target.value)}
+              onChange={(e) => update({ narration: e.target.value })}
               placeholder="e.g. Loan returned, office rent, owner drawing…"
               className="bg-ink-100"
             />
@@ -269,17 +264,11 @@ export function VoucherForm({
                       </span>
                     ),
                   }))}
-                  onChange={setBankId}
-                  trigger={
-                    <div className="flex items-center justify-between rounded-2xl bg-ink-100 px-4 py-3 text-sm">
-                      <span className="truncate text-ink-900">
-                        {banks.find((b) => b.id === bankId)?.bankName ?? "Select bank…"}
-                      </span>
-                    </div>
-                  }
+                  onChange={(value) => update({ bankId: value })}
+                  placeholder="Select bank…"
                 />
               ) : (
-                <p className="rounded-2xl bg-ink-100 px-4 py-3 text-xs text-ink-500">
+                <p className="rounded-2xl bg-ink-100 px-3.5 py-2 text-xs text-ink-500">
                   No registered bank accounts — add them in Settings.
                 </p>
               )}
@@ -298,14 +287,20 @@ export function VoucherForm({
             narration={narration}
             date={date}
           />
-          <Button type="submit" className="mt-3 w-full" disabled={submitting}>
+          <Button type="submit" className="mt-3 w-full" loading={submitting}>
             {editing ? `Update ${editing.number}` : "Create voucher"}
           </Button>
-          <Button variant="grey" type="button" className="mt-2 w-full" onClick={onClose}>
+          <Button variant="grey" type="button" className="mt-2 w-full" onClick={() => dirty.requestClose(onClose)}>
             Cancel
           </Button>
         </div>
       </div>
+
+      <DiscardConfirmDialog
+        open={dirty.confirmOpen}
+        onConfirm={dirty.confirmDiscard}
+        onCancel={dirty.cancelDiscard}
+      />
     </form>
   );
 }

@@ -7,6 +7,7 @@ import { KpiCard } from "@/components/reports/report-card";
 import { TopList } from "@/components/reports/top-list";
 import type { StockReport } from "@/lib/api-types";
 import { formatPKR } from "@/lib/money";
+import { pluralize } from "@/lib/pluralize";
 import { REPORT_CONDITION_LABELS } from "@/lib/constants";
 
 export default function StockReportPage() {
@@ -44,8 +45,9 @@ export default function StockReportPage() {
             <TopList
               title="By condition"
               rows={data.byCondition.map((c) => ({
+                id: c.condition,
                 label: REPORT_CONDITION_LABELS[c.condition] ?? c.condition,
-                sub: `${c.units} unit(s)`,
+                sub: `${pluralize(c.units, "unit")}`,
                 value: c.costValue ?? c.retailValue,
               }))}
               format={formatPKR}
@@ -53,8 +55,9 @@ export default function StockReportPage() {
             <TopList
               title="By category"
               rows={data.byCategory.map((c) => ({
+                id: c.name,
                 label: c.name,
-                sub: `${c.units} unit(s)`,
+                sub: `${pluralize(c.units, "unit")}`,
                 value: c.costValue ?? c.retailValue,
               }))}
               format={formatPKR}
@@ -62,8 +65,9 @@ export default function StockReportPage() {
             <TopList
               title="By brand"
               rows={data.byBrand.map((b) => ({
+                id: b.name,
                 label: b.name,
-                sub: `${b.units} unit(s)`,
+                sub: `${pluralize(b.units, "unit")}`,
                 value: b.costValue ?? b.retailValue,
               }))}
               format={formatPKR}

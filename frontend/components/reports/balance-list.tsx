@@ -38,6 +38,7 @@ export function BalanceList({
           },
         ]}
         rows={rows}
+        rowKey={(r) => r.contactId}
         empty={kind === "receivable" ? "No receivables right now." : "No payables right now."}
       />
     </div>

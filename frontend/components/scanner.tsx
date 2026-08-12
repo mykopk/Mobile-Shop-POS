@@ -39,12 +39,19 @@ export function Scanner({
   const lastValue = useRef("");
   const lastTime = useRef(0);
   const pausedRef = useRef(false);
-  pausedRef.current = paused;
   const detectedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onScanRef = useRef(onScan);
-  onScanRef.current = onScan;
 
   useEffect(() => {
+    pausedRef.current = paused;
+  }, [paused]);
+
+  useEffect(() => {
+    onScanRef.current = onScan;
+  }, [onScan]);
+
+  useEffect(() => {
+    if (minimized) return;
     let reader: BrowserMultiFormatReader | null = null;
     let controls: { stop: () => void } | null = null;
     let stream: MediaStream | null = null;
@@ -118,8 +125,12 @@ export function Scanner({
       controls?.stop();
       stream?.getTracks().forEach((t) => t.stop());
       if (videoRef.current) videoRef.current.srcObject = null;
+      if (detectedTimer.current) {
+        clearTimeout(detectedTimer.current);
+        detectedTimer.current = null;
+      }
     };
-  }, []);
+  }, [minimized]);
 
   useEffect(() => {
     if (camState !== "on") return;

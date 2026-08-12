@@ -19,20 +19,19 @@ export type AuthUser = {
   name: string;
   email: string;
   role: Role;
+  permissions: string[];
 };
 
 type AuthStatus = "loading" | "ready";
 
 type AuthContextValue = {
   user: AuthUser | null;
-  token: string | null;
   status: AuthStatus;
   login: (username: string, pin: string) => Promise<AuthUser>;
-  logout: () => void;
+  logout: () => Promise<void>;
 };
 
-type LoginResponse = {
-  token: string;
+type AuthResponse = {
   user: AuthUser;
 };
 
@@ -40,46 +39,52 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
-  const [token, setToken] = useState<string | null>(null);
   const [status, setStatus] = useState<AuthStatus>("loading");
 
   useEffect(() => {
-    try {
-      const rawUser = localStorage.getItem(AUTH.storageKey);
-      const rawToken = localStorage.getItem(AUTH.tokenKey);
-      if (rawUser && rawToken) {
-        setUser(JSON.parse(rawUser) as AuthUser);
-        setToken(rawToken);
-      }
-    } catch {
-      localStorage.removeItem(AUTH.storageKey);
-      localStorage.removeItem(AUTH.tokenKey);
-    }
-    setStatus("ready");
+    let cancelled = false;
+    apiRequest<AuthResponse>("/auth/me")
+      .then((data) => {
+        if (!cancelled) setUser(data.user);
+      })
+      .catch(() => {
+        // not authenticated — AuthGuard redirects to /login
+      })
+      .finally(() => {
+        if (!cancelled) setStatus("ready");
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const login = useCallback(async (username: string, pin: string) => {
-    const data = await apiRequest<LoginResponse>("/auth/login", {
+    const data = await apiRequest<AuthResponse>("/auth/login", {
       method: "POST",
       body: { username, pin },
     });
     setUser(data.user);
-    setToken(data.token);
-    localStorage.setItem(AUTH.storageKey, JSON.stringify(data.user));
-    localStorage.setItem(AUTH.tokenKey, data.token);
     return data.user;
   }, []);
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
+    try {
+      await apiRequest("/auth/logout", { method: "POST" });
+    } catch {
+      // session is cleared server-side regardless
+    }
     setUser(null);
-    setToken(null);
-    localStorage.removeItem(AUTH.storageKey);
-    localStorage.removeItem(AUTH.tokenKey);
+  }, []);
+
+  useEffect(() => {
+    const onUnauthorized = () => setUser(null);
+    window.addEventListener(AUTH.unauthorizedEvent, onUnauthorized);
+    return () => window.removeEventListener(AUTH.unauthorizedEvent, onUnauthorized);
   }, []);
 
   const value = useMemo(
-    () => ({ user, token, status, login, logout }),
-    [user, token, status, login, logout],
+    () => ({ user, status, login, logout }),
+    [user, status, login, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

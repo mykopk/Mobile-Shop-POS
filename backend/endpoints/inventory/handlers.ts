@@ -1,9 +1,9 @@
 import type { Request, Response } from "express";
-import { canViewCosts } from "../../core/lib/audit";
+import { hasPermissionList, PERMISSIONS } from "../../core/lib/permissions";
 import { listInventory } from "./service";
 
 export async function inventoryHandler(req: Request, res: Response) {
-  const canView = canViewCosts(req.user?.role);
+  const canView = hasPermissionList(req.user?.permissions, PERMISSIONS.reportProfit);
   const result = await listInventory();
   res.json({
     data: {

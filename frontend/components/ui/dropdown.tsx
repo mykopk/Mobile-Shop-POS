@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { ReactNode } from "react";
 import { Input } from "@/components/ui/input";
 import { ChevronDownIcon } from "@/components/icons";
@@ -15,19 +16,20 @@ export type DropdownOption<T extends string = string> = {
 
 function matchOptions<T extends string>(options: DropdownOption<T>[], query: string) {
   const q = query.toLowerCase();
-  for (let len = q.length; len >= 1; len--) {
-    const sub = q.slice(-len);
-    const hit = options.filter((o) => o.label.toLowerCase().includes(sub));
-    if (hit.length > 0) return hit;
-  }
-  return [];
+  if (!q) return options;
+  return options.filter((o) => o.label.toLowerCase().startsWith(q));
 }
+
+type MenuPos = { top: number; left: number; width: number } | null;
 
 export function Dropdown<T extends string>({
   value,
   options,
   onChange,
   trigger,
+  placeholder = "Select…",
+  triggerClassName,
+  label,
   direction = "auto",
   align = "left",
   searchable = false,
@@ -38,7 +40,10 @@ export function Dropdown<T extends string>({
   value: T | null;
   options: DropdownOption<T>[];
   onChange: (value: T) => void;
-  trigger: ReactNode | ((open: boolean) => ReactNode);
+  trigger?: ReactNode | ((open: boolean) => ReactNode);
+  placeholder?: string;
+  triggerClassName?: string;
+  label?: string;
   direction?: "up" | "down" | "auto";
   align?: "left" | "right";
   searchable?: boolean;
@@ -48,13 +53,71 @@ export function Dropdown<T extends string>({
 }) {
   const [open, setOpen] = useState(false);
   const [openUp, setOpenUp] = useState(false);
+  const [pos, setPos] = useState<MenuPos>(null);
   const [filter, setFilter] = useState("");
+  const [activeIndex, setActiveIndex] = useState(-1);
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const listId = `dropdown-list-${useId().replace(/:/g, "")}`;
+
+  const measure = useCallback(() => {
+    const rect = triggerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const menuHeight = menuRef.current?.offsetHeight ?? Math.min(options.length * 46 + 16, 256);
+    const below = window.innerHeight - rect.bottom;
+    const above = rect.top;
+    const shouldOpenUp =
+      direction === "up"
+        ? true
+        : direction === "down"
+          ? false
+          : below < menuHeight && above > below;
+    const width = rect.width;
+    const left = align === "right" ? rect.right - width : rect.left;
+    let top = shouldOpenUp ? rect.top - menuHeight : rect.bottom + 8;
+    top = Math.max(8, Math.min(top, window.innerHeight - menuHeight - 8));
+    const clampedLeft = Math.max(8, Math.min(left, window.innerWidth - width - 8));
+    setOpenUp(shouldOpenUp);
+    setPos({ top, left: clampedLeft, width });
+  }, [align, direction, options.length]);
+
+  useEffect(() => {
+    if (!open) setActiveIndex(-1);
+    if (open && searchable) {
+      const input = menuRef.current?.querySelector<HTMLInputElement>("input");
+      input?.focus();
+    }
+  }, [open, searchable]);
+
+  useEffect(() => {
+    if (!open) return;
+    measure();
+    function onResize() {
+      measure();
+    }
+    function onScroll() {
+      measure();
+    }
+    window.addEventListener("resize", onResize);
+    window.addEventListener("scroll", onScroll, true);
+    return () => {
+      window.removeEventListener("resize", onResize);
+      window.removeEventListener("scroll", onScroll, true);
+    };
+  }, [open, measure]);
+
+  useLayoutEffect(() => {
+    if (open && menuRef.current) measure();
+  }, [open, filter, measure]);
 
   useEffect(() => {
     function onPointerDown(event: MouseEvent) {
-      if (!rootRef.current?.contains(event.target as Node)) {
+      const target = event.target as Node;
+      if (
+        !rootRef.current?.contains(target) &&
+        !menuRef.current?.contains(target)
+      ) {
         setOpen(false);
       }
     }
@@ -74,21 +137,6 @@ export function Dropdown<T extends string>({
       setOpen(false);
       return;
     }
-    if (direction === "up") {
-      setOpenUp(true);
-    } else if (direction === "down") {
-      setOpenUp(false);
-    } else {
-      const rect = triggerRef.current?.getBoundingClientRect();
-      if (rect) {
-        const below = window.innerHeight - rect.bottom;
-        const above = rect.top;
-        const menuHeight = Math.min(options.length * 46 + 16, 256);
-        setOpenUp(below < menuHeight && above > below);
-      } else {
-        setOpenUp(false);
-      }
-    }
     setFilter("");
     setOpen(true);
   }
@@ -107,6 +155,106 @@ export function Dropdown<T extends string>({
     setOpen(false);
   }
 
+  const selectedLabel = label ?? options.find((o) => o.value === value)?.label ?? placeholder;
+
+  const menu = open && pos ? (
+    <div
+      ref={menuRef}
+      id={listId}
+      role="listbox"
+      aria-label="Options"
+      aria-activedescendant={activeIndex >= 0 ? `${listId}-option-${activeIndex}` : undefined}
+      onKeyDown={(e) => {
+        if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+          e.preventDefault();
+          const step = e.key === "ArrowDown" ? 1 : -1;
+          setActiveIndex((i) => Math.min(Math.max(i + step, 0), visible.length - 1));
+        } else if (e.key === "Home") {
+          e.preventDefault();
+          setActiveIndex(0);
+        } else if (e.key === "End") {
+          e.preventDefault();
+          setActiveIndex(visible.length - 1);
+        } else if (e.key === "Enter") {
+          const target = activeIndex >= 0 ? visible[activeIndex] : visible[0];
+          if (target) {
+            e.preventDefault();
+            onChange(target.value);
+            setOpen(false);
+          } else if (allowCustom) {
+            e.preventDefault();
+            chooseCustom();
+          }
+        }
+      }}
+      style={{ top: pos.top, left: pos.left, width: pos.width }}
+      className={`fixed z-50 rounded-2xl bg-white p-1.5 shadow-lg shadow-ink-900/5 ${menuClassName}`}
+    >
+      {searchable && (
+        <div className="p-1.5 pb-2.5">
+          <Input
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            aria-label="Search options"
+            placeholder="Search…"
+            autoFocus
+            className="bg-ink-50"
+          />
+        </div>
+      )}
+      <div className="max-h-56 space-y-1 overflow-y-auto overscroll-none">
+        {visible.length === 0 ? (
+          <p className="px-4 py-3 text-sm text-ink-400">No matches</p>
+        ) : (
+          visible.map((option, i) => {
+            const isSelected = option.value === value;
+            return (
+              <button
+                key={option.value}
+                id={`${listId}-option-${i}`}
+                type="button"
+                role="option"
+                aria-selected={isSelected}
+                disabled={option.disabled}
+                onMouseEnter={() => setActiveIndex(i)}
+                onClick={() => {
+                  onChange(option.value);
+                  setOpen(false);
+                }}
+                className={`flex w-full items-center gap-3 rounded-2xl px-3 py-2 text-left transition ${
+                  activeIndex === i ? "bg-brand-50" : isSelected ? "bg-brand-50/50" : "hover:bg-ink-50"
+                } ${option.disabled ? "opacity-40" : ""}`}
+              >
+                {option.leading}
+                <span className="min-w-0 flex-1 truncate text-sm text-ink-900">
+                  {option.label}
+                </span>
+                {isSelected ? (
+                  <span className="shrink-0 text-sm font-bold text-brand-600">
+                    ✓
+                  </span>
+                ) : (
+                  option.trailing
+                )}
+              </button>
+            );
+          }              )
+        )}
+        {allowCustom && filter.trim() && !exactMatch && (
+          <button
+            type="button"
+            onClick={chooseCustom}
+            className="flex w-full items-center gap-3 rounded-2xl bg-brand-50 px-3 py-2 text-left font-semibold text-brand-700 transition hover:bg-brand-100"
+          >
+            <span className="min-w-0 flex-1 truncate text-sm">
+              + Use “{filter.trim()}”
+            </span>
+          </button>
+        )}
+      </div>
+    </div>
+  ) : null;
+
   return (
     <div ref={rootRef} className={`relative ${className}`}>
       <button
@@ -116,8 +264,17 @@ export function Dropdown<T extends string>({
         onClick={toggle}
         aria-expanded={open}
         aria-haspopup="listbox"
+        aria-controls={open ? listId : undefined}
       >
-        {typeof trigger === "function" ? trigger(open) : trigger}
+        {trigger !== undefined ? (
+          typeof trigger === "function" ? trigger(open) : trigger
+        ) : (
+          <div
+            className={`flex items-center justify-between rounded-2xl bg-ink-100 px-3.5 py-2 text-sm ${triggerClassName ?? ""}`}
+          >
+            <span className="truncate text-ink-900">{selectedLabel}</span>
+          </div>
+        )}
         <ChevronDownIcon
           className={`pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400 transition-transform duration-200 ${
             open ? "rotate-180" : ""
@@ -125,87 +282,7 @@ export function Dropdown<T extends string>({
         />
       </button>
 
-      {open && (
-        <div
-          role="listbox"
-          className={`absolute z-20 w-full rounded-2xl bg-white p-1.5 shadow-lg shadow-ink-900/5 ${
-            openUp ? "bottom-full mb-2" : "top-full mt-2"
-          } ${align === "right" ? "right-0" : "left-0"} ${menuClassName}`}
-        >
-          {searchable && (
-            <div className="p-1.5 pb-2.5">
-              <Input
-                value={filter}
-                onChange={(e) => setFilter(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    if (visible.length > 0) {
-                      onChange(visible[0].value);
-                      setOpen(false);
-                    } else if (allowCustom) {
-                      chooseCustom();
-                    } else {
-                      setOpen(false);
-                    }
-                  }
-                }}
-                placeholder="Search…"
-                autoFocus
-                className="bg-ink-50"
-              />
-            </div>
-          )}
-          <div className="max-h-56 space-y-1 overflow-y-auto overscroll-none">
-            {visible.length === 0 ? (
-              <p className="px-4 py-3 text-sm text-ink-400">No matches</p>
-            ) : (
-              visible.map((option) => {
-                const isSelected = option.value === value;
-                return (
-                  <button
-                    key={option.value}
-                    type="button"
-                    role="option"
-                    aria-selected={isSelected}
-                    disabled={option.disabled}
-                    onClick={() => {
-                      onChange(option.value);
-                      setOpen(false);
-                    }}
-                    className={`flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left transition ${
-                      isSelected ? "bg-brand-50" : "hover:bg-ink-50"
-                    } ${option.disabled ? "opacity-40" : ""}`}
-                  >
-                    {option.leading}
-                    <span className="min-w-0 flex-1 truncate text-sm text-ink-900">
-                      {option.label}
-                    </span>
-                    {isSelected ? (
-                      <span className="shrink-0 text-sm font-bold text-brand-600">
-                        ✓
-                      </span>
-                    ) : (
-                      option.trailing
-                    )}
-                  </button>
-                );
-              }              )
-            )}
-            {allowCustom && filter.trim() && !exactMatch && (
-              <button
-                type="button"
-                onClick={chooseCustom}
-                className="flex w-full items-center gap-3 rounded-2xl bg-brand-50 px-3 py-3 text-left font-semibold text-brand-700 transition hover:bg-brand-100"
-              >
-                <span className="min-w-0 flex-1 truncate text-sm">
-                  + Use “{filter.trim()}”
-                </span>
-              </button>
-            )}
-          </div>
-        </div>
-      )}
+      {menu && createPortal(menu, document.body)}
     </div>
   );
 }

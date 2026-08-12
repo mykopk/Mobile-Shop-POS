@@ -1,5 +1,4 @@
 import type { Request, Response } from "express";
-import { ApiError } from "../../core/middleware/error";
 import {
   bulkDeleteContacts,
   createContact,
@@ -10,12 +9,6 @@ import {
   updateContact,
 } from "./service";
 import type { ContactInput, ImportContactInput } from "./schemas";
-
-function forbidCashier(user: { role?: string } | undefined) {
-  if (user?.role === "CASHIER") {
-    throw new ApiError(403, "auth.forbidden", "Forbidden");
-  }
-}
 
 export async function listHandler(req: Request, res: Response) {
   const { q, type } = req.query;
@@ -46,18 +39,15 @@ export async function createHandler(req: Request, res: Response) {
 }
 
 export async function updateHandler(req: Request, res: Response) {
-  forbidCashier(req.user);
   res.json({ data: await updateContact(req.params.id, req.body as ContactInput, req.user!.id) });
 }
 
 export async function bulkDeleteHandler(req: Request, res: Response) {
-  forbidCashier(req.user);
   const ids = (req.body?.ids ?? []) as string[];
   res.json({ data: await bulkDeleteContacts(ids, req.user!.id) });
 }
 
 export async function importHandler(req: Request, res: Response) {
-  forbidCashier(req.user);
   const rows = req.body.contacts as ImportContactInput[];
   res.json({ data: await importContacts(rows, req.user!.id) });
 }

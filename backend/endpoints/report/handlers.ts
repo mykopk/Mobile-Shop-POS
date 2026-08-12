@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import { ApiError } from "../../core/middleware/error";
+import { getCompanyTimezone } from "../../core/lib/company";
 import { ledgerSchema, rangeSchema } from "./schemas";
 import * as report from "./service";
 import type { Range } from "./service";
@@ -11,6 +12,10 @@ function parseRange(req: Request): Range {
     throw new ApiError(400, "validation_error", first?.message ?? "Invalid range");
   }
   return parsed.data;
+}
+
+async function rangeWithTz(req: Request): Promise<Range> {
+  return { ...parseRange(req), tz: await getCompanyTimezone() };
 }
 
 function parseLedger(req: Request) {
@@ -27,36 +32,31 @@ function parseLedger(req: Request) {
 }
 
 export async function summaryHandler(req: Request, res: Response) {
-  res.json({ data: await report.summary(req.user!.role, parseRange(req)) });
+  res.json({ data: await report.summary(req.user!.permissions, await rangeWithTz(req)) });
 }
 
 export async function salesHandler(req: Request, res: Response) {
-  res.json({ data: await report.salesReport(parseRange(req)) });
+  res.json({ data: await report.salesReport(await rangeWithTz(req)) });
 }
 
 export async function purchasesHandler(req: Request, res: Response) {
-  res.json({ data: await report.purchasesReport(parseRange(req)) });
+  res.json({ data: await report.purchasesReport(await rangeWithTz(req)) });
 }
 
 export async function profitHandler(req: Request, res: Response) {
-  const role = req.user!.role;
-  if (role !== "ADMIN" && role !== "MANAGER") {
-    res.json({ data: null });
-    return;
-  }
-  res.json({ data: await report.profitReport(parseRange(req)) });
+  res.json({ data: await report.profitReport(await rangeWithTz(req)) });
 }
 
 export async function expensesHandler(req: Request, res: Response) {
-  res.json({ data: await report.expensesReport(parseRange(req)) });
+  res.json({ data: await report.expensesReport(await rangeWithTz(req)) });
 }
 
 export async function stockHandler(req: Request, res: Response) {
-  res.json({ data: await report.stockReport(req.user!.role) });
+  res.json({ data: await report.stockReport(req.user!.permissions) });
 }
 
 export async function paymentsHandler(req: Request, res: Response) {
-  res.json({ data: await report.paymentsReport(parseRange(req)) });
+  res.json({ data: await report.paymentsReport(await rangeWithTz(req)) });
 }
 
 export async function balancesHandler(req: Request, res: Response) {
@@ -65,5 +65,6 @@ export async function balancesHandler(req: Request, res: Response) {
 
 export async function ledgerHandler(req: Request, res: Response) {
   const parsed = parseLedger(req);
-  res.json({ data: await report.ledgerReport(parsed.contactId, { from: parsed.from, to: parsed.to }) });
+  const tz = await getCompanyTimezone();
+  res.json({ data: await report.ledgerReport(parsed.contactId, { from: parsed.from, to: parsed.to, tz }) });
 }

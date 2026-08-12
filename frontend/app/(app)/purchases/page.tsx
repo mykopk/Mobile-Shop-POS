@@ -7,6 +7,8 @@ import { useAuth } from "@/lib/auth-context";
 import type { Color, Contact, ProductSummary, Transaction } from "@/lib/api-types";
 import { useApi } from "@/lib/use-api";
 import { CARRIER_LABELS, CARRIER_OPTIONS } from "@/lib/constants";
+import { PERMISSIONS } from "@/lib/constants/permissions";
+import { hasPermission } from "@/lib/roles";
 import { formatPKR } from "@/lib/money";
 import { toISODate } from "@/lib/dates";
 import { Button } from "@/components/ui/button";
@@ -51,7 +53,7 @@ type PopupInfo = {
 let keyCounter = 0;
 
 export default function PurchasesPage() {
-  const { token } = useAuth();
+  const { user } = useAuth();
   const { toast } = useToast();
   const { data: contacts } = useApi<Contact[]>("/contact");
   const { data: products } = useApi<ProductSummary[]>("/product");
@@ -92,7 +94,7 @@ export default function PurchasesPage() {
     let cancelled = false;
     (async () => {
       try {
-        const list = await apiRequest<{ number: string }[]>(`/transaction?type=PURCHASE&limit=1`, { token });
+        const list = await apiRequest<{ number: string }[]>(`/transaction?type=PURCHASE&limit=1`);
         const last = list?.[0]?.number ?? "";
         const match = last.match(/PUR-(\d+)$/);
         const next = match ? parseInt(match[1], 10) + 1 : 1;
@@ -104,7 +106,7 @@ export default function PurchasesPage() {
     return () => {
       cancelled = true;
     };
-  }, [token]);
+  }, []);
 
   useEffect(() => {
     if (popup) {
@@ -520,7 +522,6 @@ export default function PurchasesPage() {
       }
       const txn = await apiRequest<Transaction>("/transaction/purchase", {
         method: "POST",
-        token,
         body: {
           contactId,
           items: validItems,
@@ -635,13 +636,7 @@ export default function PurchasesPage() {
               options={contactOptions}
               onChange={setContactId}
               searchable
-              trigger={
-                <div className="flex items-center justify-between rounded-2xl bg-ink-100 px-4 py-3 text-sm">
-                  <span className="truncate text-ink-900">
-                    {contactOptions.find((c) => c.value === contactId)?.label ?? "Select…"}
-                  </span>
-                </div>
-              }
+              placeholder="Select…"
             />
           )}
         </div>
@@ -658,7 +653,7 @@ export default function PurchasesPage() {
 
         <div>
           <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Total</p>
-          <p className="rounded-2xl bg-ink-100 px-4 py-3 text-sm font-bold text-ink-900">{formatPKR(total)}</p>
+          <p className="rounded-2xl bg-ink-100 px-3.5 py-2 text-sm font-bold text-ink-900">{formatPKR(total)}</p>
         </div>
       </div>
 
@@ -681,13 +676,8 @@ export default function PurchasesPage() {
               options={productOptions}
               onChange={onProductSelect}
               searchable
-              trigger={
-                <div className="flex items-center justify-between rounded-2xl bg-ink-50 px-4 py-2.5 text-sm">
-                  <span className="truncate text-ink-900">
-                    {productOptions.find((o) => o.value === selProductId)?.label ?? "Select product…"}
-                  </span>
-                </div>
-              }
+              triggerClassName="bg-ink-50"
+              placeholder="Select product…"
             />
           </div>
           <div className="w-32">
@@ -719,13 +709,8 @@ export default function PurchasesPage() {
                 options={colorOptions}
                 onChange={setColorId}
                 searchable
-                trigger={
-                  <div className="flex items-center justify-between rounded-2xl bg-ink-50 px-4 py-2.5 text-sm">
-                    <span className="truncate text-ink-900">
-                      {colorOptions.find((c) => c.value === colorId)?.label ?? "Select…"}
-                    </span>
-                  </div>
-                }
+                triggerClassName="bg-ink-50"
+                placeholder="Select…"
               />
             </div>
           )}
@@ -737,11 +722,7 @@ export default function PurchasesPage() {
                   value={carrier}
                   options={CARRIER_OPTIONS.map((c) => ({ value: c, label: CARRIER_LABELS[c] }))}
                   onChange={(value) => setCarrier(value)}
-                  trigger={
-                    <div className="flex items-center justify-between rounded-2xl bg-ink-50 px-4 py-2.5 text-sm">
-                      <span className="text-ink-900">{CARRIER_LABELS[carrier]}</span>
-                    </div>
-                  }
+                  triggerClassName="bg-ink-50"
                 />
               </div>
               <div className="w-28">
@@ -761,11 +742,7 @@ export default function PurchasesPage() {
                   value={grade}
                   options={["A", "B", "C", "D"].map((g) => ({ value: g, label: `Grade ${g}` }))}
                   onChange={setGrade}
-                  trigger={
-                    <div className="flex items-center justify-between rounded-2xl bg-ink-50 px-4 py-2.5 text-sm">
-                      <span className="text-ink-900">{grade}</span>
-                    </div>
-                  }
+                  triggerClassName="bg-ink-50"
                 />
               </div>
             </>
@@ -874,8 +851,8 @@ export default function PurchasesPage() {
         </section>
       </div>
 
-      <div className="-mx-6 -mb-6 mt-6 shrink-0 bg-white px-6 py-4">
-        <div className="lg:max-w-xl">
+      <div className="-mx-6 -mb-6 mt-6 shrink-0 border-t border-ink-100 bg-white px-6 py-5">
+        <div className="w-full max-w-2xl">
           <div className="grid grid-cols-[1fr_1.5fr] items-end gap-3">
             <div>
               <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Payment</p>
@@ -887,13 +864,6 @@ export default function PurchasesPage() {
                   { value: "SPLIT", label: "Cash + Credit" },
                 ]}
                 onChange={(v) => onPayModeChange(v as "CASH" | "CREDIT" | "SPLIT")}
-                trigger={
-                  <div className="flex items-center justify-between rounded-2xl bg-ink-100 px-4 py-3 text-sm">
-                    <span className="text-ink-900">
-                      {payMode === "CREDIT" ? "Credit" : payMode === "SPLIT" ? "Cash + Credit" : "Cash"}
-                    </span>
-                  </div>
-                }
               />
             </div>
             {payMode === "SPLIT" ? (
@@ -973,7 +943,7 @@ export default function PurchasesPage() {
           </div>
         </div>
 
-        <div className="mt-4 flex items-center justify-between gap-4">
+        <div className="mt-4 flex items-center justify-between gap-4 border-t border-ink-100 pt-4">
           <div className="flex items-center gap-4">
             <div className="flex items-baseline gap-3">
               <span className="text-sm font-medium text-ink-500">Subtotal</span>

@@ -11,10 +11,12 @@ export function ReportTable<T>({
   columns,
   rows,
   empty = "No data.",
+  rowKey,
 }: {
   columns: ReportColumn<T>[];
   rows: T[];
   empty?: string;
+  rowKey?: (row: T, index: number) => string | number;
 }) {
   return (
     <div className="overflow-hidden rounded-2xl bg-white">
@@ -39,7 +41,7 @@ export function ReportTable<T>({
         </thead>
         <tbody>
           {rows.map((row, i) => (
-            <tr key={i} className="border-t border-ink-100 transition hover:bg-ink-50/50">
+            <tr key={rowKey ? rowKey(row, i) : i} className="border-t border-ink-100 transition hover:bg-ink-50/50">
               {columns.map((c) => (
                 <td
                   key={c.key}
