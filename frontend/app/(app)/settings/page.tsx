@@ -495,6 +495,20 @@ export default function SettingsPage() {
                 </Field>
               </div>
               <div className="px-4 py-3">
+                <Field label="Tax rate" hint="Applied to invoices">
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={form.taxRate ?? "0"}
+                      onChange={(e) => setForm({ ...form, taxRate: e.target.value })}
+                      placeholder="0"
+                      inputMode="decimal"
+                      disabled={!canEdit}
+                    />
+                    <span className="shrink-0 text-sm text-ink-500">%</span>
+                  </div>
+                </Field>
+              </div>
+              <div className="px-4 py-3">
                 <Checkbox
                   checked={form.compactPrices ?? true}
                   onChange={(on) => setForm({ ...form, compactPrices: on })}
@@ -530,6 +544,11 @@ export default function SettingsPage() {
               <div className="px-4 py-3">
                 <Field label="WhatsApp number">
                   <Input value={form.whatsapp ?? ""} onChange={(e) => setForm({ ...form, whatsapp: e.target.value })} placeholder="03001234567" inputMode="tel" disabled={!canEdit} />
+                </Field>
+              </div>
+              <div className="px-4 py-3">
+                <Field label="Raast ID" hint="For receiving payments via Raast">
+                  <Input value={form.raastId ?? ""} onChange={(e) => setForm({ ...form, raastId: e.target.value })} placeholder="03xxxxxxxxx or IBAN" disabled={!canEdit} />
                 </Field>
               </div>
               <div className="px-4 py-3">

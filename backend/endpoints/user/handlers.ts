@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import { createUser, listUsers, updateUser } from "./service";
+import { createUser, deleteUser, listUsers, updateUser } from "./service";
 import type { CreateUserInput, UpdateUserInput } from "./schemas";
 
 export async function listHandler(_req: Request, res: Response) {
@@ -14,4 +14,9 @@ export async function createHandler(req: Request, res: Response) {
 export async function updateHandler(req: Request, res: Response) {
   const user = await updateUser(req.params.id, req.body as UpdateUserInput, req.user!.id);
   res.json({ data: user });
+}
+
+export async function deleteHandler(req: Request, res: Response) {
+  const result = await deleteUser(req.params.id, req.user!.id);
+  res.json({ data: result });
 }

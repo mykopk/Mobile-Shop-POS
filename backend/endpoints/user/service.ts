@@ -85,3 +85,26 @@ export async function updateUser(id: string, input: UpdateUserInput, actorId: st
   });
   return user;
 }
+
+export async function deleteUser(id: string, actorId: string) {
+  const existing = await prisma.user.findUnique({ where: { id } });
+  if (!existing) throw new ApiError(404, "user.not_found", "User not found");
+  if (id === actorId) {
+    throw new ApiError(400, "user.cannot_delete_self", "You cannot delete your own account");
+  }
+
+  await prisma.$transaction([
+    prisma.printLayout.deleteMany({ where: { userId: id } }),
+    prisma.dashboardWidget.deleteMany({ where: { userId: id } }),
+    prisma.user.delete({ where: { id } }),
+  ]);
+
+  await writeAudit({
+    userId: actorId,
+    action: "USER.DELETE",
+    entity: "User",
+    entityId: id,
+    details: JSON.stringify({ username: existing.username, role: existing.role }),
+  });
+  return { id, username: existing.username };
+}
