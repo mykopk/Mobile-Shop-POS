@@ -1,4 +1,4 @@
-# DOST Mobile POS — Data Model
+# Fig Mobile POS — Data Model
 
 Design goal: **zero duplication.** One `Contact`, one `Product`, one `Transaction`, one `Unit` per physical phone. Every money and stock movement is an audit trail.
 
@@ -421,6 +421,6 @@ model ReservationItem {
 
 ## 4. Storage Notes
 
-- SQLite embedded (`backend/data/dost.db`) — offline desktop, single client.
+- SQLite embedded (`backend/data/fig.db`) — offline desktop, single client.
 - All money as `Decimal(12,2)`, never floats.
 - `layout`/`settings`/`specs` as JSON strings.

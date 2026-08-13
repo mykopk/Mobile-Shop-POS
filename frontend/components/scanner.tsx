@@ -331,7 +331,7 @@ export function Scanner({
           </div>
         )}
         {camError && (
-          <div className="absolute left-3 right-3 top-3 rounded-xl bg-red-600 px-3 py-2 text-center text-xs font-semibold text-white shadow-lg">
+          <div className="absolute left-3 right-3 top-3 rounded-xl bg-error px-3 py-2 text-center text-xs font-semibold text-white shadow-lg">
             {camError}
           </div>
         )}

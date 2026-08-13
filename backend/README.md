@@ -1,4 +1,4 @@
-# DOST Mobile POS — Backend
+# Fig Mobile POS — Backend
 
 Node.js + Express (REST API) + TypeScript + Prisma + SQLite.
 
@@ -29,7 +29,7 @@ Endpoints are served under `/api` (see `app.ts`). The dev server normally runs o
 | `npm run prisma:seed`     | Seed users + demo data                   |
 | `npm run prisma:studio`   | Prisma Studio                         |
 
-Tests run against a throwaway `data/test.db` (created by `prisma db push` in `tests/global-setup.ts`) — they never touch `data/dost.db`.
+Tests run against a throwaway `data/test.db` (created by `prisma db push` in `tests/global-setup.ts`) — they never touch `data/fig.db`.
 
 ## Structure — one folder per endpoint
 
@@ -106,7 +106,7 @@ to the PKR day, not the UTC day.
 | Variable | Default | Notes |
 | -------- | ------- | ----- |
 | `PORT` | `4000` | API port |
-| `DATABASE_URL` | — | SQLite file URL (e.g. `file:./data/dost.db`) |
+| `DATABASE_URL` | — | SQLite file URL (e.g. `file:./data/fig.db`) |
 | `JWT_SECRET` | — | Min 16 chars |
 | `JWT_EXPIRES_IN` | `7d` | |
 | `CORS_ORIGIN` | empty (all origins) | Comma-separated allowlist |

@@ -6,9 +6,7 @@ import { toISODate } from "@/lib/dates";
 import type { ReportRange } from "@/lib/api-types";
 
 export function usePeriodReport<T>(base: string) {
-  const from = new Date();
-  from.setDate(from.getDate() - 29);
-  const [range, setRange] = useState<ReportRange>({ from: toISODate(from), to: toISODate(new Date()) });
+  const [range, setRange] = useState<ReportRange>({ from: toISODate(new Date()), to: toISODate(new Date()) });
 
   const params = new URLSearchParams();
   if (range.from) params.set("from", range.from);

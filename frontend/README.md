@@ -1,4 +1,4 @@
-# DOST Mobile POS — Frontend
+# Fig POS — Frontend
 
 Next.js (App Router) + TypeScript + Tailwind CSS. Talks to the backend REST API only — no DB access.
 
@@ -18,7 +18,7 @@ frontend/
 │   ├── page.tsx          # landing/splash: logo + app name
 │   └── globals.css       # Tailwind v4
 ├── components/
-│   └── brand/logo.tsx    # DOST logo (SVG)
+│   └── brand/logo.tsx    # Fig logo (SVG)
 └── lib/
     └── apiClient.ts      # (planned) fetch wrapper + JWT
 ```
@@ -27,4 +27,4 @@ See [`docs/architecture.md`](../docs/architecture.md) for the full plan.
 
 ## Status
 
-Scaffolded: single landing page with DOST Mobile POS name + logo. Next up: login page + auth.
+Scaffolded: single landing page with Fig POS name + logo. Next up: login page + auth.

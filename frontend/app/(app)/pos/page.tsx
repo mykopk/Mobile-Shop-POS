@@ -111,10 +111,18 @@ export default function PosPage() {
   const searchWrapRef = useRef<HTMLDivElement>(null);
   const [panelPos, setPanelPos] = useState<{ top: number; left: number; width: number } | null>(null);
 
-  const total = useMemo(
+  const subtotal = useMemo(
     () => cart.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0),
     [cart],
   );
+
+  const taxRate = parseFloat(profile?.taxRate ?? "0") || 0;
+  const cardFeePct = parseFloat(profile?.cardFee ?? "0") || 0;
+  const tax = Math.round(subtotal * taxRate) / 100;
+  const cardUsed =
+    mode === "CARD" || (mode === "SPLIT" && (parseFloat(card) || 0) > 0);
+  const cardFee = cardUsed ? Math.round((subtotal + tax) * cardFeePct) / 100 : 0;
+  const total = subtotal + tax + cardFee;
 
   const cartGroups = useMemo(() => {
     const map = new Map<string, { key: string; label: string; unitPrice: number; lines: CartLine[] }>();
@@ -538,6 +546,18 @@ export default function PosPage() {
             ))}
           </div>
           <div className="my-4" />
+          {parseFloat(receipt.tax ?? "0") > 0 && (
+            <div className="flex justify-between text-xs">
+              <span>TAX</span>
+              <span>{formatPKR(receipt.tax)}</span>
+            </div>
+          )}
+          {parseFloat(receipt.cardFee ?? "0") > 0 && (
+            <div className="flex justify-between text-xs">
+              <span>CARD FEE</span>
+              <span>{formatPKR(receipt.cardFee)}</span>
+            </div>
+          )}
           <div className="flex justify-between font-bold">
             <span>TOTAL</span>
             <span>{formatPKR(receipt.total)}</span>
@@ -549,7 +569,7 @@ export default function PosPage() {
             </div>
           ))}
           {receipt.status === "PARTIAL" && (
-            <p className="mt-3 text-center text-xs font-bold text-amber-600">PARTIAL PAYMENT</p>
+            <p className="mt-3 text-center text-xs font-bold text-warning">PARTIAL PAYMENT</p>
           )}
           <p className="mt-4 text-center text-xs text-ink-400">Thank you for shopping with us!</p>
         </div>
@@ -1062,7 +1082,7 @@ export default function PosPage() {
                 type="button"
                 onClick={() => setLoadedReservation(null)}
                 title="Clear reservation"
-                className="rounded-lg p-1 text-ink-400 hover:bg-ink-100 hover:text-red-500"
+                className="rounded-lg p-1 text-ink-400 hover:bg-ink-100 hover:text-error"
               >
                 <XIcon className="h-3.5 w-3.5" />
               </button>
@@ -1072,9 +1092,18 @@ export default function PosPage() {
 
       <div className="mt-4 flex items-center justify-between gap-4 border-t border-ink-100 pt-4">
           <div className="flex items-center gap-4">
-            <div className="flex items-baseline gap-3">
-              <span className="text-sm font-medium text-ink-500">Total</span>
-              <span className="text-3xl font-bold text-brand-600">{formatPKR(total)}</span>
+            <div className="flex flex-col gap-0.5">
+              <div className="flex items-baseline gap-3">
+                <span className="text-sm font-medium text-ink-500">Total</span>
+                <span className="text-3xl font-bold text-brand-600">{formatPKR(total)}</span>
+              </div>
+              {(tax > 0 || cardFee > 0) && (
+                <div className="text-xs text-ink-400">
+                  {tax > 0 && <span>{formatPKR(tax)} tax</span>}
+                  {tax > 0 && cardFee > 0 && <span> · </span>}
+                  {cardFee > 0 && <span>{formatPKR(cardFee)} card fee</span>}
+                </div>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -1149,7 +1178,7 @@ export default function PosPage() {
               will complete the reservation(s).
             </p>
             {conflicts?.map((conflict) => (
-              <div key={conflict.reservationId} className="rounded-xl bg-amber-50 p-3">
+              <div key={conflict.reservationId} className="rounded-xl bg-warning/10 p-3">
                 <p className="text-sm font-semibold text-ink-900">
                   {conflict.reservationNumber} · {conflict.contactName}
                   {conflict.contactPhone ? ` · ${conflict.contactPhone}` : ""}

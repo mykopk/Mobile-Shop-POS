@@ -18,6 +18,23 @@ export function formatPKR(amount: number | string | null | undefined) {
   return formatMoney(amount, "Rs");
 }
 
+function groupInt(s: string) {
+  return s.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+}
+
+export function formatAmountInput(raw: string) {
+  const cleaned = raw.replace(/[^\d.]/g, "");
+  const parts = cleaned.split(".");
+  if (parts.length > 2) {
+    parts[1] = parts.slice(1).join("");
+  }
+  let int = parts[0].replace(/^0+(?=\d)/, "");
+  if (parts[0] === "") int = "";
+  const frac = parts[1] !== undefined ? parts[1].slice(0, 2) : "";
+  const grouped = int === "" ? "" : groupInt(int);
+  return frac ? `${grouped}.${frac}` : grouped;
+}
+
 export function formatMoneyCompact(amount: number | string | null | undefined, symbol = "Rs") {
   const n = parseAmount(amount);
   const abs = Math.abs(n);

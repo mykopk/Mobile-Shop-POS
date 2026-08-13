@@ -11,6 +11,7 @@ describe("auth", () => {
     await resetDb();
     await seedUser("auth_user", "CASHIER", "1234");
     await seedUser("rate_limited_user", "CASHIER", "1234");
+    await seedUser("pin_user", "CASHIER", "1234");
   });
 
   it("sets a session cookie with role and server-derived permissions on success", async () => {
@@ -21,7 +22,7 @@ describe("auth", () => {
     expect(res.status).toBe(200);
     expect(res.body.data.token).toBeUndefined();
     const setCookie = res.headers["set-cookie"] as unknown as string[];
-    expect(setCookie.some((c) => c.includes("dost.session"))).toBe(true);
+    expect(setCookie.some((c) => c.includes("fig.session"))).toBe(true);
     expect(res.body.data.user.role).toBe("CASHIER");
     expect(res.body.data.user.permissions).toContain("sale.create");
     expect(res.body.data.user.permissions).toContain("payment.collect");
@@ -64,7 +65,7 @@ describe("auth", () => {
     const { cookie } = await login(app, "auth_user", "1234");
     const res = await request(app).get("/api/auth/me").set("Cookie", cookie);
     expect(res.status).toBe(200);
-    expect(res.body.data.user.username).toBe("auth_user");
+    expect(res.body.data.user.username).toBe("AUTH_USER");
     expect(res.body.data.user.permissions).toContain("sale.create");
   });
 
@@ -78,7 +79,27 @@ describe("auth", () => {
     const res = await request(app).post("/api/auth/logout").set("Cookie", cookie);
     expect(res.status).toBe(200);
     const cleared = res.headers["set-cookie"] as unknown as string[];
-    expect(cleared.some((c) => c.includes("dost.session") && (c.includes("Max-Age=0") || c.includes("Expires=")))).toBe(true);
+    expect(cleared.some((c) => c.includes("fig.session") && (c.includes("Max-Age=0") || c.includes("Expires=")))).toBe(true);
+  });
+
+  it("changes the PIN when the current PIN is correct", async () => {
+    const { cookie } = await login(app, "pin_user", "1234");
+    const res = await request(app)
+      .put("/api/auth/pin")
+      .set("Cookie", cookie)
+      .send({ currentPin: "1234", newPin: "9999" });
+    expect(res.status).toBe(200);
+    expect(res.body.data.ok).toBe(true);
+  });
+
+  it("rejects a PIN change with the wrong current PIN", async () => {
+    const { cookie } = await login(app, "pin_user", "9999");
+    const res = await request(app)
+      .put("/api/auth/pin")
+      .set("Cookie", cookie)
+      .send({ currentPin: "1111", newPin: "0000" });
+    expect(res.status).toBe(400);
+    expect(res.body.error?.code).toBe("auth.pin_incorrect");
   });
 });
 

@@ -1,4 +1,4 @@
-# DOST Mobile POS — Roadmap
+# Fig Mobile POS — Roadmap
 
 ## Phase 0 — Foundation
 - [x] Docs: PRD, data model, architecture, roadmap
@@ -32,14 +32,15 @@
 - [ ] Export (PDF/Excel), print
 
 ## Phase 4 — Hardening & Polish
-- [ ] Audit log viewer + admin screens
+- [x] Audit log viewer + admin screens
 - [ ] Company profile: logo upload, footer, currency, tax
-- [ ] Print formats: thermal 80mm, A4 invoice, purchase slip, credit statement
+- [x] **Print layouts**: premade layouts (58mm/80mm/A4 receipts, inventory lists, expense sheets) defined in `backend/data/print-layouts.json`, seeded into the DB on server start, served via `/api/print-layout` (system layouts) with a `POST /api/print-layout/import` JSON upload endpoint
+- [ ] Print formats: purchase slip, credit statement
 - [ ] Settings: printer default per use case, backup/restore
 - [ ] Search perf (indexes, debounce, pagination)
 - [ ] Bulk import/export catalog
 - [ ] Package as **dual-mode desktop app** — static frontend shell (Electron); backend bundled locally or pointed at a hosted URL, switched at runtime
-- [ ] Backups: `data/dost.db` export / restore in Settings
+- [ ] Backups: `data/fig.db` export / restore in Settings
 
 ## Phase 5 — Later
 - [ ] Offline queue for POS

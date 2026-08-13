@@ -1,6 +1,5 @@
 "use client";
 
-import { ReportNav } from "@/components/reports/report-nav";
 import { PeriodPicker } from "@/components/reports/period-picker";
 import { usePeriodReport } from "@/components/reports/use-period-report";
 import { KpiCard } from "@/components/reports/report-card";
@@ -20,7 +19,6 @@ export default function PaymentsReportPage() {
         <p className="text-xs text-ink-500">Money in and out by method, plus cash inflows and outflows.</p>
       </div>
 
-      <ReportNav />
       <PeriodPicker value={range} onChange={setRange} />
 
       {loading ? (

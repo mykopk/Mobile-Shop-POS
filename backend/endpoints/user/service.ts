@@ -13,6 +13,7 @@ const select = {
   name: true,
   email: true,
   role: true,
+  avatar: true,
   active: true,
   permissions: true,
   createdAt: true,
@@ -23,8 +24,8 @@ export async function listUsers() {
 }
 
 export async function createUser(input: CreateUserInput, actorId: string) {
-  const username = input.username.toLowerCase();
-  const email = input.email ? input.email.toLowerCase() : `${username}@local`;
+  const username = input.username.toUpperCase();
+  const email = input.email ? input.email.toLowerCase() : `${username.toLowerCase()}@local`;
   const permissions =
     input.permissions !== undefined
       ? storedPermissions(input.permissions)
@@ -35,6 +36,7 @@ export async function createUser(input: CreateUserInput, actorId: string) {
       username,
       name: input.name,
       email,
+      avatar: input.avatar ?? null,
       pinHash: await bcrypt.hash(input.pin, env.BCRYPT_ROUNDS),
       role: input.role as Role,
       active: input.active ?? true,
@@ -52,26 +54,52 @@ export async function createUser(input: CreateUserInput, actorId: string) {
   return user;
 }
 
-export async function updateUser(id: string, input: UpdateUserInput, actorId: string) {
+export async function updateUser(
+  id: string,
+  input: UpdateUserInput,
+  actorId: string,
+  actorRole: Role,
+) {
   const existing = await prisma.user.findUnique({ where: { id } });
   if (!existing) throw new ApiError(404, "user.not_found", "User not found");
 
+  if (id === actorId && input.role !== undefined) {
+    throw new ApiError(400, "user.cannot_change_own_role", "You cannot change your own role");
+  }
+  if (id === actorId && input.permissions !== undefined) {
+    throw new ApiError(400, "user.cannot_change_own_permissions", "You cannot change your own permissions");
+  }
+  if (id === actorId && input.active === false) {
+    throw new ApiError(400, "user.cannot_deactivate_self", "You cannot deactivate your own account");
+  }
+  if (id === actorId && input.pin !== undefined) {
+    throw new ApiError(400, "user.cannot_change_own_pin", "Change your PIN from Settings instead");
+  }
+  if (input.pin !== undefined && actorRole !== "ADMIN") {
+    throw new ApiError(403, "user.pin_admin_only", "Only an admin can change a user's PIN");
+  }
+
   const data: Record<string, unknown> = {};
-  if (input.username !== undefined) data.username = input.username.toLowerCase();
+  if (input.username !== undefined) data.username = input.username.toUpperCase();
   if (input.name !== undefined) data.name = input.name;
   if (input.email !== undefined) data.email = input.email.toLowerCase();
   if (input.pin !== undefined) data.pinHash = await bcrypt.hash(input.pin, env.BCRYPT_ROUNDS);
   if (input.role !== undefined) data.role = input.role as Role;
+  if (input.avatar !== undefined) data.avatar = input.avatar;
   if (input.active !== undefined) data.active = input.active;
   if (input.permissions !== undefined) data.permissions = storedPermissions(input.permissions);
 
-  if (id === actorId && data.active === false) {
-    throw new ApiError(400, "user.cannot_deactivate_self", "You cannot deactivate your own account");
-  }
-  if (id === actorId && data.permissions !== undefined) {
-    const next = data.permissions as string[];
-    if (!next.includes("user.manage")) {
-      throw new ApiError(400, "user.cannot_remove_own_access", "You cannot remove your own user.manage");
+  const removingAdmin =
+    existing.role === "ADMIN" &&
+    (data.role !== undefined && data.role !== "ADMIN");
+  const removingOwnAccess =
+    existing.role === "ADMIN" &&
+    data.permissions !== undefined &&
+    !(data.permissions as string[]).includes("user.manage");
+  if (removingAdmin || removingOwnAccess) {
+    const adminCount = await prisma.user.count({ where: { role: "ADMIN", active: true } });
+    if (adminCount <= 1) {
+      throw new ApiError(400, "user.last_admin", "You cannot remove the only admin");
     }
   }
 
@@ -86,11 +114,20 @@ export async function updateUser(id: string, input: UpdateUserInput, actorId: st
   return user;
 }
 
-export async function deleteUser(id: string, actorId: string) {
+export async function deleteUser(id: string, actorId: string, actorRole: Role) {
   const existing = await prisma.user.findUnique({ where: { id } });
   if (!existing) throw new ApiError(404, "user.not_found", "User not found");
   if (id === actorId) {
     throw new ApiError(400, "user.cannot_delete_self", "You cannot delete your own account");
+  }
+  if (existing.role === "ADMIN" && actorRole !== "ADMIN") {
+    throw new ApiError(403, "user.admin_delete_only", "Only an admin can delete an admin");
+  }
+  if (existing.role === "ADMIN") {
+    const adminCount = await prisma.user.count({ where: { role: "ADMIN", active: true } });
+    if (adminCount <= 1) {
+      throw new ApiError(400, "user.last_admin", "You cannot delete the only admin");
+    }
   }
 
   await prisma.$transaction([

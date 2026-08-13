@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import type { BankAccount, Contact, Voucher } from "@/lib/api-types";
 import { useApi } from "@/lib/use-api";
@@ -9,17 +9,37 @@ import { PERMISSIONS } from "@/lib/constants/permissions";
 import { hasPermission } from "@/lib/roles";
 import { formatPKR } from "@/lib/money";
 import { Button } from "@/components/ui/button";
-import { FilterPill } from "@/components/ui/filter-pill";
+import { Badge } from "@/components/ui/badge";
+import { Sheet } from "@/components/ui/sheet";
+import { Dropdown } from "@/components/ui/dropdown";
+import { SearchInput } from "@/components/ui/search-input";
 import { PageHeader } from "@/components/ui/page-header";
+import { PaginationBar, usePagination } from "@/components/ui/pagination";
 import { StatCard } from "@/components/ui/stat-card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { SortHeader } from "@/components/ui/sort-header";
+import { ContextMenu } from "@/components/ui/context-menu";
+import { VoucherTypePill } from "@/components/ui/type-pill";
 import { VoucherForm } from "@/components/vouchers/voucher-form";
-import { VoucherRow } from "@/components/vouchers/voucher-row";
 import { ReverseVoucherDialog } from "@/components/vouchers/reverse-voucher-dialog";
-import { PlusIcon, VoucherIcon } from "@/components/icons";
+import { RestoreVoucherDialog } from "@/components/vouchers/restore-voucher-dialog";
+import { InvoiceViewer } from "@/components/transactions/invoice-viewer";
+import { FilterIcon, PlusIcon, PrinterIcon, RefreshIcon, ReportsIcon, VoucherIcon, XIcon } from "@/components/icons";
+import Link from "next/link";
 
 type TypeFilter = "ALL" | "RECEIVING" | "PAYMENT";
 type StatusFilter = "ALL" | "ACTIVE" | "REVERSED";
+type SortKey = "date" | "amount" | "type";
+type Sort = { key: SortKey; dir: "asc" | "desc" };
+
+const VOUCHER_SORTS = [
+  { value: "date-desc", label: "Newest first" },
+  { value: "date-asc", label: "Oldest first" },
+  { value: "amount-desc", label: "Amount: high to low" },
+  { value: "amount-asc", label: "Amount: low to high" },
+  { value: "type-asc", label: "Type A–Z" },
+  { value: "type-desc", label: "Type Z–A" },
+] as const;
 
 export default function VouchersPage() {
   const { user } = useAuth();
@@ -29,21 +49,68 @@ export default function VouchersPage() {
 
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("ALL");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
+  const [search, setSearch] = useState("");
+  const [sort, setSort] = useState<Sort>({ key: "date", dir: "desc" });
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
   const [editing, setEditing] = useState<Voucher | null>(null);
   const [reversing, setReversing] = useState<Voucher | null>(null);
+  const [restoring, setRestoring] = useState<Voucher | null>(null);
+  const [viewing, setViewing] = useState<Voucher | null>(null);
 
   const canCreateVouchers = hasPermission(user, PERMISSIONS.voucherCreate);
   const canManageVouchers = hasPermission(user, PERMISSIONS.voucherUpdate);
 
   const filtered = useMemo(() => {
     if (!vouchers) return [];
-    return vouchers.filter(
+    const q = search.trim().toLowerCase();
+    const list = vouchers.filter(
       (v) =>
         (typeFilter === "ALL" || v.type === typeFilter) &&
-        (statusFilter === "ALL" || v.status === statusFilter),
+        (statusFilter === "ALL" || v.status === statusFilter) &&
+        (!q ||
+          v.number.toLowerCase().includes(q) ||
+          (v.narration ?? "").toLowerCase().includes(q) ||
+          (v.contact?.name ?? "").toLowerCase().includes(q)),
     );
-  }, [vouchers, typeFilter, statusFilter]);
+    const sign = sort.dir === "asc" ? 1 : -1;
+    return list.sort((a, b) => {
+      let cmp = 0;
+      if (sort.key === "date") cmp = new Date(a.date).getTime() - new Date(b.date).getTime();
+      else if (sort.key === "amount") cmp = parseFloat(a.amount) - parseFloat(b.amount);
+      else cmp = a.type.localeCompare(b.type);
+      if (cmp !== 0) return cmp * sign;
+      return new Date(a.date).getTime() - new Date(b.date).getTime();
+    });
+  }, [vouchers, typeFilter, statusFilter, search, sort]);
+
+  const { page: safePage, pageSize, setPage, setPageSize, pageCount, from, to, slice } = usePagination(
+    filtered.length,
+  );
+  const pageItems = slice(filtered);
+
+  useEffect(() => {
+    setPage(1);
+  }, [typeFilter, statusFilter, search, sort, pageSize]);
+
+  const activeFilterCount =
+    (typeFilter !== "ALL" ? 1 : 0) + (statusFilter !== "ALL" ? 1 : 0);
+
+  function resetFilters() {
+    setTypeFilter("ALL");
+    setStatusFilter("ALL");
+  }
+
+  function onSort(key: SortKey) {
+    setSort((prev) =>
+      prev.key === key ? { key, dir: prev.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" },
+    );
+  }
+
+  function onModifyRow(v: Voucher) {
+    setEditing(v);
+    setPanelOpen(true);
+  }
 
   const totals = useMemo(() => {
     let received = 0;
@@ -64,10 +131,19 @@ export default function VouchersPage() {
         subtitle="Cash receiving & cash payment records"
         action={
           !panelOpen && (
-            <Button onClick={() => setPanelOpen(true)} disabled={!canCreateVouchers}>
-              <PlusIcon className="h-4 w-4" />
-              New voucher
-            </Button>
+            <div className="flex items-center gap-2">
+              <Link
+                href="/reports/cash"
+                className="inline-flex items-center gap-2 rounded-2xl bg-white px-4 py-2 text-sm font-semibold text-ink-700 transition hover:bg-ink-50"
+              >
+                <ReportsIcon className="h-4 w-4" />
+                Reports
+              </Link>
+              <Button onClick={() => setPanelOpen(true)} disabled={!canCreateVouchers}>
+                <PlusIcon className="h-4 w-4" />
+                New voucher
+              </Button>
+            </div>
           )
         }
       />
@@ -100,29 +176,37 @@ export default function VouchersPage() {
             />
           </div>
 
-          <div className="mb-3 flex shrink-0 flex-wrap items-center gap-2">
-            {VOUCHER_TYPE_FILTERS.map((f) => (
-              <FilterPill
-                key={f.value}
-                active={typeFilter === f.value}
-                onClick={() => setTypeFilter(f.value)}
-              >
-                {f.label}
-              </FilterPill>
-            ))}
-            <span className="mx-1 h-4 w-px bg-ink-200" />
-            {VOUCHER_STATUS_FILTERS.map((f) => (
-              <FilterPill
-                key={f.value}
-                active={statusFilter === f.value}
-                onClick={() => setStatusFilter(f.value)}
-              >
-                {f.label}
-              </FilterPill>
-            ))}
+          <div className="mb-3 flex shrink-0 flex-col gap-2 sm:flex-row sm:items-center">
+            <SearchInput
+              value={search}
+              onChange={setSearch}
+              placeholder="Search number, narration, contact…"
+              variant="white"
+              wrapperClassName="min-w-[220px] flex-1"
+            />
+            <div className="flex items-center gap-2">
+              <Button variant="grey" onClick={() => setFiltersOpen(true)}>
+                <FilterIcon className="h-4 w-4" />
+                Filters
+                {activeFilterCount > 0 && (
+                  <Badge variant="brandSolid">{activeFilterCount}</Badge>
+                )}
+              </Button>
+              <div className="w-56">
+                <Dropdown
+                  value={`${sort.key}-${sort.dir}`}
+                  options={VOUCHER_SORTS.map((s) => ({ value: s.value, label: s.label }))}
+                  onChange={(v) => {
+                    const [key, dir] = v.split("-") as [SortKey, "asc" | "desc"];
+                    setSort({ key, dir });
+                  }}
+                  placeholder="Sort"
+                />
+              </div>
+            </div>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto pb-4">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-none rounded-2xl bg-white">
             {loading ? (
               <p className="py-10 text-center text-sm text-ink-400">Loading vouchers…</p>
             ) : filtered.length === 0 ? (
@@ -143,25 +227,139 @@ export default function VouchersPage() {
                 }
               />
             ) : (
-              <div className="space-y-2">
-                {filtered.map((v) => (
-                  <VoucherRow
-                    key={v.id}
-                    v={v}
-                    canManage={canManageVouchers}
-                    printHref={`/print?type=VOUCHER&id=${v.id}`}
-                    onModify={() => {
-                      setEditing(v);
-                      setPanelOpen(true);
-                    }}
-                    onReverse={() => setReversing(v)}
-                  />
-                ))}
-              </div>
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 bg-white">
+                  <tr className="text-left text-xs uppercase tracking-wide text-ink-500">
+                    <th className="px-5 py-2">No.</th>
+                    <SortHeader label="Type" k="type" sort={sort} onSort={onSort} />
+                    <th className="px-5 py-2">Narration / Contact</th>
+                    <SortHeader label="Date" k="date" sort={sort} onSort={onSort} />
+                    <SortHeader label="Amount" k="amount" sort={sort} onSort={onSort} right />
+                    <th className="px-5 py-2" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {pageItems.map((v) => {
+                    const inAmount = v.type === "RECEIVING";
+                    return (
+                      <tr key={v.id} className="border-t border-ink-100 transition hover:bg-ink-50">
+                        <td className="px-5 py-2 font-mono text-xs font-bold text-ink-900">{v.number}</td>
+                        <td className="px-5 py-2">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <VoucherTypePill type={v.type} />
+                            <Badge variant={v.status === "ACTIVE" ? "neutral" : "muted"}>
+                              {v.status === "ACTIVE" ? "Active" : "Reversed"}
+                            </Badge>
+                          </div>
+                        </td>
+                        <td className="max-w-xs px-5 py-2 text-ink-700">
+                          <p className="truncate">
+                            {v.narration || <span className="italic text-ink-300">No narration</span>}
+                          </p>
+                          {v.contact && <p className="text-xs text-ink-400">{v.contact.name}</p>}
+                        </td>
+                        <td className="whitespace-nowrap px-5 py-2 text-ink-500">
+                          {new Date(v.date).toLocaleDateString()}
+                          {v.status === "REVERSED" && <span className="ml-1 text-xs text-ink-400">· reversed</span>}
+                        </td>
+                        <td className="px-5 py-2 text-right font-semibold text-brand-600">
+                          {inAmount ? "+" : "-"}
+                          {formatPKR(parseFloat(v.amount))}
+                        </td>
+                        <td className="px-5 py-2">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <Link
+                              href={`/print?type=VOUCHER&id=${v.id}`}
+                              target="_blank"
+                              className="rounded-xl bg-ink-100 px-3 py-1.5 text-xs font-semibold text-ink-600 transition hover:bg-ink-200"
+                            >
+                              <PrinterIcon className="mr-0.5 inline h-3 w-3" />
+                              Print
+                            </Link>
+                            <button
+                              type="button"
+                              onClick={() => setViewing(v)}
+                              className="rounded-xl bg-ink-100 px-3 py-1.5 text-xs font-semibold text-brand-600 transition hover:bg-brand-50"
+                            >
+                              View
+                            </button>
+                            {v.status === "ACTIVE" && canManageVouchers ? (
+                              <ContextMenu
+                                items={[
+                                  { label: "Modify", onClick: () => onModifyRow(v) },
+                                  { label: "Reverse", leading: <XIcon className="h-4 w-4" />, danger: true, onClick: () => setReversing(v) },
+                                ]}
+                              />
+                            ) : (
+                              canManageVouchers && (
+                                <ContextMenu
+                                  items={[
+                                    { label: "Re-open", leading: <RefreshIcon className="h-4 w-4" />, onClick: () => setRestoring(v) },
+                                  ]}
+                                />
+                              )
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             )}
           </div>
+
+          <PaginationBar
+            className="mt-3"
+            from={from}
+            to={to}
+            total={filtered.length}
+            page={safePage}
+            pageCount={pageCount}
+            pageSize={pageSize}
+            onPrev={() => setPage(safePage - 1)}
+            onNext={() => setPage(safePage + 1)}
+            onPageSize={setPageSize}
+          />
         </>
       )}
+
+      <Sheet
+        open={filtersOpen}
+        title="Filters"
+        onClose={() => setFiltersOpen(false)}
+        width="max-w-md"
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-ink-500">Type</label>
+            <Dropdown
+              value={typeFilter}
+              onChange={(v) => setTypeFilter(v as typeof typeFilter)}
+              options={VOUCHER_TYPE_FILTERS.map((f) => ({ value: f.value, label: f.label }))}
+              placeholder="All types"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-ink-500">Status</label>
+            <Dropdown
+              value={statusFilter}
+              onChange={(v) => setStatusFilter(v as typeof statusFilter)}
+              options={VOUCHER_STATUS_FILTERS.map((f) => ({ value: f.value, label: f.label }))}
+              placeholder="All statuses"
+            />
+          </div>
+          <div className="flex items-center justify-between pt-2">
+            <p className="text-sm text-ink-500">{filtered.length} voucher(s)</p>
+            <div className="flex items-center gap-2">
+              <Button variant="grey" onClick={resetFilters}>
+                Reset
+              </Button>
+              <Button onClick={() => setFiltersOpen(false)}>Show results</Button>
+            </div>
+          </div>
+        </div>
+      </Sheet>
 
       {reversing && (
         <ReverseVoucherDialog
@@ -172,6 +370,21 @@ export default function VouchersPage() {
             void refetch();
           }}
         />
+      )}
+
+      {restoring && (
+        <RestoreVoucherDialog
+          voucher={restoring}
+          onClose={() => setRestoring(null)}
+          onRestored={() => {
+            setRestoring(null);
+            void refetch();
+          }}
+        />
+      )}
+
+      {viewing && (
+        <InvoiceViewer type="VOUCHER" id={viewing.id} onClose={() => setViewing(null)} />
       )}
     </div>
   );

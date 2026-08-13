@@ -546,7 +546,7 @@ export default function InventoryPage() {
           </div>
         )}
         {data && data.lowStock.length > 0 && (
-          <Button variant="secondary" size="sm" className="ml-auto bg-amber-50 text-amber-700 hover:bg-amber-100" onClick={() => setLowStockOpen(true)}>
+          <Button variant="secondary" size="sm" className="ml-auto bg-warning/10 text-warning hover:bg-warning/15" onClick={() => setLowStockOpen(true)}>
             <AlertIcon className="h-3.5 w-3.5" />
             {data.lowStock.length} product(s) low on stock
           </Button>
@@ -1013,7 +1013,7 @@ export default function InventoryPage() {
                 <p className="truncate text-xs text-ink-500">{l.storage ?? "—"}</p>
               </div>
               <div className="shrink-0 text-right">
-                <p className={`text-sm font-bold ${l.inStock <= l.threshold ? "text-amber-700" : "text-ink-900"}`}>
+                <p className={`text-sm font-bold ${l.inStock <= l.threshold ? "text-warning" : "text-ink-900"}`}>
                   {l.inStock} left
                 </p>
                 <p className="text-xs text-ink-400">threshold {l.threshold}</p>

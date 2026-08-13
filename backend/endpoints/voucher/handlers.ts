@@ -3,6 +3,7 @@ import {
   createVoucher,
   getVoucher,
   listVouchers,
+  restoreVoucher,
   reverseVoucher,
   updateVoucher,
 } from "./service";
@@ -31,5 +32,10 @@ export async function updateHandler(req: Request, res: Response) {
 export async function reverseHandler(req: Request, res: Response) {
   const note = (req.body as { note?: string }).note;
   const voucher = await reverseVoucher(req.params.id, note, req.user!.id);
+  res.json({ data: voucher });
+}
+
+export async function restoreHandler(req: Request, res: Response) {
+  const voucher = await restoreVoucher(req.params.id, req.user!.id);
   res.json({ data: voucher });
 }

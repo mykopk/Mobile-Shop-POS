@@ -1,35 +1,37 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { apiRequest } from "@/lib/apiClient";
 import { useAuth } from "@/lib/auth-context";
 import { useApi } from "@/lib/use-api";
 import { hasPermission } from "@/lib/roles";
 import { PERMISSIONS } from "@/lib/constants/permissions";
 import { SOUND, APP, CURRENCIES, currencyOf, DEFAULT_TIMEZONE, type SoundKind } from "@/lib/constants";
+import { PIN_LENGTH } from "@/lib/constants/users";
 import { setSoundPrefs } from "@/lib/sound";
 import { setUnsaved } from "@/lib/unsaved-guard";
 import type { BankAccount, CompanyProfile } from "@/lib/api-types";
 import {
   CheckIcon,
-  HeadphonesIcon,
-  LockIcon,
   PlusIcon,
-  PrinterIcon,
-  SettingsIcon,
-  SmartphoneIcon,
   TrashIcon,
-  UserIcon,
   WalletIcon,
 } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dropdown } from "@/components/ui/dropdown";
-import { Input } from "@/components/ui/input";
+import { Input, Textarea } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog } from "@/components/ui/dialog";
+import { ContextMenu } from "@/components/ui/context-menu";
+import { FormWindow, FormField, FormInput } from "@/components/ui/form";
+import { OtpInput } from "@/components/auth/otp-input";
 import { ImagePicker } from "@/components/products/image-picker";
 import { UsersManager } from "@/components/users/users-manager";
+import { SettingsSidebar, SETTINGS_TABS, type TabId } from "@/components/settings/settings-sidebar";
+import { ActivityLog } from "@/components/audit/activity-log";
 import { useToast } from "@/components/ui/toast";
 
 type SoundPrefs = Record<SoundKind, boolean>;
@@ -49,6 +51,25 @@ const EMPTY_ACCOUNT = {
   iban: "",
 };
 
+const MAX_TAGLINE = 80;
+const MAX_ADDRESS = 120;
+const MAX_FOOTER = 120;
+
+function isValidPhone(v: string) {
+  return /^\+?[0-9\s-]{7,20}$/.test(v);
+}
+
+function isValidUrl(v: string) {
+  return /^https?:\/\/[^\s]+/.test(v);
+}
+
+function isValidIban(v: string) {
+  return /^[A-Z]{2}[0-9]{2}[A-Z0-9]{8,30}$/.test(v.replace(/\s/g, ""));
+}
+
+type ProfileField = "phone" | "email" | "website" | "taxRate" | "cardFee";
+type AccountField = "accountNo" | "iban";
+
 const TIMEZONES = [
   { value: "Asia/Karachi", label: "Karachi (PKT, UTC+5)" },
   { value: "Asia/Dubai", label: "Dubai (UTC+4)" },
@@ -60,21 +81,18 @@ const TIMEZONES = [
   { value: "UTC", label: "UTC" },
 ];
 
-type TabId = "shop" | "preferences" | "contact" | "bank" | "sounds" | "users";
-
-const TABS: { id: TabId; label: string; icon: React.ReactNode; hint?: string }[] = [
-  { id: "shop", label: "Shop details", icon: <SettingsIcon className="h-4 w-4" /> },
-  { id: "preferences", label: "Preferences", icon: <LockIcon className="h-4 w-4" /> },
-  { id: "contact", label: "Contact & QR", icon: <SmartphoneIcon className="h-4 w-4" /> },
-  { id: "bank", label: "Bank accounts", icon: <WalletIcon className="h-4 w-4" /> },
-  { id: "sounds", label: "Sounds", icon: <HeadphonesIcon className="h-4 w-4" /> },
-  { id: "users", label: "Users & roles", icon: <UserIcon className="h-4 w-4" />, hint: "Manage staff" },
-];
-
 type GroupProps = { children: React.ReactNode };
 
 function Group({ children }: GroupProps) {
   return <div className="divide-y divide-ink-100 overflow-hidden rounded-2xl bg-white">{children}</div>;
+}
+
+function SectionTitle({ children }: GroupProps) {
+  return (
+    <h3 className="mb-2 mt-6 px-1 text-xs font-semibold uppercase tracking-wide text-ink-400 first:mt-0">
+      {children}
+    </h3>
+  );
 }
 
 type RowProps = {
@@ -119,13 +137,21 @@ function ChevronIcon() {
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="mb-1 block text-xs font-medium text-ink-500">{label}</label>
+      <label className="mb-1 block text-xs font-medium text-ink-500">
+        {label}
+        {hint && <span className="font-normal text-ink-400"> — {hint}</span>}
+      </label>
       {children}
     </div>
   );
+}
+
+function FieldError({ message }: { message?: string }) {
+  if (!message) return null;
+  return <p className="mt-1 text-xs font-medium text-error">{message}</p>;
 }
 
 function PaneTitle({ title, subtitle, action }: { title: string; subtitle?: string; action?: React.ReactNode }) {
@@ -142,9 +168,12 @@ function PaneTitle({ title, subtitle, action }: { title: string; subtitle?: stri
 
 export default function SettingsPage() {
   const { user } = useAuth();
+  const searchParams = useSearchParams();
   const { data, loading } = useApi<CompanyProfile>("/settings/company");
   const { toast } = useToast();
-  const [tab, setTab] = useState<TabId>("shop");
+  const requestedTab = searchParams.get("tab");
+  const initialTab: TabId = SETTINGS_TABS.some((t) => t.id === requestedTab) ? (requestedTab as TabId) : "shop";
+  const [tab, setTab] = useState<TabId>(initialTab);
   const [form, setForm] = useState<Partial<CompanyProfile>>({});
   const [savedProfile, setSavedProfile] = useState<Partial<CompanyProfile> | null>(null);
   const [pendingTab, setPendingTab] = useState<TabId | null>(null);
@@ -156,6 +185,12 @@ export default function SettingsPage() {
   const [editingAccount, setEditingAccount] = useState<BankAccount | null>(null);
   const [savingAccount, setSavingAccount] = useState(false);
   const [addingAccount, setAddingAccount] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Partial<Record<ProfileField, string>>>({});
+  const [accountErrors, setAccountErrors] = useState<Partial<Record<AccountField, string>>>({});
+  const [deletingAccount, setDeletingAccount] = useState<BankAccount | null>(null);
+  const [pinForm, setPinForm] = useState({ current: "", next: "" });
+  const [changingPin, setChangingPin] = useState(false);
+  const [pinOpen, setPinOpen] = useState(false);
 
   const profileDirty = savedProfile !== null && JSON.stringify(form) !== JSON.stringify(savedProfile);
   const accountDirty = addingAccount && Object.values(accountForm).some(Boolean);
@@ -244,7 +279,40 @@ export default function SettingsPage() {
 
   const canEdit = hasPermission(user, PERMISSIONS.settingsWrite);
 
+  function validateProfile(): boolean {
+    const errors: Partial<Record<ProfileField, string>> = {};
+    const phone = form.phone?.trim() ?? "";
+    if (phone && !isValidPhone(phone)) errors.phone = "Enter a valid phone number, e.g. 0300-1234567";
+    const email = form.email?.trim() ?? "";
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.email = "Enter a valid email address";
+    const website = form.website?.trim() ?? "";
+    if (website && !isValidUrl(website)) errors.website = "Enter a full URL, e.g. https://example.com";
+    const taxRate = parseFloat(form.taxRate ?? "");
+    if (form.taxRate && (Number.isNaN(taxRate) || taxRate < 0 || taxRate > 100)) {
+      errors.taxRate = "Tax rate must be between 0 and 100";
+    }
+    const cardFee = parseFloat(form.cardFee ?? "");
+    if (form.cardFee && (Number.isNaN(cardFee) || cardFee < 0 || cardFee > 100)) {
+      errors.cardFee = "Card fee must be between 0 and 100";
+    }
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
+  }
+
+  function validateAccount(): boolean {
+    const errors: Partial<Record<AccountField, string>> = {};
+    if (accountForm.accountNo.trim() && accountForm.accountNo.trim().length < 4) {
+      errors.accountNo = "Account number looks too short";
+    }
+    if (accountForm.iban.trim() && !isValidIban(accountForm.iban)) {
+      errors.iban = "Enter a valid IBAN, e.g. PK36SCBL0000001123456702";
+    }
+    setAccountErrors(errors);
+    return Object.keys(errors).length === 0;
+  }
+
   async function save() {
+    if (!validateProfile()) return;
     setSaving(true);
     try {
       await apiRequest("/settings/company", {
@@ -259,8 +327,10 @@ export default function SettingsPage() {
           logoUrl: form.logoUrl || undefined,
           currency: form.currency ?? "PKR",
           taxRate: parseFloat(form.taxRate ?? "0") || 0,
+          cardFee: parseFloat(form.cardFee ?? "0") || 0,
           compactPrices: form.compactPrices ?? true,
           timezone: form.timezone || DEFAULT_TIMEZONE,
+          raastId: form.raastId || undefined,
           whatsapp: form.whatsapp || undefined,
           website: form.website || undefined,
         },
@@ -275,8 +345,8 @@ export default function SettingsPage() {
   }
 
   async function saveAccount() {
-    setSavingAccount(true);
-    try {
+    if (!validateAccount()) return;
+    setSavingAccount(true);    try {
       if (editingAccount) {
         const updated = await apiRequest<BankAccount>(`/bank-account/${editingAccount.id}`, {
           method: "PUT",
@@ -302,6 +372,27 @@ export default function SettingsPage() {
     }
   }
 
+  async function changePin() {
+    if (!/^\d{4}$/.test(pinForm.current) || !/^\d{4}$/.test(pinForm.next)) {
+      toast("Enter your current and new 4-digit PIN", "error");
+      return;
+    }
+    setChangingPin(true);
+    try {
+      await apiRequest("/auth/pin", {
+        method: "PUT",
+        body: { currentPin: pinForm.current, newPin: pinForm.next },
+      });
+      setPinForm({ current: "", next: "" });
+      setPinOpen(false);
+      toast("PIN updated", "success");
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Could not update PIN", "error");
+    } finally {
+      setChangingPin(false);
+    }
+  }
+
   async function setDefaultAccount(id: string) {
     try {
       const updated = await apiRequest<BankAccount>(`/bank-account/${id}/default`, {
@@ -318,6 +409,7 @@ export default function SettingsPage() {
     try {
       await apiRequest(`/bank-account/${id}`, { method: "DELETE" });
       setAccounts((prev) => prev.filter((a) => a.id !== id));
+      setDeletingAccount(null);
       toast("Bank account removed", "success");
     } catch (err) {
       toast(err instanceof Error ? err.message : "Failed to remove account", "error");
@@ -337,62 +429,10 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="flex h-full overflow-hidden rounded-3xl border border-ink-100 bg-white">
-      <aside className="w-56 shrink-0 overflow-y-auto overscroll-none border-r border-ink-100 bg-ink-50/60 px-4 py-5">
-        <div className="mb-5 flex items-center gap-2">
-          {form.logoUrl ? (
-            <img src={form.logoUrl} alt="" className="h-9 w-9 shrink-0 rounded-lg object-cover" />
-          ) : (
-            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-500 text-base font-bold text-white">
-              {(form.name ?? APP.nameFull).charAt(0).toUpperCase()}
-            </span>
-          )}
-          <div className="min-w-0">
-            <p className="truncate text-sm font-semibold text-ink-900">{form.name ?? APP.nameFull}</p>
-            <p className="truncate text-xs text-ink-500">{user?.name}</p>
-          </div>
-        </div>
+    <div className="flex h-full gap-6">
+      <SettingsSidebar activeTab={tab} onTabClick={onTabClick} dirty={dirty} />
 
-        <p className="mb-1 px-1 text-xs font-medium uppercase tracking-wide text-ink-400">Settings</p>
-        <div className="space-y-0.5">
-          {TABS.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => onTabClick(t.id)}
-              className={`flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-sm font-medium transition ${
-                tab === t.id ? "bg-brand-500 text-white" : "text-ink-700 hover:bg-ink-100"
-              }`}
-            >
-              <span className={tab === t.id ? "text-white" : "text-ink-500"}>{t.icon}</span>
-              <span className="flex-1 text-left">{t.label}</span>
-              {t.hint && <span className={`text-[10px] ${tab === t.id ? "text-white/70" : "text-ink-400"}`}>{t.hint}</span>}
-              {dirty && t.id === tab && (
-                <span
-                  className={`rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide ${
-                    tab === t.id ? "bg-white/20 text-white" : "bg-amber-100 text-amber-700"
-                  }`}
-                >
-                  Unsaved
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
-
-        <p className="mb-1 mt-6 px-1 text-xs font-medium uppercase tracking-wide text-ink-400">Tools</p>
-        <div className="space-y-0.5">
-          <a
-            href="/print"
-            className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-sm font-medium text-ink-700 transition hover:bg-ink-100"
-          >
-            <span className="text-ink-500"><PrinterIcon className="h-4 w-4" /></span>
-            Print Studio
-          </a>
-        </div>
-      </aside>
-
-      <main className="min-w-0 flex-1 overflow-y-auto overscroll-none px-7 py-6">
+      <main className="min-w-0 flex-1 overflow-y-auto overscroll-none px-7 pb-6">
         {tab === "shop" && (
           <>
             <PaneTitle
@@ -408,7 +448,13 @@ export default function SettingsPage() {
               }
             />
             {loading ? (
-              <p className="text-sm text-ink-400">Loading…</p>
+              <div className="space-y-3">
+                <Skeleton className="h-24" />
+                <Skeleton className="h-14" />
+                <Skeleton className="h-14" />
+                <Skeleton className="h-14" />
+                <Skeleton className="h-14" />
+              </div>
             ) : (
               <Group>
                 <div className="px-4 py-3">
@@ -427,20 +473,56 @@ export default function SettingsPage() {
                 </div>
                 <div className="px-4 py-3">
                   <Field label="Tagline">
-                    <Input value={form.tagline ?? ""} onChange={(e) => setForm({ ...form, tagline: e.target.value })} placeholder="One-line description" disabled={!canEdit} />
+                    <Textarea value={form.tagline ?? ""} onChange={(e) => setForm({ ...form, tagline: e.target.value })} placeholder="One-line description" maxLength={MAX_TAGLINE} rows={2} disabled={!canEdit} />
+                    <p className="mt-1 text-right text-[10px] text-ink-400">
+                      {(form.tagline ?? "").length}/{MAX_TAGLINE}
+                    </p>
                   </Field>
                 </div>
                 <div className="px-4 py-3">
                   <Field label="Address">
-                    <Input value={form.address ?? ""} onChange={(e) => setForm({ ...form, address: e.target.value })} placeholder="Shop address" disabled={!canEdit} />
+                    <Textarea value={form.address ?? ""} onChange={(e) => setForm({ ...form, address: e.target.value })} placeholder="Shop address" maxLength={MAX_ADDRESS} rows={2} disabled={!canEdit} />
+                    <p className="mt-1 text-right text-[10px] text-ink-400">
+                      {(form.address ?? "").length}/{MAX_ADDRESS}
+                    </p>
                   </Field>
                 </div>
                 <div className="grid grid-cols-1 gap-3 px-4 py-3 sm:grid-cols-2">
                   <Field label="Phone">
-                    <Input value={form.phone ?? ""} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="0300-1234567" inputMode="tel" disabled={!canEdit} />
+                    <Input
+                      value={form.phone ?? ""}
+                      onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                      placeholder="0300-1234567"
+                      inputMode="tel"
+                      disabled={!canEdit}
+                      className={fieldErrors.phone ? "ring-2 ring-error/60" : ""}
+                    />
+                    <FieldError message={fieldErrors.phone} />
                   </Field>
                   <Field label="Email">
-                    <Input value={form.email ?? ""} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="shop@example.com" type="email" disabled={!canEdit} />
+                    <Input
+                      value={form.email ?? ""}
+                      onChange={(e) => setForm({ ...form, email: e.target.value })}
+                      placeholder="shop@example.com"
+                      type="email"
+                      disabled={!canEdit}
+                      className={fieldErrors.email ? "ring-2 ring-error/60" : ""}
+                    />
+                    <FieldError message={fieldErrors.email} />
+                  </Field>
+                </div>
+                <div className="grid grid-cols-1 gap-3 px-4 py-3 sm:grid-cols-2">
+                  <Field label="WhatsApp number">
+                    <Input value={form.whatsapp ?? ""} onChange={(e) => setForm({ ...form, whatsapp: e.target.value })} placeholder="03001234567" inputMode="tel" disabled={!canEdit} />
+                  </Field>
+                  <Field label="Raast ID" hint="For receiving payments via Raast">
+                    <Input value={form.raastId ?? ""} onChange={(e) => setForm({ ...form, raastId: e.target.value })} placeholder="03xxxxxxxxx or IBAN" disabled={!canEdit} />
+                  </Field>
+                </div>
+                <div className="px-4 py-3">
+                  <Field label="Website">
+                    <Input value={form.website ?? ""} onChange={(e) => setForm({ ...form, website: e.target.value })} placeholder="https://example.com" type="url" disabled={!canEdit} className={fieldErrors.website ? "ring-2 ring-error/60" : ""} />
+                    <FieldError message={fieldErrors.website} />
                   </Field>
                 </div>
               </Group>
@@ -452,7 +534,7 @@ export default function SettingsPage() {
           <>
             <PaneTitle
               title="Preferences"
-              subtitle="Region and receipt defaults."
+              subtitle="Region, receipts and security defaults."
               action={
                 canEdit && (
                   <Button onClick={save} loading={saving} loadingText="Saving…">
@@ -462,6 +544,8 @@ export default function SettingsPage() {
                 )
               }
             />
+
+            <SectionTitle>Time & zones</SectionTitle>
             <Group>
               <div className="px-4 py-3">
                 <Field label="Timezone">
@@ -474,6 +558,50 @@ export default function SettingsPage() {
                   />
                 </Field>
               </div>
+            </Group>
+
+            <SectionTitle>Receipt</SectionTitle>
+            <Group>
+              <div className="px-4 py-3">
+                <Field label="Receipt footer">
+                  <Textarea value={form.footerText ?? ""} onChange={(e) => setForm({ ...form, footerText: e.target.value })} placeholder="Message printed at the bottom of receipts" maxLength={MAX_FOOTER} rows={2} disabled={!canEdit} />
+                  <p className="mt-1 text-right text-[10px] text-ink-400">
+                    {(form.footerText ?? "").length}/{MAX_FOOTER}
+                  </p>
+                </Field>
+              </div>
+            </Group>
+
+            <SectionTitle>Security</SectionTitle>
+            <Group>
+              <div className="flex items-center justify-between px-4 py-3">
+                <div>
+                  <p className="text-sm font-medium text-ink-900">Change PIN</p>
+                  <p className="text-xs text-ink-400">Update your 4-digit sign-in PIN.</p>
+                </div>
+                <Button variant="grey" onClick={() => setPinOpen(true)}>
+                  Change PIN
+                </Button>
+              </div>
+            </Group>
+          </>
+        )}
+
+        {tab === "financial" && (
+          <>
+            <PaneTitle
+              title="Financial"
+              subtitle="Currency, tax and card fees applied to invoices and receipts."
+              action={
+                canEdit && (
+                  <Button onClick={save} loading={saving} loadingText="Saving…">
+                    <CheckIcon className="h-4 w-4" />
+                    Save changes
+                  </Button>
+                )
+              }
+            />
+            <Group>
               <div className="px-4 py-3">
                 <Field label="Currency">
                   <Dropdown
@@ -494,7 +622,7 @@ export default function SettingsPage() {
                   </p>
                 </Field>
               </div>
-              <div className="px-4 py-3">
+              <div className="grid grid-cols-1 gap-3 px-4 py-3 sm:grid-cols-2">
                 <Field label="Tax rate" hint="Applied to invoices">
                   <div className="flex items-center gap-2">
                     <Input
@@ -503,9 +631,25 @@ export default function SettingsPage() {
                       placeholder="0"
                       inputMode="decimal"
                       disabled={!canEdit}
+                      className={fieldErrors.taxRate ? "ring-2 ring-error/60" : ""}
                     />
                     <span className="shrink-0 text-sm text-ink-500">%</span>
                   </div>
+                  <FieldError message={fieldErrors.taxRate} />
+                </Field>
+                <Field label="Card fee" hint="Charged on card payments">
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={form.cardFee ?? "0"}
+                      onChange={(e) => setForm({ ...form, cardFee: e.target.value })}
+                      placeholder="0"
+                      inputMode="decimal"
+                      disabled={!canEdit}
+                      className={fieldErrors.cardFee ? "ring-2 ring-error/60" : ""}
+                    />
+                    <span className="shrink-0 text-sm text-ink-500">%</span>
+                  </div>
+                  <FieldError message={fieldErrors.cardFee} />
                 </Field>
               </div>
               <div className="px-4 py-3">
@@ -517,45 +661,6 @@ export default function SettingsPage() {
                   description="Display large amounts like 375k instead of 375,000 on the dashboard."
                 />
               </div>
-              <div className="px-4 py-3">
-                <Field label="Receipt footer">
-                  <Input value={form.footerText ?? ""} onChange={(e) => setForm({ ...form, footerText: e.target.value })} placeholder="Message printed at the bottom of receipts" disabled={!canEdit} />
-                </Field>
-              </div>
-            </Group>
-          </>
-        )}
-
-        {tab === "contact" && (
-          <>
-            <PaneTitle
-              title="Contact & QR"
-              subtitle="Used by the Print Studio for receipts and slips."
-              action={
-                canEdit && (
-                  <Button onClick={save} loading={saving} loadingText="Saving…">
-                    <CheckIcon className="h-4 w-4" />
-                    Save changes
-                  </Button>
-                )
-              }
-            />
-            <Group>
-              <div className="px-4 py-3">
-                <Field label="WhatsApp number">
-                  <Input value={form.whatsapp ?? ""} onChange={(e) => setForm({ ...form, whatsapp: e.target.value })} placeholder="03001234567" inputMode="tel" disabled={!canEdit} />
-                </Field>
-              </div>
-              <div className="px-4 py-3">
-                <Field label="Raast ID" hint="For receiving payments via Raast">
-                  <Input value={form.raastId ?? ""} onChange={(e) => setForm({ ...form, raastId: e.target.value })} placeholder="03xxxxxxxxx or IBAN" disabled={!canEdit} />
-                </Field>
-              </div>
-              <div className="px-4 py-3">
-                <Field label="Website">
-                  <Input value={form.website ?? ""} onChange={(e) => setForm({ ...form, website: e.target.value })} placeholder="https://example.com" type="url" disabled={!canEdit} />
-                </Field>
-              </div>
             </Group>
           </>
         )}
@@ -564,8 +669,28 @@ export default function SettingsPage() {
           <>
             <PaneTitle title="Bank accounts" subtitle="Shown on receipts when “Bank accounts” is toggled in the Print Studio." />
             <Group>
-              {accounts.length === 0 && !canEdit && (
-                <Row icon={<WalletIcon className="h-4 w-4" />} iconBg="bg-violet-500" label="No bank accounts yet" />
+              {accounts.length === 0 && (
+                <div className="px-4 py-6 text-center">
+                  <span className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-violet-100 text-violet-600">
+                    <WalletIcon className="h-5 w-5" />
+                  </span>
+                  <p className="text-sm font-medium text-ink-900">No bank accounts yet</p>
+                  <p className="mt-0.5 text-xs text-ink-500">
+                    {canEdit
+                      ? "Add an account to print transfer details on receipts."
+                      : "Ask an Admin or Manager to add one."}
+                  </p>
+                  {canEdit && (
+                    <Button
+                      variant="grey"
+                      className="mt-3"
+                      onClick={() => { setAddingAccount(true); setEditingAccount(null); setAccountForm(EMPTY_ACCOUNT); }}
+                    >
+                      <PlusIcon className="h-4 w-4" />
+                      Add bank account
+                    </Button>
+                  )}
+                </div>
               )}
               {accounts.map((account) => (
                 <div key={account.id} className="flex items-center gap-3 px-4 py-3">
@@ -582,61 +707,31 @@ export default function SettingsPage() {
                     </p>
                   </div>
                   <div className="flex shrink-0 items-center gap-1">
-                    {!account.isDefault && (
-                      <Button variant="grey" className="px-2.5 py-1.5 text-xs" onClick={() => setDefaultAccount(account.id)}>
-                        Set default
-                      </Button>
-                    )}
-                    <Button variant="ghost" className="px-2.5 py-1.5 text-xs" onClick={() => startEdit(account)}>
-                      Edit
-                    </Button>
-                    <Button variant="ghost" className="px-2 py-1.5 text-xs text-red-500" onClick={() => removeAccount(account.id)}>
-                      <TrashIcon className="h-4 w-4" />
-                    </Button>
+                    <ContextMenu
+                      items={[
+                        ...(!account.isDefault
+                          ? [{
+                              label: "Set as default",
+                              leading: <CheckIcon className="h-4 w-4 text-ink-400" />,
+                              onClick: () => void setDefaultAccount(account.id),
+                            }]
+                          : []),
+                        {
+                          label: "Edit",
+                          leading: <CheckIcon className="h-4 w-4 text-ink-400" />,
+                          onClick: () => startEdit(account),
+                        },
+                        {
+                          label: "Delete",
+                          leading: <TrashIcon className="h-4 w-4" />,
+                          danger: true,
+                          onClick: () => setDeletingAccount(account),
+                        },
+                      ]}
+                    />
                   </div>
                 </div>
               ))}
-              {(addingAccount || accounts.length === 0) && canEdit && (
-                <div className="space-y-2 px-4 py-3">
-                  <div className="grid grid-cols-2 gap-2">
-                    <Field label="Account name">
-                      <Input value={accountForm.name} onChange={(e) => setAccountForm({ ...accountForm, name: e.target.value })} placeholder="e.g. Business" />
-                    </Field>
-                    <Field label="Bank name">
-                      <Input value={accountForm.bankName} onChange={(e) => setAccountForm({ ...accountForm, bankName: e.target.value })} placeholder="e.g. Meezan" />
-                    </Field>
-                    <Field label="Account number">
-                      <Input value={accountForm.accountNo} onChange={(e) => setAccountForm({ ...accountForm, accountNo: e.target.value })} placeholder="Account number" />
-                    </Field>
-                    <Field label="Account title">
-                      <Input value={accountForm.holderName} onChange={(e) => setAccountForm({ ...accountForm, holderName: e.target.value })} placeholder="Account title (optional)" />
-                    </Field>
-                    <div className="col-span-2">
-                      <Field label="IBAN">
-                        <Input value={accountForm.iban} onChange={(e) => setAccountForm({ ...accountForm, iban: e.target.value })} placeholder="IBAN (optional)" />
-                      </Field>
-                    </div>
-                  </div>
-                  <div className="flex justify-end gap-2">
-                    {editingAccount && (
-                      <Button
-                        variant="ghost"
-                        onClick={() => {
-                          setEditingAccount(null);
-                          setAddingAccount(false);
-                          setAccountForm(EMPTY_ACCOUNT);
-                        }}
-                      >
-                        Cancel
-                      </Button>
-                    )}
-                    <Button onClick={saveAccount} disabled={savingAccount}>
-                      <CheckIcon className="h-4 w-4" />
-                      {savingAccount ? "Saving…" : editingAccount ? "Update" : "Add account"}
-                    </Button>
-                  </div>
-                </div>
-              )}
               {!addingAccount && accounts.length > 0 && canEdit && (
                 <Row
                   icon={<PlusIcon className="h-4 w-4" />}
@@ -649,6 +744,81 @@ export default function SettingsPage() {
             </Group>
           </>
         )}
+
+        <FormWindow
+          open={addingAccount}
+          title={editingAccount ? "Edit bank account" : "Add bank account"}
+          saveLabel={editingAccount ? "Update" : "Add account"}
+          saving={savingAccount}
+          onClose={() => {
+            setAddingAccount(false);
+            setEditingAccount(null);
+            setAccountForm(EMPTY_ACCOUNT);
+            setAccountErrors({});
+          }}
+          onCancel={() => {
+            setAddingAccount(false);
+            setEditingAccount(null);
+            setAccountForm(EMPTY_ACCOUNT);
+            setAccountErrors({});
+          }}
+          onSave={() => void saveAccount()}
+        >
+          <div className="grid grid-cols-2 gap-3">
+            <FormField label="Bank name">
+              <FormInput value={accountForm.bankName} onChange={(e) => setAccountForm({ ...accountForm, bankName: e.target.value })} placeholder="e.g. Meezan" />
+            </FormField>
+            <FormField label="Account name">
+              <FormInput value={accountForm.name} onChange={(e) => setAccountForm({ ...accountForm, name: e.target.value })} placeholder="e.g. Business" />
+            </FormField>
+          </div>
+          <FormField label="Account title">
+            <FormInput value={accountForm.holderName} onChange={(e) => setAccountForm({ ...accountForm, holderName: e.target.value })} placeholder="Account title (optional)" />
+          </FormField>
+          <FormField label="Account number" error={accountErrors.accountNo}>
+            <FormInput error={!!accountErrors.accountNo} value={accountForm.accountNo} onChange={(e) => setAccountForm({ ...accountForm, accountNo: e.target.value })} placeholder="Account number" />
+          </FormField>
+          <FormField label="IBAN" error={accountErrors.iban}>
+            <FormInput error={!!accountErrors.iban} value={accountForm.iban} onChange={(e) => setAccountForm({ ...accountForm, iban: e.target.value })} placeholder="IBAN (optional)" />
+          </FormField>
+        </FormWindow>
+
+        <FormWindow
+          open={pinOpen}
+          title="Change PIN"
+          saveLabel="Update PIN"
+          saving={changingPin}
+          onClose={() => {
+            setPinOpen(false);
+            setPinForm({ current: "", next: "" });
+          }}
+          onCancel={() => {
+            setPinOpen(false);
+            setPinForm({ current: "", next: "" });
+          }}
+          onSave={() => void changePin()}
+        >
+          <div className="flex flex-wrap items-end gap-6">
+            <FormField label="Current PIN">
+              <OtpInput
+                length={PIN_LENGTH}
+                value={pinForm.current}
+                onChange={(v) => setPinForm({ ...pinForm, current: v })}
+                size="sm"
+                autoFocus={false}
+              />
+            </FormField>
+            <FormField label="New PIN">
+              <OtpInput
+                length={PIN_LENGTH}
+                value={pinForm.next}
+                onChange={(v) => setPinForm({ ...pinForm, next: v })}
+                size="sm"
+                autoFocus={false}
+              />
+            </FormField>
+          </div>
+        </FormWindow>
 
         {tab === "sounds" && (
           <>
@@ -688,6 +858,8 @@ export default function SettingsPage() {
             <UsersManager />
           </>
         )}
+
+        {tab === "audit" && hasPermission(user, PERMISSIONS.auditView) && <ActivityLog />}
       </main>
 
       <Dialog
@@ -699,6 +871,23 @@ export default function SettingsPage() {
         destructive
         onConfirm={confirmDiscard}
         onCancel={() => setPendingTab(null)}
+      />
+
+      <Dialog
+        open={deletingAccount !== null}
+        title="Remove bank account?"
+        message={
+          deletingAccount
+            ? `"${deletingAccount.bankName} · ${deletingAccount.name}" will be removed. Receipts will no longer show it.`
+            : ""
+        }
+        confirmLabel="Remove account"
+        cancelLabel="Cancel"
+        destructive
+        onConfirm={() => {
+          if (deletingAccount) void removeAccount(deletingAccount.id);
+        }}
+        onCancel={() => setDeletingAccount(null)}
       />
     </div>
   );

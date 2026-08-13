@@ -1,10 +1,11 @@
 import { prisma } from "../../core/lib/prisma";
 import { ApiError } from "../../core/middleware/error";
 import type { PrintLayoutInput, PrintLayoutUpdateInput } from "./schemas";
+import { upsertSystemLayout } from "./seed";
 
 export async function listPrintLayouts(userId: string) {
   return prisma.printLayout.findMany({
-    where: { userId },
+    where: { OR: [{ isSystem: true }, { userId }] },
     orderBy: [{ isDefault: "desc" }, { updatedAt: "desc" }],
   });
 }
@@ -28,7 +29,7 @@ export async function createPrintLayout(userId: string, input: PrintLayoutInput)
 }
 
 export async function updatePrintLayout(id: string, userId: string, input: PrintLayoutUpdateInput) {
-  const existing = await prisma.printLayout.findFirst({ where: { id, userId } });
+  const existing = await prisma.printLayout.findFirst({ where: { id, userId, isSystem: false } });
   if (!existing) throw new ApiError(404, "print_layout.not_found", "Print layout not found");
 
   if (input.isDefault === true) {
@@ -52,7 +53,7 @@ export async function updatePrintLayout(id: string, userId: string, input: Print
 }
 
 export async function setDefaultPrintLayout(id: string, userId: string) {
-  const existing = await prisma.printLayout.findFirst({ where: { id, userId } });
+  const existing = await prisma.printLayout.findFirst({ where: { id, userId, isSystem: false } });
   if (!existing) throw new ApiError(404, "print_layout.not_found", "Print layout not found");
 
   await prisma.printLayout.updateMany({ where: { userId }, data: { isDefault: false } });
@@ -60,9 +61,17 @@ export async function setDefaultPrintLayout(id: string, userId: string) {
 }
 
 export async function deletePrintLayout(id: string, userId: string) {
-  const existing = await prisma.printLayout.findFirst({ where: { id, userId } });
+  const existing = await prisma.printLayout.findFirst({ where: { id, userId, isSystem: false } });
   if (!existing) throw new ApiError(404, "print_layout.not_found", "Print layout not found");
 
   await prisma.printLayout.delete({ where: { id } });
   return { id, deleted: true };
+}
+
+export async function importPrintLayouts(layouts: PrintLayoutInput[]) {
+  const results = [];
+  for (const layout of layouts) {
+    results.push(await upsertSystemLayout(layout));
+  }
+  return results;
 }

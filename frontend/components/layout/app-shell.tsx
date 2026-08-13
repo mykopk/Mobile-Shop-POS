@@ -27,6 +27,10 @@ export function AppShell({ children }: { children: ReactNode }) {
   useEffect(() => subscribeUnsaved(setUnsaved), []);
 
   useEffect(() => {
+    document.title = profile?.name?.trim() ? profile.name : APP.nameFull;
+  }, [profile]);
+
+  useEffect(() => {
     if (!unsaved) return;
     function onClick(e: MouseEvent) {
       const anchor = (e.target as Element | null)?.closest?.("a");
@@ -50,9 +54,6 @@ export function AppShell({ children }: { children: ReactNode }) {
     router.replace("/login");
   }
 
-  const currentLabel =
-    NAV_ITEMS.find((item) => pathname.startsWith(item.href))?.label ?? APP.short;
-
   return (
     <div className="flex h-screen overflow-hidden bg-ink-50 text-ink-900">
       <aside className="flex w-52 shrink-0 flex-col overflow-y-auto overscroll-none bg-white print:hidden">
@@ -74,7 +75,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                   key={item.href}
                   href={item.href}
                   title={item.label}
-                  className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
+                  className={`group flex items-center gap-3 rounded-[14px] px-3 py-2.5 text-sm font-medium transition ${
                     active
                       ? "bg-brand-50 text-brand-600"
                       : "text-ink-500 hover:bg-ink-100 hover:text-ink-900"
@@ -90,9 +91,13 @@ export function AppShell({ children }: { children: ReactNode }) {
 
         <div className="px-4 py-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-500/10 text-sm font-bold text-brand-600">
-              {user?.name?.charAt(0).toUpperCase()}
-            </div>
+            {user?.avatar ? (
+              <img src={user.avatar} alt="" className="h-9 w-9 shrink-0 rounded-full object-cover" />
+            ) : (
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-500/10 text-sm font-bold text-brand-600">
+                {user?.name?.charAt(0).toUpperCase()}
+              </div>
+            )}
             <div className="min-w-0 leading-tight">
               <p className="truncate text-sm font-semibold text-ink-900">{user?.name}</p>
               <p className="text-xs capitalize text-ink-500">{user?.role.toLowerCase()}</p>
@@ -109,17 +114,6 @@ export function AppShell({ children }: { children: ReactNode }) {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-14 shrink-0 items-center justify-between bg-white/70 px-6 print:hidden">
-          <h1 className="text-sm font-semibold text-ink-900">{currentLabel}</h1>
-          <span className="text-xs text-ink-500">
-            {new Date().toLocaleDateString("en-PK", {
-              weekday: "long",
-              day: "numeric",
-              month: "short",
-              year: "numeric",
-            })}
-          </span>
-        </header>
         <main className="flex-1 overflow-y-auto overscroll-none p-6 print:p-0">{children}</main>
       </div>
 

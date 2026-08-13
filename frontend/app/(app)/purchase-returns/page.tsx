@@ -16,7 +16,8 @@ import { Kbd } from "@/components/ui/kbd";
 import { useSaveShortcut } from "@/lib/use-save-shortcut";
 import { playSuccess } from "@/lib/sound";
 import { Scanner } from "@/components/scanner";
-import { CameraIcon } from "@/components/icons";
+import { CameraIcon, ReportsIcon } from "@/components/icons";
+import Link from "next/link";
 import { SearchInput } from "@/components/ui/search-input";
 
 type SearchResult = {
@@ -414,10 +415,19 @@ export default function ReturnsPage() {
             Scan or pick in-stock units bought from the seller to refund them.
           </p>
         </div>
-        <Button variant="ghost" onClick={() => setScannerOpen(true)}>
-          <CameraIcon className="h-4 w-4" />
-          Scan IMEI / barcode
-        </Button>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/reports/purchase-returns"
+            className="inline-flex items-center gap-2 rounded-2xl bg-white px-4 py-2 text-sm font-semibold text-ink-700 transition hover:bg-ink-50"
+          >
+            <ReportsIcon className="h-4 w-4" />
+            Reports
+          </Link>
+          <Button variant="ghost" onClick={() => setScannerOpen(true)}>
+            <CameraIcon className="h-4 w-4" />
+            Scan IMEI / barcode
+          </Button>
+        </div>
       </div>
 
       <section className="shrink-0 rounded-2xl bg-white p-4">
@@ -549,7 +559,7 @@ export default function ReturnsPage() {
                       <button
                         type="button"
                         onClick={() => removeLine(line.unitId)}
-                        className="text-ink-400 hover:text-red-500"
+                        className="text-ink-400 hover:text-error"
                         aria-label="Remove"
                       >
                         ✕

@@ -1,7 +1,5 @@
 "use client";
 
-import { ReportNav } from "@/components/reports/report-nav";
-import { PeriodPicker } from "@/components/reports/period-picker";
 import { usePeriodReport } from "@/components/reports/use-period-report";
 import { KpiCard } from "@/components/reports/report-card";
 import { TopList } from "@/components/reports/top-list";
@@ -19,8 +17,6 @@ export default function StockReportPage() {
         <h2 className="text-lg font-bold text-ink-900">Stock valuation</h2>
         <p className="text-xs text-ink-500">Current in-stock units and their cost and retail value.</p>
       </div>
-
-      <ReportNav />
 
       {loading ? (
         <p className="text-sm text-ink-400">Loading…</p>

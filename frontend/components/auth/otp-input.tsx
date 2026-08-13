@@ -9,15 +9,24 @@ export function OtpInput({
   onChange,
   disabled = false,
   inputRef,
+  autoFocus = true,
+  size = "lg",
 }: {
   length: number;
   value: string;
   onChange: (value: string) => void;
   disabled?: boolean;
   inputRef?: RefObject<HTMLInputElement | null>;
+  autoFocus?: boolean;
+  size?: "sm" | "lg";
 }) {
   const internalRef = useRef<HTMLInputElement>(null);
   const ref = inputRef ?? internalRef;
+
+  const boxClass =
+    size === "sm"
+      ? "h-11 w-9 rounded-xl text-lg"
+      : "h-16 w-14 rounded-2xl text-2xl";
 
   return (
     <div
@@ -35,7 +44,7 @@ export function OtpInput({
         data-1p-ignore
         data-lpignore="true"
         data-form-type="other"
-        autoFocus
+        autoFocus={autoFocus}
         value={value}
         onChange={(event) => {
           const digits = event.target.value.replace(/\D/g, "").slice(0, length);
@@ -50,7 +59,7 @@ export function OtpInput({
         return (
           <span
             key={i}
-            className={`flex h-16 w-14 items-center justify-center rounded-2xl text-2xl font-bold transition ${
+            className={`flex items-center justify-center font-bold transition ${boxClass} ${
               isFilled
                 ? "bg-brand-600 text-white"
                 : "bg-ink-50 text-ink-900"

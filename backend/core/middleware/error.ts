@@ -6,6 +6,7 @@ export class ApiError extends Error {
     public readonly status: number,
     public readonly code: string,
     message: string,
+    public readonly meta?: Record<string, unknown>,
   ) {
     super(message);
     this.name = "ApiError";
@@ -39,7 +40,7 @@ export function errorHandler(
 
   if (err instanceof ApiError) {
     res.status(err.status).json({
-      error: { code: err.code, message: err.message },
+      error: { code: err.code, message: err.message, ...(err.meta ?? {}) },
     });
     return;
   }

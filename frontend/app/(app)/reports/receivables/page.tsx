@@ -2,7 +2,6 @@
 
 import { useApi } from "@/lib/use-api";
 import type { BalancesReport } from "@/lib/api-types";
-import { ReportNav } from "@/components/reports/report-nav";
 import { KpiCard } from "@/components/reports/report-card";
 import { BalanceList } from "@/components/reports/balance-list";
 import { formatPKR } from "@/lib/money";
@@ -16,8 +15,6 @@ export default function ReceivablesPage() {
         <h2 className="text-lg font-bold text-ink-900">Receivables</h2>
         <p className="text-xs text-ink-500">Customers who still owe money on credit sales.</p>
       </div>
-
-      <ReportNav />
 
       {loading ? (
         <p className="text-sm text-ink-400">Loading…</p>

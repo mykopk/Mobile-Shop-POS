@@ -1,7 +1,7 @@
 import type { Request, Response } from "express";
 import { env } from "../config/env";
 
-export const AUTH_COOKIE_NAME = "dost.session";
+export const AUTH_COOKIE_NAME = "fig.session";
 
 const secure = env.NODE_ENV === "production";
 

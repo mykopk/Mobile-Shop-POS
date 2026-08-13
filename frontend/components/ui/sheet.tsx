@@ -9,12 +9,14 @@ export function Sheet({
   title,
   onClose,
   children,
+  showClose = true,
   width = "max-w-md",
 }: {
   open: boolean;
   title: string;
   onClose: () => void;
   children: ReactNode;
+  showClose?: boolean;
   width?: string;
 }) {
   useEffect(() => {
@@ -29,12 +31,14 @@ export function Sheet({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-900/40 p-4">
-      <div className={`w-full ${width} rounded-2xl bg-white p-6`}>
+      <div className={`w-full ${width} rounded-2xl bg-white p-3`}>
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-bold text-ink-900">{title}</h3>
-          <Button variant="ghost" onClick={onClose}>
-            Close
-          </Button>
+          {showClose && (
+            <Button variant="ghost" onClick={onClose}>
+              Close
+            </Button>
+          )}
         </div>
         <div className="mt-4">{children}</div>
       </div>

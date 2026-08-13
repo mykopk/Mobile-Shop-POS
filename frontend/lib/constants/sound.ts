@@ -1,5 +1,5 @@
 export const SOUND = {
-  storageKey: "dost.sound.prefs",
+  storageKey: "fig.sound.prefs",
   enabled: "Play sounds",
   kinds: [
     {

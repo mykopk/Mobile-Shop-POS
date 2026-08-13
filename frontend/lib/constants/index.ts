@@ -1,4 +1,5 @@
 export * from "./app";
+export * from "./audit";
 export * from "./auth";
 export * from "./brand";
 export * from "./charts";

@@ -14,6 +14,7 @@ export type CompanyProfile = {
   currency: string;
   currencySymbol: string;
   taxRate: string;
+  cardFee: string;
   timezone: string | null;
   compactPrices: boolean;
   raastId: string | null;
@@ -27,6 +28,7 @@ export type AdminUser = {
   name: string;
   email: string;
   role: Role;
+  avatar: string | null;
   active: boolean;
   permissions: string[];
   createdAt: string;
@@ -186,7 +188,18 @@ export type Contact = {
 };
 
 export type ContactDetail = Contact & {
-  creditAccount: { id: string; balance: string; limit: string } | null;
+  creditAccount: {
+    id: string;
+    balance: string;
+    limit: string;
+    creditPayments: {
+      id: string;
+      amount: string;
+      receivedFrom: string | null;
+      dueDate: string | null;
+      paidAt: string;
+    }[];
+  } | null;
   transactions: {
     id: string;
     number: string;
@@ -229,6 +242,7 @@ export type Voucher = {
 
 export type Expense = {
   id: string;
+  number: string;
   category: string;
   amount: string;
   note: string | null;
@@ -244,6 +258,8 @@ export type Transaction = {
   user: { id: string; name: string };
   subtotal: string;
   discount: string;
+  tax: string;
+  cardFee: string;
   total: string;
   status: "PAID" | "PARTIAL" | "PENDING" | "REFUNDED";
   note: string | null;
@@ -258,6 +274,8 @@ export type TransactionDetail = {
   type: string;
   subtotal: string;
   discount: string;
+  tax: string;
+  cardFee: string;
   total: string;
   status: string;
   note: string | null;
@@ -273,7 +291,13 @@ export type TransactionDetail = {
     product: { brand: string; model: string; storage: string | null; ram: string | null };
     unit: { id: string; imei: string; status: string; costPrice?: string } | null;
   }[];
-  payments: { id: string; method: string; amount: string; reference: string | null }[];
+  payments: {
+    id: string;
+    method: string;
+    amount: string;
+    reference: string | null;
+    bankAccount: { id: string; name: string; bankName: string; accountNo: string; holderName: string | null } | null;
+  }[];
 };
 
 export type ReservationDetail = {
@@ -429,6 +453,7 @@ export type ReportSummary = {
   sales: { count: number; revenue: number };
   purchases: { count: number; amount: number };
   expenses: { count: number; amount: number };
+  vouchers: { count: number; receiving: number; payment: number };
   itemsSold: { total: number; new: number; used: number };
   profit: number | null;
   paymentSplit: { method: PaymentMethod; amount: number }[];
@@ -464,9 +489,10 @@ export type PurchaseReport = {
 export type ProfitReport = {
   revenue: number;
   cost: number;
+  expenses: number;
   profit: number;
   margin: number;
-  daily: { date: string; revenue: number; cost: number; profit: number }[];
+  daily: { date: string; revenue: number; cost: number; expense: number; profit: number }[];
   byBrand: { name: string; revenue: number; cost: number; profit: number }[];
   byCondition: { condition: string; revenue: number; cost: number; profit: number }[];
   byModel: { name: string; revenue: number; cost: number; profit: number }[];
@@ -528,4 +554,26 @@ export type LedgerReport = {
   contact: { id: string; name: string; phone: string | null; type: string };
   rows: LedgerRow[];
   closing: number;
+};
+
+export type AuditLog = {
+  id: string;
+  action: string;
+  entity: string;
+  entityId: string;
+  details: string | null;
+  createdAt: string;
+  user: { id: string; username: string; name: string };
+};
+
+export type AuditLogPage = {
+  items: AuditLog[];
+  total: number;
+  page: number;
+  pageSize: number;
+};
+
+export type AuditMeta = {
+  actions: string[];
+  entities: string[];
 };

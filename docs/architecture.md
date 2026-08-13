@@ -1,4 +1,4 @@
-# DOST Mobile POS — Architecture
+# Fig Mobile POS — Architecture
 
 ## 1. Tech Stack (Separate Backend + Frontend)
 
@@ -7,7 +7,7 @@
 | **Backend** | **Node.js + Express** (REST API) + TypeScript |
 | **Frontend** | **Next.js (App Router)** + TypeScript (SPA-style, talks to API) |
 | **ORM** | **Prisma** |
-| **DB** | **SQLite** (embedded in Local mode; `backend/data/dost.db` in dev) — Postgres via Prisma for Remote mode |
+| **DB** | **SQLite** (embedded in Local mode; `backend/data/fig.db` in dev) — Postgres via Prisma for Remote mode |
 | **Auth** | **Simple JWT login** — preregistered users only (**username + 4-digit PIN**). No OAuth, no signup. |
 | **Validation** | Zod |
 | **Styling / UI** | Tailwind CSS + shadcn/ui |
@@ -24,7 +24,7 @@
 ## 2. Project Structure (monorepo)
 
 ```
-dost-mobile-pos/
+fig-mobile-pos/
 ├── backend/                      # Express API (own package.json, own Prisma)
 │   ├── endpoints/                # ONE FOLDER PER ENDPOINT (mirrors the URL)
 │   │   ├── auth/                 #   /api/auth  → routes.ts, handlers.ts,
@@ -98,6 +98,7 @@ dost-mobile-pos/
 | `GET/POST /api/user` · `PUT /api/user/:id` | `endpoints/user/` | Users & roles (admin) |
 | `GET/PUT /api/settings/company` · `/sound` | `endpoints/settings/` | Company profile, sound prefs |
 | `GET/POST /api/voucher` · `/voucher/:id/reverse` | `endpoints/voucher/` | Cash vouchers (CRV/CPV) + reversal |
+| `GET /api/audit` · `/meta` | `endpoints/audit/` | Audit log (filter + paginate) |
 
 ## 5. Page / Screen Map (frontend)
 
@@ -115,10 +116,8 @@ dost-mobile-pos/
 | `/reservations` | Reservations (hold with advance, convert to sale, cancel) | Cashier+ |
 | `/vouchers` | Cash vouchers (CRV / CPV), modify & reverse | Manager, Admin |
 | `/expenses` | Expenses with categories + contact linking | Manager, Admin |
-| `/reports` | Report hub (sales, profit, stock valuation, ledger, statements) | Manager, Admin |
-| `/analytics` | Extended analytics & exports | Manager, Admin |
-| `/users` | Users & roles (preregistered users + permissions) | Admin |
-| `/settings` | Company profile, tax, timezone, bank accounts, sound prefs | Admin |
+| `/reports` | Report hub (overview, sales/purchase/profit/stock/cash summaries, list screens, ledger, receivables/payables) | Manager, Admin |
+| `/settings` | Company profile, preferences, financial, bank accounts, sounds, users & roles, activity log | Admin |
 | `/print` | Print studio (80mm/A4 templates, layouts, QR targets) | Cashier+ |
 
 ## 6. NEW vs USED — Convenient Separation
@@ -169,7 +168,7 @@ Explicit per-role sets:
 | `report.stock` | ❌ | ✅ | ✅ |
 | `user.manage` · `audit.view` (admin-only) | ❌ | ❌ | ✅ |
 
-`user.manage` powers the Users admin page; `audit.view` is reserved for a future audit-log surface. Enforced **server-side** in route middleware; the frontend hides UI based on the same permissions returned at login.
+`user.manage` powers the Users admin page; `audit.view` powers the Activity Log screen (`/audit` → `endpoints/audit/`, `GET /api/audit` with `action`/`entity`/`userId`/`search`/`from`/`to`/`page`/`pageSize` filters). Enforced **server-side** in route middleware; the frontend hides UI based on the same permissions returned at login.
 
 ## 9. Timezone
 
@@ -202,7 +201,7 @@ Explicit per-role sets:
 
 ## 11. Env / Config
 
-Backend `.env`: `DATABASE_URL` (`file:./data/dost.db`), `HOST` (`localhost`), `JWT_SECRET`, `PORT` (**4100** — 4000 is used by other dev servers), `BCRYPT_ROUNDS`.
+Backend `.env`: `DATABASE_URL` (`file:./data/fig.db`), `HOST` (`localhost`), `JWT_SECRET`, `PORT` (**4100** — 4000 is used by other dev servers), `BCRYPT_ROUNDS`.
 Frontend `.env.local`: `NEXT_PUBLIC_API_URL` (e.g. `http://localhost:4100/api`) — **dev fallback only**. In the desktop app the API base is resolved at **runtime** from the app's connection settings (Local or Remote), falling back to this env var. In Local mode the frontend and API share the same host (`localhost`, not `127.0.0.1`) so the `SameSite=Lax` session cookie is sent on fetch requests.
 
 ## 12. Deploy — Desktop App (Dual Mode)
@@ -214,23 +213,23 @@ Only the **frontend** ships as the desktop app. The backend is either **bundled 
 | | **Local (offline, single terminal)** | **Remote (hosted, multi-terminal)** |
 |---|---|---|
 | Backend | Bundled Express API + SQLite, spawned by the app | Hosted server the app connects to |
-| DB | `dost.db` in the app's user-data directory | Server's DB (SQLite or Postgres) |
+| DB | `fig.db` in the app's user-data directory | Server's DB (SQLite or Postgres) |
 | Internet | Not required | Required |
 | App UI origin | Served by the embedded backend (`http://localhost:<port>`) → **same origin as API** | Static export served from the shell → **cross-origin** |
 | Auth | Existing cookie (`SameSite=Lax`) unchanged | `Authorization: Bearer` token (backend reads it first) |
-| Backups | Copy `dost.db` from the user-data dir (or on-demand export in Settings) | Server-side backups |
+| Backups | Copy `fig.db` from the user-data dir (or on-demand export in Settings) | Server-side backups |
 
 ### Packaging (`desktop/`)
 
 - `desktop/electron/main.ts` — creates the window, reads the connection setting, and in Local mode spawns the bundled backend, waiting on its health check before loading the UI.
-- `desktop/electron/preload.ts` — exposes `window.dostAPI` (get/set connection settings, resolve API base).
+- `desktop/electron/preload.ts` — exposes `window.figAPI` (get/set connection settings, resolve API base).
 - Static frontend build via Next.js `output: 'export'` — the app is SPA-style (fetch + `window.print()`), no SSR needed.
 - electron-builder config must `asarUnpack` the Prisma engines (`@prisma/engines`, `.prisma`) or the bundled app crashes on first DB call.
 
 ### Local mode flow
 
 1. App launches → main process resolves the writable user-data directory.
-2. Spawns the bundled backend with `DATABASE_URL=file:<userData>/dost.db`, `HOST=localhost`, `PORT` from config.
+2. Spawns the bundled backend with `DATABASE_URL=file:<userData>/fig.db`, `HOST=localhost`, `PORT` from config.
 3. Polls `GET /api/health` until ready, then loads `http://localhost:<port>` (frontend served by the backend itself — same origin, so cookie auth works unchanged).
 4. On quit, main process shuts the backend down gracefully (Prisma disconnect → no SQLite corruption).
 

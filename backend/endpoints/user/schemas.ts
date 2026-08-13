@@ -6,6 +6,7 @@ export const createUserSchema = z.object({
   email: z.string().trim().email("Invalid email").optional().or(z.literal("")),
   pin: z.string().trim().regex(/^\d{4}$/, "PIN must be exactly 4 digits"),
   role: z.enum(["ADMIN", "MANAGER", "CASHIER"]),
+  avatar: z.string().optional().or(z.literal("")),
   active: z.boolean().optional().default(true),
   permissions: z.array(z.string()).optional(),
 });

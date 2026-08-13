@@ -1,6 +1,5 @@
 "use client";
 
-import { ReportNav } from "@/components/reports/report-nav";
 import { PeriodPicker } from "@/components/reports/period-picker";
 import { usePeriodReport } from "@/components/reports/use-period-report";
 import { KpiCard } from "@/components/reports/report-card";
@@ -22,7 +21,6 @@ export default function PurchasesReportPage() {
         <p className="text-xs text-ink-500">Money spent buying stock, units bought and vendor breakdowns.</p>
       </div>
 
-      <ReportNav />
       <PeriodPicker value={range} onChange={setRange} />
 
       {loading ? (

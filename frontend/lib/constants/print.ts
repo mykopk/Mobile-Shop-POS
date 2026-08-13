@@ -2,17 +2,17 @@ export type PrintFormatId = "58" | "80" | "a4";
 
 export type QrTarget = "none" | "whatsapp";
 
-export type PrintLayoutType = "document" | "inventory";
+export type PrintLayoutType = "document" | "inventory" | "expense";
 
 export const PRINT_LAYOUT_TYPES: { value: PrintLayoutType; label: string }[] = [
   { value: "document", label: "Documents" },
   { value: "inventory", label: "Inventory" },
+  { value: "expense", label: "Expenses" },
 ];
 
 export const INVENTORY_FORMAT_IDS: PrintFormatId[] = ["80", "a4"];
 
 export const QR_TARGETS: { id: QrTarget; label: string; hint: string }[] = [
-  { id: "none", label: "None", hint: "No QR code on the receipt" },
   { id: "whatsapp", label: "WhatsApp", hint: "Customer scans to contact the shop via WhatsApp" },
 ];
 
@@ -55,10 +55,11 @@ export const PRINT_FORMATS: {
 ];
 
 export const PRINT = {
-  storageKey: "dost.print.options",
-  invOptionsKey: "dost.print.invOptions",
-  formatKey: "dost.print.format",
-  qrTypeKey: "dost.print.qrType",
+  storageKey: "fig.print.options",
+  invOptionsKey: "fig.print.invOptions",
+  expenseSheetOptionsKey: "fig.print.expenseSheetOptions",
+  formatKey: "fig.print.format",
+  qrTypeKey: "fig.print.qrType",
   bankAccountsTitle: "Bank Payment Details",
 } as const;
 
@@ -85,6 +86,8 @@ export const RECEIPT_TEXT = {
   imei: "Serial / IMEI",
   subtotal: "Subtotal",
   discount: "Discount Applied",
+  tax: "Tax",
+  cardFee: "Card Fee",
   grandTotal: "Amount Payable",
   total: "Total Amount",
   payments: "Payment Details",
@@ -217,4 +220,63 @@ export const INVENTORY_TEXT = {
   units: "units",
   signature: "Authorized Signature",
   noData: "No units found.",
+} as const;
+
+export type ExpenseSheetOptionKey =
+  | "header"
+  | "shopInfo"
+  | "number"
+  | "date"
+  | "category"
+  | "contact"
+  | "note"
+  | "signature"
+  | "footer";
+
+export const EXPENSE_SHEET_DEFAULT_OPTIONS: Record<ExpenseSheetOptionKey, boolean> = {
+  header: true,
+  shopInfo: true,
+  number: true,
+  date: true,
+  category: true,
+  contact: true,
+  note: true,
+  signature: false,
+  footer: true,
+};
+
+export type ExpenseSheetOptions = Record<ExpenseSheetOptionKey, boolean>;
+
+export const EXPENSE_SHEET_OPTION_LABELS: { key: ExpenseSheetOptionKey; label: string; hint: string }[] = [
+  { key: "header", label: "Shop name & title", hint: "Store name and “Expense Sheet” title" },
+  { key: "shopInfo", label: "Shop tagline", hint: "One-line description below the shop name" },
+  { key: "number", label: "Expense no.", hint: "Reference number of each expense" },
+  { key: "date", label: "Date", hint: "Date of each expense" },
+  { key: "category", label: "Category", hint: "Category of each expense" },
+  { key: "contact", label: "Contact", hint: "Vendor / supplier linked to the expense" },
+  { key: "note", label: "Note", hint: "Note of each expense" },
+  { key: "signature", label: "Signature line", hint: "Space for a signature" },
+  { key: "footer", label: "Footer & summary", hint: "Closing message and expense total" },
+];
+
+export const EXPENSE_PRINT_TEXT = {
+  voucherTitle: "Expense Voucher",
+  sheetTitle: "Expense Sheet",
+  voucherNo: "Voucher No.",
+  date: "Date",
+  category: "Category",
+  contact: "Contact",
+  phone: "Contact Number",
+  processedBy: "Processed by",
+  note: "Note",
+  amountPaid: "Amount paid",
+  amount: "Amount",
+  no: "No.",
+  total: "Total",
+  count: "expense(s)",
+  generated: "Generated",
+  printedBy: "Printed by",
+  signature: "Authorized Signature",
+  noData: "No expenses found.",
+  noNote: "No note",
 } as const;

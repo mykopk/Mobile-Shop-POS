@@ -4,6 +4,8 @@ import { signToken } from "../../core/lib/jwt";
 import { prisma } from "../../core/lib/prisma";
 import { effectivePermissions } from "../../core/lib/permissions";
 import { ApiError } from "../../core/middleware/error";
+import { writeAudit } from "../../core/lib/audit";
+import { env } from "../../core/config/env";
 import type { LoginInput } from "./schemas";
 
 type UserRecord = {
@@ -12,6 +14,7 @@ type UserRecord = {
   name: string;
   email: string;
   role: Role;
+  avatar: string | null;
   permissions: string[];
 };
 
@@ -22,19 +25,27 @@ function toUserPayload(user: UserRecord) {
     name: user.name,
     email: user.email,
     role: user.role,
+    avatar: user.avatar,
     permissions: effectivePermissions(user),
   };
 }
 
 export async function loginUser({ username, pin }: LoginInput) {
   const user = await prisma.user.findUnique({
-    where: { username: username.toLowerCase() },
+    where: { username: username.toUpperCase() },
   });
 
-  const pinValid =
-    user && user.active ? await bcrypt.compare(pin, user.pinHash) : false;
+  if (user && !user.active) {
+    throw new ApiError(
+      401,
+      "auth.user_inactive",
+      "This account is inactive. Ask an admin to reactivate it.",
+    );
+  }
 
-  if (!user || !user.active || !pinValid) {
+  const pinValid = user ? await bcrypt.compare(pin, user.pinHash) : false;
+
+  if (!user || !pinValid) {
     throw new ApiError(
       401,
       "auth.invalid_credentials",
@@ -60,4 +71,28 @@ export async function getUser(id: string) {
     throw new ApiError(401, "auth.unauthorized", "Not authorized");
   }
   return toUserPayload(user as UserRecord);
+}
+
+export async function changePin(userId: string, currentPin: string, newPin: string) {
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) throw new ApiError(404, "user.not_found", "User not found");
+
+  const pinValid = await bcrypt.compare(currentPin, user.pinHash);
+  if (!pinValid) {
+    throw new ApiError(400, "auth.pin_incorrect", "Current PIN is incorrect");
+  }
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: { pinHash: await bcrypt.hash(newPin, env.BCRYPT_ROUNDS) },
+  });
+
+  await writeAudit({
+    userId,
+    action: "USER.CHANGE_PIN",
+    entity: "User",
+    entityId: userId,
+  });
+
+  return { ok: true };
 }

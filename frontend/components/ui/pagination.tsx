@@ -42,6 +42,7 @@ export function PaginationBar({
   onPrev,
   onNext,
   onPageSize,
+  className,
 }: {
   from: number;
   to: number;
@@ -52,9 +53,10 @@ export function PaginationBar({
   onPrev: () => void;
   onNext: () => void;
   onPageSize: (size: number) => void;
+  className?: string;
 }) {
   return (
-    <div className="flex shrink-0 items-center justify-between gap-3">
+    <div className={`flex shrink-0 items-center justify-between gap-3 ${className ?? ""}`}>
       <p className="text-sm text-ink-500">
         Showing {from}–{to} of {total}
       </p>

@@ -16,6 +16,7 @@ export const companyProfileSchema = z.object({
   logoUrl: z.string().trim().optional().or(z.literal("")),
   currency: z.string().trim().min(1).default("PKR"),
   taxRate: z.coerce.number().min(0).max(100).default(0),
+  cardFee: z.coerce.number().min(0).max(100).default(0),
   compactPrices: z.boolean().optional(),
   timezone: timezone,
   raastId: z.string().trim().optional().or(z.literal("")),

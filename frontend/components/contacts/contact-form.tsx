@@ -113,7 +113,7 @@ export function ContactForm({
           />
         </div>
         {duplicates.length > 0 && (
-          <div className="rounded-xl bg-amber-50 p-3 text-xs text-amber-800">
+          <div className="rounded-xl bg-warning/10 p-3 text-xs text-warning">
             <p className="font-semibold">Possible duplicate:</p>
             <ul className="mt-1 space-y-0.5">
               {duplicates.map((d) => (

@@ -64,7 +64,7 @@ function buildDays(items: { date: Date }[], r: Range) {
 export async function summary(permissions: readonly Permission[], r: Range) {
   const cost = canViewCosts(permissions);
 
-  const [salesAgg, purchasesAgg, expenseAgg, saleItems, paymentSplit, balancesData] = await Promise.all([
+  const [salesAgg, purchasesAgg, expenseAgg, saleItems, paymentSplit, balancesData, voucherAgg] = await Promise.all([
     prisma.transaction.aggregate({
       where: { type: "SALE", ...rangeWhere(r) },
       _count: true,
@@ -90,6 +90,12 @@ export async function summary(permissions: readonly Permission[], r: Range) {
       _sum: { amount: true },
     }),
     balances(),
+    prisma.voucher.groupBy({
+      by: ["type"],
+      where: { status: "ACTIVE", ...rangeWhere(r, "date") },
+      _count: true,
+      _sum: { amount: true },
+    }),
   ]);
 
   let profit: number | null = null;
@@ -108,7 +114,7 @@ export async function summary(permissions: readonly Permission[], r: Range) {
       (s, i) => s + n(i.unit?.costPrice ?? i.product.costPrice) * i.quantity,
       0,
     );
-    profit = round(revenue - costTotal);
+    profit = round(revenue - costTotal - n(expenseAgg._sum.amount));
   }
 
   const itemsSold = saleItems.reduce((s, i) => s + i.quantity, 0);
@@ -116,11 +122,23 @@ export async function summary(permissions: readonly Permission[], r: Range) {
     .filter((i) => i.unit?.condition === "NEW")
     .reduce((s, i) => s + i.quantity, 0);
 
+  const vouchers = voucherAgg.reduce(
+    (acc, v) => {
+      const amount = n(v._sum.amount);
+      acc.count += v._count;
+      if (v.type === "RECEIVING") acc.receiving += amount;
+      else acc.payment += amount;
+      return acc;
+    },
+    { count: 0, receiving: 0, payment: 0 },
+  );
+
   return {
     period: r,
     sales: { count: salesAgg._count, revenue: n(salesAgg._sum.total) },
     purchases: { count: purchasesAgg._count, amount: n(purchasesAgg._sum.total) },
     expenses: { count: expenseAgg._count, amount: n(expenseAgg._sum.amount) },
+    vouchers,
     itemsSold: { total: itemsSold, new: newSold, used: itemsSold - newSold },
     profit,
     paymentSplit: paymentSplit
@@ -296,22 +314,28 @@ export async function purchasesReport(r: Range) {
 // ============ PROFIT REPORT ============
 
 export async function profitReport(r: Range) {
-  const items = await prisma.transactionItem.findMany({
-    where: { transaction: { type: "SALE", ...rangeWhere(r) } },
-    select: {
-      quantity: true,
-      total: true,
-      unit: { select: { condition: true, costPrice: true } },
-      product: {
-        select: {
-          brand: { select: { name: true } },
-          model: true,
-          costPrice: true,
+  const [items, expenseRows] = await Promise.all([
+    prisma.transactionItem.findMany({
+      where: { transaction: { type: "SALE", ...rangeWhere(r) } },
+      select: {
+        quantity: true,
+        total: true,
+        unit: { select: { condition: true, costPrice: true } },
+        product: {
+          select: {
+            brand: { select: { name: true } },
+            model: true,
+            costPrice: true,
+          },
         },
+        transaction: { select: { createdAt: true } },
       },
-      transaction: { select: { createdAt: true } },
-    },
-  });
+    }),
+    prisma.expense.findMany({
+      where: { ...rangeWhere(r, "date") },
+      select: { date: true, amount: true },
+    }),
+  ]);
 
   const rows = items.map((i) => ({
     key: dayKey(i.transaction.createdAt, r),
@@ -350,15 +374,28 @@ export async function profitReport(r: Range) {
   }
 
   const dayList = buildDays(items.map((i) => ({ date: i.transaction.createdAt })), r);
+  const expenseByDay = new Map<string, number>();
+  for (const e of expenseRows) {
+    const key = dayKey(e.date, r);
+    expenseByDay.set(key, (expenseByDay.get(key) ?? 0) + n(e.amount));
+  }
   const daily = dayList.map((d) => {
     const v = byDay.get(d.key);
+    const expense = expenseByDay.get(d.key) ?? 0;
     const revenue = v?.revenue ?? 0;
     const cost = v?.cost ?? 0;
-    return { date: d.key, revenue: round(revenue), cost: round(cost), profit: round(revenue - cost) };
+    return {
+      date: d.key,
+      revenue: round(revenue),
+      cost: round(cost),
+      expense: round(expense),
+      profit: round(revenue - cost - expense),
+    };
   });
 
   const revenue = rows.reduce((s, x) => s + x.revenue, 0);
   const cost = rows.reduce((s, x) => s + x.cost, 0);
+  const expenses = expenseRows.reduce((s, e) => s + n(e.amount), 0);
 
   const withProfit = <T extends { revenue: number; cost: number }>(list: T[]) =>
     list
@@ -368,8 +405,9 @@ export async function profitReport(r: Range) {
   return {
     revenue: round(revenue),
     cost: round(cost),
-    profit: round(revenue - cost),
-    margin: revenue > 0 ? (revenue - cost) / revenue : 0,
+    expenses: round(expenses),
+    profit: round(revenue - cost - expenses),
+    margin: revenue > 0 ? (revenue - cost - expenses) / revenue : 0,
     daily,
     byBrand: withProfit([...byBrand.values()]),
     byCondition: withProfit([...byCondition.values()]),

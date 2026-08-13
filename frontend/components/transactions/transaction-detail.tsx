@@ -151,6 +151,18 @@ export function TransactionDetailModal({
                     <span>-{formatPKR(detail.discount)}</span>
                   </div>
                 )}
+                {Number(detail.tax) > 0 && (
+                  <div className="flex justify-between text-ink-500">
+                    <span>Tax</span>
+                    <span>{formatPKR(detail.tax)}</span>
+                  </div>
+                )}
+                {Number(detail.cardFee) > 0 && (
+                  <div className="flex justify-between text-ink-500">
+                    <span>Card fee</span>
+                    <span>{formatPKR(detail.cardFee)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between border-t border-ink-100 pt-1 text-base font-bold text-ink-900">
                   <span>Total</span>
                   <span>{formatPKR(detail.total)}</span>

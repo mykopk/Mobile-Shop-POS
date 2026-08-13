@@ -14,15 +14,21 @@ import { TOAST } from "@/lib/constants";
 
 type ToastType = "success" | "error";
 
+type ToastAction = {
+  label: string;
+  onClick: () => void;
+};
+
 type Toast = {
   id: number;
   message: string;
   type: ToastType;
   count: number;
+  action?: ToastAction;
 };
 
 type ToastContextValue = {
-  toast: (message: string, type?: ToastType) => void;
+  toast: (message: string, type?: ToastType, duration?: number, action?: ToastAction) => void;
 };
 
 const ToastContext = createContext<ToastContextValue | null>(null);
@@ -48,9 +54,10 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const toast = useCallback(
-    (message: string, type: ToastType = "success") => {
+    (message: string, type: ToastType = "success", duration?: number, action?: ToastAction) => {
       if (type === "success") playSuccess();
       else playError();
+      const ms = duration ?? TOAST.durationMs;
       const existing = toastsRef.current.find(
         (t) => t.message === message && t.type === type,
       );
@@ -66,13 +73,13 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         if (timer) clearTimeout(timer);
         timersRef.current.set(
           existing.id,
-          setTimeout(() => dismiss(existing.id), TOAST.durationMs),
+          setTimeout(() => dismiss(existing.id), ms),
         );
         return;
       }
       const id = nextId++;
       setToasts((prev) => {
-        const next = [...prev, { id, message, type, count: 1 }].slice(
+        const next = [...prev, { id, message, type, count: 1, action }].slice(
           -TOAST.maxVisible,
         );
         toastsRef.current = next;
@@ -80,7 +87,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       });
       timersRef.current.set(
         id,
-        setTimeout(() => dismiss(id), TOAST.durationMs),
+        setTimeout(() => dismiss(id), ms),
       );
     },
     [dismiss],
@@ -111,6 +118,18 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               </span>
             )}
             {t.message}
+            {t.action && (
+              <button
+                type="button"
+                onClick={() => {
+                  t.action?.onClick();
+                  dismiss(t.id);
+                }}
+                className="rounded-lg bg-white/15 px-2.5 py-1 text-xs font-bold text-white transition hover:bg-white/25"
+              >
+                {t.action.label}
+              </button>
+            )}
           </div>
         ))}
       </div>

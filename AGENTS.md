@@ -4,7 +4,7 @@ Guidelines for AI agents and contributors working in this repo.
 
 ## Project
 
-DOST Mobile POS — point of sale for Pakistani mobile phone shops (new + used phones, IMEI tracking, credit, analytics). Pakistani market → **PKR / Rs**, never INR/₹.
+Fig Mobile POS — point of sale for Pakistani mobile phone shops (new + used phones, IMEI tracking, credit, analytics). Pakistani market → **PKR / Rs**, never INR/₹.
 
 - `backend/` — Express + TypeScript + Prisma REST API. **One folder per endpoint** under `backend/endpoints/` (e.g. `/api/user` → `endpoints/user/`, `/api/user/invoice` → `endpoints/user/invoice/`). Each endpoint folder owns `routes.ts`, `handlers.ts`, `service.ts`, `schemas.ts`. Shared infra only in `backend/core/`.
 - `frontend/` — Next.js (App Router) + TypeScript + Tailwind v4 + shadcn/ui. Talks to the backend API only (no DB access).
@@ -24,6 +24,7 @@ DOST Mobile POS — point of sale for Pakistani mobile phone shops (new + used p
 - **No code comments** unless explicitly asked.
 - **No duplication** — unified `Contact` (customer+vendor+walk-in), one `Unit` per physical phone (IMEI), one `Transaction` model for purchase/sale/returns.
 - **Pakistani context** — currency is PKR (`Rs`), receipts/company profile use PKR.
+- **No role color dots** — the owner hates status/legend dots next to names/roles (e.g. next to "Admin" / "Manager" in the users list). Do not add colored dots to labels, names, or list rows.
 - **Auth** — preregistered users only (no signup/OAuth). Simple login page + JWT.
 - Don't commit unless explicitly asked.
 

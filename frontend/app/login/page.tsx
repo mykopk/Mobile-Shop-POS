@@ -28,6 +28,10 @@ export default function LoginPage() {
   const usernameRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    document.title = profile?.name?.trim() ? profile.name : APP.nameFull;
+  }, [profile]);
+
+  useEffect(() => {
     if (status === "ready" && user) {
       router.replace("/dashboard");
     }
@@ -57,7 +61,7 @@ export default function LoginPage() {
   }, []);
 
   function rememberUser(name: string) {
-    const nameKey = name.trim();
+    const nameKey = name.trim().toUpperCase();
     setRemembered((prev) => {
       const next = [nameKey, ...prev.filter((u) => u !== nameKey)].slice(0, MAX_REMEMBERED);
       localStorage.setItem(AUTH.rememberedUsersKey, JSON.stringify(next));
@@ -66,7 +70,7 @@ export default function LoginPage() {
   }
 
   function selectUser(name: string) {
-    setUsername(name);
+    setUsername(name.toUpperCase());
     setShowMenu(false);
     pinRef.current?.focus();
   }
@@ -93,7 +97,13 @@ export default function LoginPage() {
       toast(`${AUTH.loginSuccess}, ${authUser.name}!`, "success");
       router.replace("/dashboard");
     } catch (err) {
-      toast(err instanceof Error ? err.message : AUTH.invalidPin, "error");
+      const isRateLimited =
+        err instanceof Error && err.message.toLowerCase().includes("try again in");
+      toast(
+        err instanceof Error ? err.message : AUTH.invalidPin,
+        "error",
+        isRateLimited ? 8000 : undefined,
+      );
       setPin("");
       setSubmitting(false);
     }
@@ -132,18 +142,24 @@ export default function LoginPage() {
                   <UserIcon className="h-3.5 w-3.5 text-ink-400" />
                   {AUTH.username}
                 </label>
-                <Input
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  onFocus={() => setShowMenu(true)}
-                  placeholder={AUTH.usernamePlaceholder}
-                  autoComplete="off"
-                  name=""
-                  data-1p-ignore
-                  data-lpignore="true"
-                  data-form-type="other"
-                  disabled={submitting}
-                />
+                <div className="relative">
+                  <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-sm font-semibold text-ink-400">
+                    @
+                  </span>
+                  <Input
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value.toUpperCase())}
+                    onFocus={() => setShowMenu(true)}
+                    placeholder={AUTH.usernamePlaceholder}
+                    autoComplete="off"
+                    name=""
+                    data-1p-ignore
+                    data-lpignore="true"
+                    data-form-type="other"
+                    disabled={submitting}
+                    className="pl-9 uppercase"
+                  />
+                </div>
                 {showMenu && remembered.length > 0 && (
                   <div className="absolute z-20 mt-2 w-full overflow-hidden rounded-2xl border border-ink-100 bg-white shadow-xl">
                     <div className="flex items-center justify-between border-b border-ink-100 px-4 py-2.5">
@@ -204,10 +220,6 @@ export default function LoginPage() {
           </p>
         </div>
         <p className="max-w-sm truncate text-xs text-ink-400" title={profile?.tagline ?? APP.tagline}>{profile?.tagline ?? APP.tagline}</p>
-        <p className="text-[10px] text-ink-400/60">
-          © {new Date().getFullYear()} {profile?.name ?? APP.nameFull}. All rights
-          reserved.
-        </p>
       </footer>
     </main>
   );

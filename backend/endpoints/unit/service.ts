@@ -1,6 +1,7 @@
 import { prisma } from "../../core/lib/prisma";
 import { ApiError } from "../../core/middleware/error";
 import { writeAudit } from "../../core/lib/audit";
+import { dateAtZone, DEFAULT_TIMEZONE } from "../../core/lib/time";
 import type { Prisma, UnitCondition, UnitStatus } from "../../generated/prisma/client";
 import type { AdjustInput, ImportUnitInput, UnitInput, UnitUpdateInput } from "./schemas";
 
@@ -209,8 +210,23 @@ export async function getSaleReturnEligibility(imei: string) {
   };
 }
 
-export async function listMovements({ limit }: { limit?: number }) {
+export async function listMovements({
+  limit,
+  from,
+  to,
+  tz,
+}: {
+  limit?: number;
+  from?: string;
+  to?: string;
+  tz?: string;
+}) {
+  const timezone = tz ?? DEFAULT_TIMEZONE;
+  const dateFilter: { gte?: Date; lte?: Date } = {};
+  if (from) dateFilter.gte = dateAtZone(from, "00:00:00", timezone);
+  if (to) dateFilter.lte = dateAtZone(to, "23:59:59", timezone);
   const movements = await prisma.stockMovement.findMany({
+    where: dateFilter.gte || dateFilter.lte ? { createdAt: dateFilter } : undefined,
     orderBy: { createdAt: "desc" },
     take: limit ?? 100,
     include: {

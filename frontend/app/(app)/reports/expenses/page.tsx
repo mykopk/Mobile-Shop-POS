@@ -1,6 +1,5 @@
 "use client";
 
-import { ReportNav } from "@/components/reports/report-nav";
 import { PeriodPicker } from "@/components/reports/period-picker";
 import { usePeriodReport } from "@/components/reports/use-period-report";
 import { KpiCard } from "@/components/reports/report-card";
@@ -21,7 +20,6 @@ export default function ExpensesReportPage() {
         <p className="text-xs text-ink-500">Shop spending by category — rent, salaries, utilities and more.</p>
       </div>
 
-      <ReportNav />
       <PeriodPicker value={range} onChange={setRange} />
 
       {loading ? (

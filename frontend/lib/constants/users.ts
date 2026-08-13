@@ -3,9 +3,9 @@ export type Role = "ADMIN" | "MANAGER" | "CASHIER";
 export const PIN_LENGTH = 4;
 
 export const ROLE_META: Record<Role, { label: string; color: string }> = {
-  ADMIN: { label: "Admin", color: "#e63b20" },
-  MANAGER: { label: "Manager", color: "#d97706" },
-  CASHIER: { label: "Cashier", color: "#e11d48" },
+  ADMIN: { label: "Admin", color: "#ff5018" },
+  MANAGER: { label: "Manager", color: "#ff9f1c" },
+  CASHIER: { label: "Cashier", color: "#2563eb" },
 };
 
 export const USER_TEXT = {
@@ -14,15 +14,16 @@ export const USER_TEXT = {
   newUser: "New user",
   editUser: "Edit user",
   username: "Username",
-  usernamePlaceholder: "e.g. bilal",
+  usernamePlaceholder: "e.g. BILAL",
   name: "Full name",
   namePlaceholder: "e.g. Bilal Ahmed",
   email: "Email (optional)",
-  emailPlaceholder: "bilal@dost.com",
+  emailPlaceholder: "bilal@fig.com",
   pin: "PIN",
   pinHint: "Exactly 4 digits",
   pinRequired: "PIN must be exactly 4 digits",
   pinPlaceholder: "••••",
+  changePinInSettings: "Change your PIN from Settings → Preferences → Security.",
   role: "Role",
   active: "Active",
   activeHint: "Inactive users cannot sign in.",

@@ -1,16 +1,16 @@
 export const BRAND = {
-  lightest: "#fef1ee",
-  primary: "#e63b20",
-  primaryDark: "#c02a12",
-  accent: "#d97706",
-  light: "#f68470",
-  gradient: { id: "dost-grad", from: "#f2543a", to: "#c02a12" },
+  lightest: "#fff1ec",
+  primary: "#ff5018",
+  primaryDark: "#c1380d",
+  accent: "#ff9f1c",
+  light: "#ff7d4d",
+  gradient: { id: "fig-grad", from: "#ff5018", to: "#c1380d" },
 } as const;
 
 export const SURFACE = {
-  bg: "#fafaf9",
+  bg: "#f9f9f9",
   panel: "#ffffff",
-  border: "#e7e5e4",
-  muted: "#78716c",
-  text: "#1c1917",
+  border: "#e0e0e0",
+  muted: "#666666",
+  text: "#1a1a1a",
 } as const;

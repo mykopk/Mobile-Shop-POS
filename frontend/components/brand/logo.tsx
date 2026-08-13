@@ -15,7 +15,7 @@ export function Logo({ size = 56, src }: { size?: number; src?: string | null })
         alt=""
         width={size}
         height={size}
-        className="shrink-0 rounded-2xl object-contain"
+        className="shrink-0 rounded-xl object-contain"
         style={{ width: size, height: size }}
       />
     );

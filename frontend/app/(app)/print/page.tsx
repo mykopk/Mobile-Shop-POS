@@ -5,10 +5,9 @@ import type { ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useSearchParams } from "next/navigation";
 import QRCode from "qrcode";
-import JsBarcode from "jsbarcode";
 import { apiRequest } from "@/lib/apiClient";
 import { useAuth } from "@/lib/auth-context";
-import type { CompanyProfile, Transaction, TransactionDetail, Unit, Voucher } from "@/lib/api-types";
+import type { CompanyProfile, Expense, Transaction, TransactionDetail, Unit, Voucher } from "@/lib/api-types";
 import { formatPKR } from "@/lib/money";
 import { formatDateTime } from "@/lib/dates";
 import { whatsappLink } from "@/lib/whatsapp";
@@ -16,33 +15,38 @@ import { canViewCosts } from "@/lib/roles";
 import { CARRIER_LABELS } from "@/lib/constants/units";
 import {
   APP,
+  EXPENSE_CATEGORY_LABELS,
+  EXPENSE_PRINT_TEXT,
+  EXPENSE_SHEET_DEFAULT_OPTIONS,
   INVENTORY_DEFAULT_OPTIONS,
-  INVENTORY_FORMAT_IDS,
-  INVENTORY_OPTION_LABELS,
   INVENTORY_TEXT,
   PRINT,
   PRINT_DEFAULT_OPTIONS,
   PRINT_FORMATS,
-  PRINT_OPTION_LABELS,
   QR_TARGETS,
   RECEIPT_TEXT,
-  VOUCHER_METHOD_LABELS,
-  VOUCHER_TYPE_LABELS,
-  type InventoryPrintOptionKey,
+  type ExpenseSheetOptions,
   type InventoryPrintOptions,
   type PrintBooleanOptions,
   type PrintFormatId,
   type PrintLayoutType,
   type QrTarget,
 } from "@/lib/constants";
+import {
+  ExpenseVoucherDocument,
+  PrintRow,
+  ReceiptDocument,
+  VoucherDocument,
+  type BankAccount,
+} from "@/components/print/documents";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Dropdown } from "@/components/ui/dropdown";
 import { useToast } from "@/components/ui/toast";
-import { InventoryIcon, PrinterIcon, TrashIcon, XIcon } from "@/components/icons";
+import html2canvas from "html2canvas";
+import { jsPDF } from "jspdf";
+import { DownloadIcon, InventoryIcon, PrinterIcon, XIcon } from "@/components/icons";
 
-type DocType = "SALE" | "PURCHASE" | "SALE_RETURN" | "PURCHASE_RETURN" | "VOUCHER";
+type DocType = "SALE" | "PURCHASE" | "SALE_RETURN" | "PURCHASE_RETURN" | "VOUCHER" | "EXPENSE";
 
 const DOC_TYPES: { value: DocType; label: string; hint: string }[] = [
   { value: "SALE", label: "Sale", hint: "Customer sale receipt" },
@@ -50,11 +54,8 @@ const DOC_TYPES: { value: DocType; label: string; hint: string }[] = [
   { value: "SALE_RETURN", label: "Sale return", hint: "Return from a customer" },
   { value: "PURCHASE_RETURN", label: "Purchase return", hint: "Return to a supplier" },
   { value: "VOUCHER", label: "Voucher", hint: "Cash receiving / payment voucher" },
+  { value: "EXPENSE", label: "Expense voucher", hint: "Print a single expense voucher" },
 ];
-
-const TYPE_TITLE: Record<string, string> = {
-  ...RECEIPT_TEXT.document,
-};
 
 const TYPE_DOT: Record<string, string> = {
   SALE: "bg-brand-500",
@@ -62,6 +63,7 @@ const TYPE_DOT: Record<string, string> = {
   SALE_RETURN: "bg-brand-300",
   PURCHASE_RETURN: "bg-ink-500",
   VOUCHER: "bg-brand-600",
+  EXPENSE: "bg-error",
 };
 
 const STATUS_LABEL: Record<string, string> = {
@@ -73,17 +75,6 @@ const STATUS_LABEL: Record<string, string> = {
   WRITTEN_OFF: "Written off",
 };
 
-type BankAccount = {
-  id: string;
-  name: string;
-  bankName: string;
-  accountNo: string;
-  holderName: string | null;
-  iban: string | null;
-  isDefault: boolean;
-  active: boolean;
-};
-
 type PrintLayout = {
   id: string;
   name: string;
@@ -92,6 +83,7 @@ type PrintLayout = {
   options: Record<string, boolean> | null;
   qrType: string;
   isDefault: boolean;
+  isSystem: boolean;
 };
 
 function loadOptions(): PrintBooleanOptions {
@@ -121,7 +113,7 @@ function loadQrType(): QrTarget {
   } catch {
     /* ignore */
   }
-  return "none";
+  return "whatsapp";
 }
 
 function loadInvOptions(): InventoryPrintOptions {
@@ -132,6 +124,16 @@ function loadInvOptions(): InventoryPrintOptions {
     /* ignore */
   }
   return { ...INVENTORY_DEFAULT_OPTIONS };
+}
+
+function loadExpenseSheetOptions(): ExpenseSheetOptions {
+  try {
+    const raw = localStorage.getItem(PRINT.expenseSheetOptionsKey);
+    if (raw) return { ...EXPENSE_SHEET_DEFAULT_OPTIONS, ...JSON.parse(raw) };
+  } catch {
+    /* ignore */
+  }
+  return { ...EXPENSE_SHEET_DEFAULT_OPTIONS };
 }
 
 function PrintStudioContent() {
@@ -145,20 +147,23 @@ function PrintStudioContent() {
   const [format, setFormat] = useState<PrintFormatId>("80");
   const [options, setOptions] = useState<PrintBooleanOptions>({ ...PRINT_DEFAULT_OPTIONS });
   const [invOptions, setInvOptions] = useState<InventoryPrintOptions>({ ...INVENTORY_DEFAULT_OPTIONS });
-  const [qrType, setQrType] = useState<QrTarget>("none");
+  const [qrType, setQrType] = useState<QrTarget>("whatsapp");
   const [layoutType, setLayoutType] = useState<PrintLayoutType>(
-    deepLinkType === "inventory" ? "inventory" : "document",
+    deepLinkType === "inventory" ? "inventory" : deepLinkType === "expense" ? "expense" : "document",
   );
   const [typePickerOpen, setTypePickerOpen] = useState(!deepLinkType);
   const [profile, setProfile] = useState<CompanyProfile | null>(null);
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
   const [layouts, setLayouts] = useState<PrintLayout[]>([]);
   const [activeLayoutId, setActiveLayoutId] = useState<string | null>(null);
-  const [layoutName, setLayoutName] = useState("");
-  const [savingLayout, setSavingLayout] = useState(false);
   const [documents, setDocuments] = useState<Transaction[]>([]);
   const [vouchers, setVouchers] = useState<Voucher[]>([]);
   const [loadingVouchers, setLoadingVouchers] = useState(false);
+  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [loadingExpenses, setLoadingExpenses] = useState(false);
+  const [expenseSheetOptions, setExpenseSheetOptions] = useState<ExpenseSheetOptions>({
+    ...EXPENSE_SHEET_DEFAULT_OPTIONS,
+  });
   const [docType, setDocType] = useState<DocType>(isTxnDeepLink ? (deepLinkType as DocType) : "SALE");
   const [selectedId, setSelectedId] = useState<string | null>(deepLinkId);
   const [detail, setDetail] = useState<TransactionDetail | null>(null);
@@ -166,22 +171,49 @@ function PrintStudioContent() {
   const [units, setUnits] = useState<Unit[]>([]);
   const [loadingUnits, setLoadingUnits] = useState(false);
   const [qrUrl, setQrUrl] = useState<string | null>(null);
-  const [modal, setModal] = useState<"format" | "content" | "save" | null>(null);
   const applyingLayoutRef = useRef(false);
 
-  const activeFormat: PrintFormatId = layoutType === "inventory" && format === "58" ? "80" : format;
+  const activeFormat: PrintFormatId =
+    (layoutType === "inventory" || layoutType === "expense") && format === "58" ? "80" : format;
   const fmt = PRINT_FORMATS.find((f) => f.id === activeFormat) ?? PRINT_FORMATS[1];
-  const availableFormats =
-    layoutType === "inventory" ? PRINT_FORMATS.filter((f) => INVENTORY_FORMAT_IDS.includes(f.id)) : PRINT_FORMATS;
   const selectedDoc = documents.find((d) => d.id === selectedId) ?? null;
   const selectedVoucher = vouchers.find((v) => v.id === selectedId) ?? null;
+  const selectedExpense = expenses.find((e) => e.id === selectedId) ?? null;
   const activeLayout = layouts.find((l) => l.id === activeLayoutId) ?? null;
+  const premadeLayouts = layouts.filter((l) => l.isSystem);
   const showCost = canViewCosts(user) && invOptions.cost;
   const inStockCount = units.filter((u) => u.status === "IN_STOCK").length;
+  const canPrint =
+    layoutType === "inventory" || layoutType === "expense"
+      ? layoutType === "inventory"
+        ? units.length > 0
+        : expenses.length > 0
+      : docType === "VOUCHER"
+        ? selectedVoucher !== null
+        : docType === "EXPENSE"
+          ? selectedExpense !== null
+          : detail !== null;
+  const pdfFileName = layoutType === "inventory"
+    ? "inventory"
+    : layoutType === "expense"
+      ? "expense-sheet"
+      : docType === "VOUCHER"
+        ? selectedVoucher?.number ?? "voucher"
+        : docType === "EXPENSE"
+          ? selectedExpense?.number ?? "expense"
+          : selectedDoc?.number ?? "document";
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
 
   const docOptions =
-    docType === "VOUCHER"
-      ? vouchers.map((v) => ({
+    docType === "EXPENSE"
+      ? expenses.map((e) => ({
+          value: e.id,
+          label: `${e.number} · ${EXPENSE_CATEGORY_LABELS[e.category] ?? e.category}`,
+          leading: <span className={`h-2 w-2 shrink-0 rounded-full ${TYPE_DOT[e.category] ?? "bg-ink-200"}`} />,
+          trailing: <span className="text-xs text-ink-400">{new Date(e.date).toLocaleDateString()}</span>,
+        }))
+      : docType === "VOUCHER"
+        ? vouchers.map((v) => ({
           value: v.id,
           label: `${v.number} · ${v.contact?.name ?? "Walk-in"}`,
           leading: <span className={`h-2 w-2 shrink-0 rounded-full ${TYPE_DOT[v.type] ?? "bg-ink-200"}`} />,
@@ -196,18 +228,15 @@ function PrintStudioContent() {
             trailing: <span className="text-xs text-ink-400">{new Date(d.createdAt).toLocaleDateString()}</span>,
           }));
 
-  const layoutOptions = [
-    ...layouts
-      .filter((l) => l.type === layoutType)
-      .map((l) => ({
-        value: l.id,
-        label: l.name,
-        trailing: l.isDefault ? (
-          <span className="rounded bg-brand-600 px-1.5 py-0.5 text-[9px] font-semibold uppercase text-white">Default</span>
-        ) : undefined,
-      })),
-    { value: "__save", label: "Save current as…" },
-  ];
+  const layoutOptions = premadeLayouts
+    .filter((l) => l.type === layoutType)
+    .map((l) => ({
+      value: l.id,
+      label: l.name,
+      trailing: l.isDefault ? (
+        <span className="rounded bg-brand-600 px-1.5 py-0.5 text-[9px] font-semibold uppercase text-white">Default</span>
+      ) : undefined,
+    }));
 
   useEffect(() => {
     let cancelled = false;
@@ -216,19 +245,21 @@ function PrintStudioContent() {
         const list = await apiRequest<PrintLayout[]>("/print-layout");
         if (cancelled) return;
         setLayouts(list ?? []);
-        const def = (list ?? []).find((l) => l.isDefault);
+        const def = (list ?? []).find((l) => l.isSystem && l.isDefault);
         if (def) {
           applyLayout(def);
         } else {
           setFormat(loadFormat());
           setOptions(loadOptions());
           setInvOptions(loadInvOptions());
+          setExpenseSheetOptions(loadExpenseSheetOptions());
           setQrType(loadQrType());
         }
       } catch {
         setFormat(loadFormat());
         setOptions(loadOptions());
         setInvOptions(loadInvOptions());
+        setExpenseSheetOptions(loadExpenseSheetOptions());
         setQrType(loadQrType());
       }
     })();
@@ -245,10 +276,12 @@ function PrintStudioContent() {
     setFormat(layout.format);
     if (layout.type === "inventory") {
       setInvOptions({ ...INVENTORY_DEFAULT_OPTIONS, ...(layout.options ?? {}) } as InventoryPrintOptions);
+    } else if (layout.type === "expense") {
+      setExpenseSheetOptions({ ...EXPENSE_SHEET_DEFAULT_OPTIONS, ...(layout.options ?? {}) } as ExpenseSheetOptions);
     } else {
       setOptions({ ...PRINT_DEFAULT_OPTIONS, ...(layout.options ?? {}) } as PrintBooleanOptions);
     }
-    setQrType(layout.qrType === "website" ? "none" : (layout.qrType as QrTarget));
+    setQrType("whatsapp");
   }
 
   useEffect(() => {
@@ -257,7 +290,7 @@ function PrintStudioContent() {
       return;
     }
     setActiveLayoutId(null);
-  }, [format, options, invOptions, qrType, layoutType]);
+  }, [format, options, invOptions, expenseSheetOptions, qrType, layoutType]);
 
   useEffect(() => {
     try {
@@ -274,6 +307,14 @@ function PrintStudioContent() {
       /* ignore */
     }
   }, [invOptions]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(PRINT.expenseSheetOptionsKey, JSON.stringify(expenseSheetOptions));
+    } catch {
+      /* ignore */
+    }
+  }, [expenseSheetOptions]);
 
   useEffect(() => {
     try {
@@ -357,6 +398,26 @@ function PrintStudioContent() {
     void loadVouchers();
   }, [docType, loadVouchers]);
 
+  const loadExpenses = useMemo(
+    () => async () => {
+      setLoadingExpenses(true);
+      try {
+        const list = await apiRequest<Expense[]>("/expense");
+        setExpenses(list ?? []);
+      } catch (err) {
+        toast(err instanceof Error ? err.message : "Failed to load expenses", "error");
+      } finally {
+        setLoadingExpenses(false);
+      }
+    },
+    [toast],
+  );
+
+  useEffect(() => {
+    if (docType !== "EXPENSE" && layoutType !== "expense") return;
+    void loadExpenses();
+  }, [docType, layoutType, loadExpenses]);
+
   useEffect(() => {
     if (layoutType !== "inventory") return;
     let cancelled = false;
@@ -400,10 +461,9 @@ function PrintStudioContent() {
   }, [selectedId, docType, toast]);
 
   const qrPayload = useMemo(() => {
-    if (qrType === "none") return null;
     const wa = profile?.whatsapp?.trim();
     return wa ? whatsappLink(wa) : null;
-  }, [qrType, profile]);
+  }, [profile]);
 
   useEffect(() => {
     if (!qrPayload) {
@@ -428,71 +488,39 @@ function PrintStudioContent() {
         body > *:not(#print-portal) { display: none !important; }
         #print-portal { display: block !important; }
         #print-portal .print-doc { width: ${fmt.printWidthMm}mm; }
-        #print-portal table tr, #print-portal .avoid-break { break-inside: avoid; }
+        #print-portal thead { display: table-header-group; }
+        #print-portal table { break-inside: auto; }
+        #print-portal .avoid-break { break-inside: avoid; }
+        #print-portal .a4-page { width: ${fmt.printWidthMm}mm; min-height: 283mm; }
+        #print-portal .a4-page:not(:first-child) { page-break-before: always; }
       }
     `,
     [fmt],
   );
 
-  function toggle(key: keyof PrintBooleanOptions) {
-    setOptions((prev) => ({ ...prev, [key]: !prev[key] }));
-  }
-
-  function invToggle(key: InventoryPrintOptionKey) {
-    setInvOptions((prev) => ({ ...prev, [key]: !prev[key] }));
-  }
-
-  const qrMissingHint = {
-    none: "",
-    whatsapp: "Set your WhatsApp number in Settings → QR code targets to show this QR",
-  }[qrType];
-
-  async function saveLayout() {
-    if (!layoutName.trim()) {
-      toast("Enter a name for the layout", "error");
-      return;
-    }
-    setSavingLayout(true);
+  async function downloadPdf() {
+    const area = document.getElementById("print-area");
+    if (!area) return;
+    setDownloadingPdf(true);
     try {
-      const created = await apiRequest<PrintLayout>("/print-layout", {
-        method: "POST",
-        body:
-          layoutType === "inventory"
-            ? { name: layoutName.trim(), type: layoutType, format: activeFormat, options: invOptions }
-            : { name: layoutName.trim(), type: layoutType, format, options, qrType },
-      });
-      setLayouts((prev) => [...prev, created]);
-      setActiveLayoutId(created.id);
-      setLayoutName("");
-      setModal(null);
-      toast("Layout saved", "success");
+      const pageEls = Array.from(area.querySelectorAll<HTMLElement>(".a4-page"));
+      const elements = pageEls.length > 0 ? pageEls : [area];
+      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      const pageW = 210;
+      const pageH = 297;
+      for (let i = 0; i < elements.length; i++) {
+        const canvas = await html2canvas(elements[i], { scale: 2, backgroundColor: "#ffffff", useCORS: true });
+        const ratio = Math.min(pageW / canvas.width, pageH / canvas.height);
+        const w = canvas.width * ratio;
+        const h = canvas.height * ratio;
+        if (i > 0) pdf.addPage("a4", "portrait");
+        pdf.addImage(canvas.toDataURL("image/png"), "PNG", (pageW - w) / 2, (pageH - h) / 2, w, h);
+      }
+      pdf.save(`${pdfFileName}.pdf`);
     } catch (err) {
-      toast(err instanceof Error ? err.message : "Failed to save layout", "error");
+      toast(err instanceof Error ? err.message : "Failed to generate PDF", "error");
     } finally {
-      setSavingLayout(false);
-    }
-  }
-
-  async function setDefaultLayout(id: string) {
-    try {
-      const updated = await apiRequest<PrintLayout>(`/print-layout/${id}/default`, {
-        method: "POST",
-      });
-      setLayouts((prev) => prev.map((l) => (l.id === id ? updated : { ...l, isDefault: false })));
-      toast("Default layout set", "success");
-    } catch (err) {
-      toast(err instanceof Error ? err.message : "Failed to set default", "error");
-    }
-  }
-
-  async function removeLayout(id: string) {
-    try {
-      await apiRequest(`/print-layout/${id}`, { method: "DELETE" });
-      setLayouts((prev) => prev.filter((l) => l.id !== id));
-      if (activeLayoutId === id) setActiveLayoutId(null);
-      toast("Layout deleted", "success");
-    } catch (err) {
-      toast(err instanceof Error ? err.message : "Failed to delete layout", "error");
+      setDownloadingPdf(false);
     }
   }
 
@@ -508,6 +536,11 @@ function PrintStudioContent() {
             <>
               <InventoryIcon className="h-4 w-4 text-ink-400" />
               Inventory list
+            </>
+          ) : layoutType === "expense" ? (
+            <>
+              <span className={`h-2 w-2 rounded-full ${TYPE_DOT.EXPENSE}`} />
+              Expense sheet
             </>
           ) : (
             <>
@@ -534,13 +567,31 @@ function PrintStudioContent() {
                       ? selectedVoucher
                         ? `${selectedVoucher.number} · ${selectedVoucher.contact?.name ?? "Walk-in"}`
                         : "Select voucher…"
-                      : selectedDoc
-                        ? `${selectedDoc.number} · ${selectedDoc.contact.name}`
-                        : "Select document…"}
+                      : docType === "EXPENSE"
+                        ? selectedExpense
+                          ? `${selectedExpense.number} · ${EXPENSE_CATEGORY_LABELS[selectedExpense.category] ?? selectedExpense.category}`
+                          : "Select expense…"
+                        : selectedDoc
+                          ? `${selectedDoc.number} · ${selectedDoc.contact.name}`
+                          : "Select document…"}
                   </span>
                 </div>
               }
             />
+          </div>
+        ) : layoutType === "expense" ? (
+          <div className="flex items-center gap-2 rounded-2xl bg-white px-4 py-2 text-sm shadow-sm">
+            <span className="h-2 w-2 rounded-full bg-error" />
+            <span className="text-ink-900">
+              <span className="font-semibold">{expenses.length}</span> expense(s)
+            </span>
+            <span className="text-ink-500">·</span>
+            <span className="text-ink-500">
+              <span className="font-semibold text-ink-900">
+                {formatPKR(expenses.reduce((sum, e) => sum + parseFloat(e.amount), 0))}
+              </span>{" "}
+              total
+            </span>
           </div>
         ) : (
           <div className="flex items-center gap-2 rounded-2xl bg-white px-4 py-2 text-sm shadow-sm">
@@ -550,33 +601,15 @@ function PrintStudioContent() {
             </span>
             <span className="text-ink-500">·</span>
             <span className="text-ink-500">
-              <span className="font-semibold text-emerald-700">{inStockCount}</span> in stock
+              <span className="font-semibold text-success">{inStockCount}</span> in stock
             </span>
           </div>
         )}
-        <Button
-          variant="secondary"
-          className="rounded-xl px-4 py-2 text-xs"
-          onClick={() => setModal("format")}
-        >
-          {fmt.label}
-        </Button>
-        <Button
-          variant="secondary"
-          className="rounded-xl px-4 py-2 text-xs"
-          onClick={() => setModal("content")}
-        >
-          Content
-        </Button>
         <div className="w-52">
           <Dropdown
             value={activeLayoutId}
             options={layoutOptions}
             onChange={(v) => {
-              if (v === "__save") {
-                setModal("save");
-                return;
-              }
               const layout = layouts.find((l) => l.id === v);
               if (layout) applyLayout(layout);
             }}
@@ -595,21 +628,31 @@ function PrintStudioContent() {
             {selectedVoucher.number} · {formatPKR(parseFloat(selectedVoucher.amount))}
           </p>
         )}
+        {layoutType === "document" && docType === "EXPENSE" && selectedExpense && (
+          <p className="mr-1 text-xs text-ink-500">
+            {selectedExpense.number} · {formatPKR(parseFloat(selectedExpense.amount))}
+          </p>
+        )}
         {layoutType === "document" && docType !== "VOUCHER" && selectedDoc && (
           <p className="mr-1 text-xs text-ink-500">
             {selectedDoc.number} · {formatPKR(selectedDoc.total)}
           </p>
         )}
         <Button
+          variant="secondary"
+          className="px-4 py-2 text-xs"
+          onClick={downloadPdf}
+          loading={downloadingPdf}
+          loadingText="Preparing…"
+          disabled={!canPrint}
+        >
+          <DownloadIcon className="h-4 w-4" />
+          PDF
+        </Button>
+        <Button
           className="px-4 py-2 text-xs"
           onClick={() => window.print()}
-          disabled={
-            layoutType === "inventory"
-              ? units.length === 0
-              : docType === "VOUCHER"
-                ? !selectedVoucher
-                : !detail
-          }
+          disabled={!canPrint}
         >
           <PrinterIcon className="h-4 w-4" />
           Print
@@ -641,6 +684,28 @@ function PrintStudioContent() {
                 <p className="text-sm text-ink-400">{INVENTORY_TEXT.noData}</p>
               </div>
             )
+          ) : layoutType === "expense" ? (
+            loadingExpenses ? (
+              <p className="py-10 text-sm text-ink-400">Loading expenses…</p>
+            ) : expenses.length > 0 ? (
+              <div
+                id="print-area"
+                style={{ width: fmt.previewWidth }}
+                className="shrink-0 bg-white shadow-lg transition-all"
+              >
+                <ExpenseSheetDocument
+                  expenses={expenses}
+                  options={expenseSheetOptions}
+                  format={fmt.id}
+                  profile={profile}
+                />
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center gap-2 py-16 text-center">
+                <PrinterIcon className="h-8 w-8 text-ink-300" />
+                <p className="text-sm text-ink-400">{EXPENSE_PRINT_TEXT.noData}</p>
+              </div>
+            )
           ) : docType === "VOUCHER" ? (
             loadingVouchers ? (
               <p className="py-10 text-sm text-ink-400">Loading vouchers…</p>
@@ -662,6 +727,30 @@ function PrintStudioContent() {
                 <PrinterIcon className="h-8 w-8 text-ink-300" />
                 <p className="text-sm text-ink-400">
                   {selectedId ? "Loading…" : "Pick a voucher from the list to preview it."}
+                </p>
+              </div>
+            )
+          ) : docType === "EXPENSE" ? (
+            loadingExpenses ? (
+              <p className="py-10 text-sm text-ink-400">Loading expenses…</p>
+            ) : selectedExpense ? (
+              <div
+                id="print-area"
+                style={{ width: fmt.previewWidth }}
+                className="shrink-0 bg-white shadow-lg transition-all"
+              >
+                <ExpenseVoucherDocument
+                  expense={selectedExpense}
+                  options={options}
+                  format={format}
+                  profile={profile}
+                />
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center gap-2 py-16 text-center">
+                <PrinterIcon className="h-8 w-8 text-ink-300" />
+                <p className="text-sm text-ink-400">
+                  {selectedId ? "Loading…" : "Pick an expense from the list to preview it."}
                 </p>
               </div>
             )
@@ -736,130 +825,21 @@ function PrintStudioContent() {
               <span className="block text-xs text-ink-500">Full stock list of your inventory</span>
             </span>
           </button>
-        </div>
-      </PrintModal>
-
-      <PrintModal open={modal === "format"} title="Printer format" onClose={() => setModal(null)}>
-        <div className="space-y-2">
-          {availableFormats.map((f) => (
-            <button
-              key={f.id}
-              type="button"
-              onClick={() => setFormat(f.id)}
-              className={`flex w-full items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-left transition ${
-                activeFormat === f.id ? "border-brand-300 bg-brand-50" : "border-ink-100 hover:bg-ink-50"
-              }`}
-            >
-              <span>
-                <span className="block text-sm font-semibold text-ink-900">{f.label}</span>
-                <span className="block text-xs text-ink-500">{f.hint}</span>
-              </span>
-              {activeFormat === f.id && <span className="text-sm font-bold text-brand-600">✓</span>}
-            </button>
-          ))}
-        </div>
-      </PrintModal>
-
-      <PrintModal
-        open={modal === "content"}
-        title={layoutType === "inventory" ? "Inventory content" : "Receipt content"}
-        onClose={() => setModal(null)}
-      >
-        {layoutType === "inventory" ? (
-          <>
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-500">Columns</p>
-            <div className="space-y-2.5">
-              {INVENTORY_OPTION_LABELS.map((opt) => (
-                <Checkbox
-                  key={opt.key}
-                  checked={invOptions[opt.key]}
-                  onChange={() => invToggle(opt.key)}
-                  label={opt.label}
-                  description={opt.hint}
-                />
-              ))}
-            </div>
-            {!showCost && (
-              <p className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-[11px] text-amber-700">
-                Cost column is hidden for your role.
-              </p>
-            )}
-          </>
-        ) : (
-          <>
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-500">QR code</p>
-            <div className="grid grid-cols-3 gap-1.5">
-              {QR_TARGETS.map((t) => (
-                <Button
-                  key={t.id}
-                  size="sm"
-                  variant={qrType === t.id ? "secondary" : "ghost"}
-                  title={t.hint}
-                  onClick={() => setQrType(t.id)}
-                  className={`rounded-xl border text-center ${
-                    qrType === t.id ? "border-brand-300" : "border-ink-100"
-                  }`}
-                >
-                  <span className="block text-xs font-semibold">{t.label}</span>
-                </Button>
-              ))}
-            </div>
-            {qrType !== "none" && !profile?.whatsapp?.trim() && (
-              <p className="mt-1.5 text-[11px] text-amber-600">{qrMissingHint}</p>
-            )}
-
-            <p className="mb-2 mt-4 text-xs font-semibold uppercase tracking-wide text-ink-500">Show / hide</p>
-            <div className="space-y-2.5">
-              {PRINT_OPTION_LABELS.map((opt) => (
-                <Checkbox
-                  key={opt.key}
-                  checked={options[opt.key]}
-                  onChange={() => toggle(opt.key)}
-                  label={opt.label}
-                  description={opt.hint}
-                />
-              ))}
-            </div>
-          </>
-        )}
-      </PrintModal>
-
-      <PrintModal open={modal === "save"} title="Save layout" onClose={() => setModal(null)}>
-        <div className="flex gap-1.5">
-          <Input
-            value={layoutName}
-            onChange={(e) => setLayoutName(e.target.value)}
-            placeholder="Layout name (e.g. 80mm sales)"
-            variant="white"
-            className="bg-ink-100 py-2 text-sm"
-          />
-          <Button size="sm" onClick={saveLayout} loading={savingLayout} loadingText="Saving…">
-            Save
-          </Button>
-        </div>
-        {activeLayout && (
-          <div className="mt-3 flex items-center justify-between rounded-2xl bg-ink-50 px-3.5 py-2">
-            <span className="min-w-0 truncate text-sm font-semibold text-ink-900">
-              {activeLayout.name}
+          <button
+            type="button"
+            onClick={() => {
+              setLayoutType("expense");
+              setTypePickerOpen(false);
+            }}
+            className="flex w-full items-center gap-3 rounded-2xl border border-ink-100 px-4 py-3 text-left transition hover:bg-ink-50"
+          >
+            <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-error" />
+            <span className="min-w-0">
+              <span className="block text-sm font-semibold text-ink-900">Expense sheet</span>
+              <span className="block text-xs text-ink-500">List of all your expenses</span>
             </span>
-            <div className="flex shrink-0 gap-1.5">
-              {!activeLayout.isDefault && (
-                <Button size="sm" variant="grey" onClick={() => setDefaultLayout(activeLayout.id)}>
-                  <span className="text-sm">★</span>
-                  Set default
-                </Button>
-              )}
-              <Button
-                size="sm"
-                variant="destructive"
-                onClick={() => removeLayout(activeLayout.id)}
-              >
-                <TrashIcon className="h-4 w-4" />
-                Delete
-              </Button>
-            </div>
-          </div>
-        )}
+          </button>
+        </div>
       </PrintModal>
 
       {typeof document !== "undefined" &&
@@ -1205,622 +1185,114 @@ function PrintModal({
   );
 }
 
-function ReceiptDocument({
-  detail,
-  options,
-  format,
-  qrUrl,
-  qrType,
-  profile,
-  bankAccounts,
-}: {
-  detail: TransactionDetail;
-  options: PrintBooleanOptions;
-  format: PrintFormatId;
-  qrUrl: string | null;
-  qrType: QrTarget;
-  profile: CompanyProfile | null;
-  bankAccounts: BankAccount[];
-}) {
-  const isA4 = format === "a4";
-  const pad = isA4 ? "px-12 py-10" : "px-5 py-6";
-  const base = isA4 ? "text-sm" : "text-[11px]";
-  const divider = isA4 ? "border-t border-ink-200" : "border-t-2 border-dashed border-ink-200";
-  const showAccounts = options.bankAccounts && bankAccounts.length > 0;
-  const paidFullyInCash =
-    detail.payments.length > 0 &&
-    detail.payments.every((p) => p.method === "CASH") &&
-    detail.payments.reduce((sum, p) => sum + Number(p.amount), 0) >= Number(detail.total);
-
-  return (
-    <div className={`bg-white ${pad} ${base} text-ink-900`}>
-      {isA4 ? (
-        <A4Header detail={detail} options={options} profile={profile} />
-      ) : (
-        <ThermalHeader
-          detail={detail}
-          options={options}
-          profile={profile}
-          qrUrl={qrUrl}
-          qrType={qrType}
-        />
-      )}
-
-      <div className={`my-4 ${divider}`} />
-
-      {!isA4 && (
-        <>
-          <ThermalMeta detail={detail} options={options} />
-          <div className={`my-4 ${divider}`} />
-        </>
-      )}
-
-      {isA4 ? <A4Items detail={detail} options={options} /> : <ThermalItems detail={detail} options={options} />}
-
-      <div className={`my-3 ${divider}`} />
-
-      {isA4 ? (
-        <A4Totals detail={detail} />
-      ) : (
-        <ThermalTotals detail={detail} />
-      )}
-
-      {options.payments && detail.payments.length > 0 && (
-        <div className={`${isA4 ? "mt-6" : "mt-3"} space-y-1`}>
-          <p className="text-[10px] uppercase tracking-wider text-ink-500">{RECEIPT_TEXT.payments}</p>
-          {detail.payments.map((p) => (
-            <PrintRow
-              key={p.id}
-              label={formatPaymentMethod(p.method)}
-              value={formatPKR(p.amount)}
-            />
-          ))}
-        </div>
-      )}
-
-      {isReturn(detail.type) && detail.payments.length > 0 && (
-        <div className={`avoid-break ${isA4 ? "mt-6" : "mt-3"} rounded-xl bg-ink-50 px-3 py-2`}>
-          <p className="text-[10px] uppercase tracking-wider text-ink-500">{RECEIPT_TEXT.terms}</p>
-          <p className="mt-0.5 text-sm font-semibold text-ink-900">
-            {detail.payments.some((p) => p.method === "CREDIT")
-              ? detail.payments.some((p) => p.method === "CASH")
-                ? RECEIPT_TEXT.refundPartial
-                : RECEIPT_TEXT.refundCredit
-              : RECEIPT_TEXT.refundCash}
-          </p>
-        </div>
-      )}
-
-      {paidFullyInCash && (
-        <div className={`avoid-break flex justify-center ${isA4 ? "mt-6" : "mt-3"}`}>
-          <span
-            className={`-rotate-6 inline-flex flex-col items-center rounded-md border-[3px] border-emerald-600/70 text-emerald-600/80 ${
-              isA4 ? "px-10 py-3" : "px-6 py-1.5"
-            }`}
-            style={{ boxShadow: "inset 0 0 0 2px #fff, inset 0 0 0 4px rgba(5,150,105,0.35)" }}
-          >
-            <span className={`font-black uppercase tracking-[0.18em] ${isA4 ? "text-4xl" : "text-base"}`}>
-              {RECEIPT_TEXT.paid}
-            </span>
-            <span className={`font-medium uppercase tracking-[0.2em] text-emerald-600/60 ${isA4 ? "mt-1.5 text-sm" : "mt-0.5 text-[11px]"}`}>
-              {new Date(detail.createdAt).toLocaleDateString()}
-            </span>
-          </span>
-        </div>
-      )}
-
-      {options.note && (
-        <div className="mt-4">
-          <p className="text-[10px] uppercase tracking-wider text-ink-500">{RECEIPT_TEXT.note}</p>
-          <p
-            className={`mt-1 ${
-              detail.note
-                ? "rounded-xl bg-ink-50 px-3 py-2 text-ink-600"
-                : "border border-dashed border-ink-200 px-3 py-2 text-ink-400"
-            }`}
-          >
-            {detail.note || RECEIPT_TEXT.noNotes}
-          </p>
-        </div>
-      )}
-
-      {showAccounts && <BankAccountsBlock accounts={bankAccounts} isA4={isA4} />}
-
-      {(qrType !== "none" && qrUrl && isA4) || options.barcode ? (
-        <div className={`${isA4 ? "mt-8" : "mt-5"} ${isA4 && qrType !== "none" && qrUrl && options.barcode ? "grid grid-cols-2 items-center" : "flex justify-center"}`}>
-          {qrType !== "none" && qrUrl && isA4 && (
-            <img src={qrUrl} alt={`${qrType} QR`} width={110} height={110} className="mx-auto" />
-          )}
-          {options.barcode && (
-            <div className="flex flex-col items-center">
-              {isA4 && (
-                <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-ink-400">
-                  Barcode
-                </p>
-              )}
-              <ReceiptBarcode value={detail.number} format={format} />
-              <p
-                className={`mt-2 font-mono tracking-widest ${
-                  isA4 ? "text-xs font-semibold text-ink-700" : "text-[9px] text-ink-500"
-                }`}
-              >
-                {detail.number}
-              </p>
-            </div>
-          )}
-        </div>
-      ) : null}
-
-      {options.signature && (
-        <div className={`avoid-break ${isA4 ? "mt-14 flex justify-between gap-10" : "mt-8"}`}>
-          <div className={`${isA4 ? "w-64" : ""} border-t border-ink-300 pt-1 text-center text-[10px] uppercase tracking-widest text-ink-400`}>
-            {RECEIPT_TEXT.signature}
-          </div>
-          {isA4 && (
-            <div className="w-64 border-t border-ink-300 pt-1 text-center text-[10px] uppercase tracking-widest text-ink-400">
-              {RECEIPT_TEXT.receivedBy}
-            </div>
-          )}
-        </div>
-      )}
-
-      {options.thanks && (
-        <div className={`${divider} ${isA4 ? "mt-8" : "mt-6"} pt-4`}>
-          <p className="text-center text-[10px] uppercase tracking-widest text-ink-400">
-            {profile?.footerText ?? RECEIPT_TEXT.footerFallback}
-          </p>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function VoucherDocument({
-  voucher,
+function ExpenseSheetDocument({
+  expenses,
   options,
   format,
   profile,
 }: {
-  voucher: Voucher;
-  options: PrintBooleanOptions;
+  expenses: Expense[];
+  options: ExpenseSheetOptions;
   format: PrintFormatId;
   profile: CompanyProfile | null;
 }) {
   const isA4 = format === "a4";
-  const pad = isA4 ? "px-12 py-10" : "px-5 py-6";
+  const pad = isA4 ? "px-12 py-10" : "px-3 py-3";
   const base = isA4 ? "text-sm" : "text-[11px]";
   const divider = isA4 ? "border-t border-ink-200" : "border-t-2 border-dashed border-ink-200";
-  const receiving = voucher.type === "RECEIVING";
+  const total = expenses.reduce((sum, e) => sum + parseFloat(e.amount), 0);
 
   return (
     <div className={`bg-white ${pad} ${base} text-ink-900`}>
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          {options.header && (
-            <>
-              {profile?.logoUrl && (
-                <img src={profile.logoUrl} alt="" className="mb-2 max-h-16 w-auto object-contain" />
-              )}
-              <p className="break-words text-base font-bold uppercase tracking-wide text-ink-900">
-                {profile?.name ?? APP.nameFull}
-              </p>
-              {options.shopInfo && hasShopInfo(profile) && (
-                <div className="mt-1 space-y-0.5 text-ink-500">
-                  {profile?.tagline && <p>{profile.tagline}</p>}
-                  {profile?.address && <p>{profile.address}</p>}
-                  {profile?.phone && <p className="font-medium text-ink-700">☎ Contact: {profile.phone}</p>}
-                </div>
-              )}
-            </>
-          )}
-        </div>
-        <div className="shrink-0 text-right">
-          <p className="whitespace-nowrap text-sm font-bold uppercase tracking-widest text-ink-900">
-            {VOUCHER_TYPE_LABELS[voucher.type]} Voucher
-          </p>
-        </div>
-      </div>
-
-      <div className={`my-4 ${divider}`} />
-
-      <div className="space-y-1">
-        <PrintRow label="Voucher No." value={voucher.number} />
-        <PrintRow label="Date" value={formatDateTime(voucher.date)} />
-        <PrintRow label="Type" value={VOUCHER_TYPE_LABELS[voucher.type]} />
-        {voucher.contact && <PrintRow label="Contact" value={voucher.contact.name} />}
-        {voucher.contact?.phone && <PrintRow label="Phone" value={voucher.contact.phone} />}
-        <PrintRow label="Method" value={VOUCHER_METHOD_LABELS[voucher.method]} />
-        {voucher.method === "BANK_TRANSFER" && voucher.bankAccount && (
-          <PrintRow label="Bank" value={`${voucher.bankAccount.bankName} · ${voucher.bankAccount.accountNo}`} />
-        )}
-        <PrintRow label="Processed by" value={voucher.user.name} />
-      </div>
-
-      <div className={`my-4 ${divider}`} />
-
-      <div className="flex flex-col items-center">
-        <p className="text-[10px] font-semibold uppercase tracking-widest text-ink-400">
-          {receiving ? "Amount received" : "Amount paid"}
-        </p>
-        <p className={`mt-1 font-black text-ink-900 ${isA4 ? "text-4xl" : "text-2xl"}`}>
-          {receiving ? "+" : "-"}
-          {formatPKR(parseFloat(voucher.amount))}
-        </p>
-      </div>
-
-      <div className={`my-4 ${divider}`} />
-
-      <div className="avoid-break">
-        <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-500">Narration</p>
-        <p
-          className={`mt-1 ${
-            voucher.narration
-              ? "rounded-xl bg-ink-50 px-3 py-2 text-ink-600"
-              : "border border-dashed border-ink-200 px-3 py-2 text-ink-400"
-          }`}
-        >
-          {voucher.narration || "No narration"}
-        </p>
-      </div>
-
-      {voucher.status === "REVERSED" && (
-        <div className="avoid-break mt-4 rounded-xl bg-ink-50 px-3 py-2">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-500">Voucher reversed</p>
-          <p className="mt-0.5 text-sm font-semibold text-ink-900">
-            {voucher.reversedBy?.name ? `By ${voucher.reversedBy.name}` : "Reversed"}
-            {voucher.reversedAt ? ` · ${formatDateTime(voucher.reversedAt)}` : ""}
-          </p>
-          {voucher.reversalNote && <p className="mt-0.5 text-xs text-ink-600">{voucher.reversalNote}</p>}
-        </div>
-      )}
-
-      {options.signature && (
-        <div className="avoid-break mt-8">
-          <div className="w-64 border-t border-ink-300 pt-1 text-center text-[10px] uppercase tracking-widest text-ink-400">
-            Authorized signature
-          </div>
-        </div>
-      )}
-
-      {options.thanks && profile?.footerText && (
-        <div className={`${divider} mt-6 pt-4`}>
-          <p className="text-center text-[10px] uppercase tracking-widest text-ink-400">{profile.footerText}</p>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function formatPaymentMethod(method: string) {
-  return method.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
-function isReturn(type: string) {
-  return type === "SALE_RETURN" || type === "PURCHASE_RETURN";
-}
-
-function hasShopInfo(profile: CompanyProfile | null): boolean {
-  return Boolean(profile?.tagline || profile?.address || profile?.phone);
-}
-
-function ThermalHeader({
-  detail,
-  options,
-  profile,
-  qrUrl,
-  qrType,
-}: {
-  detail: TransactionDetail;
-  options: PrintBooleanOptions;
-  profile: CompanyProfile | null;
-  qrUrl: string | null;
-  qrType: QrTarget;
-}) {
-  if (!options.header) return null;
-  return (
-    <div className="flex items-start justify-between gap-3">
-      <div className="min-w-0 flex-1">
-        {profile?.logoUrl && (
-          <img src={profile.logoUrl} alt="" className="mb-2 max-h-14 w-auto object-contain" />
-        )}
-        <p className="break-words text-base font-bold uppercase tracking-wide text-ink-900">
-          {profile?.name ?? APP.nameFull}
-        </p>
-        {options.shopInfo && hasShopInfo(profile) && (
-          <div className="mt-1 space-y-0.5 text-ink-500">
-            {profile?.tagline && <p>{profile.tagline}</p>}
-            {profile?.address && <p>{profile.address}</p>}
-            {profile?.phone && <p className="font-medium text-ink-700">☎ Contact: {profile.phone}</p>}
-          </div>
-        )}
-      </div>
-      <div className="flex shrink-0 flex-col items-center">
-        {qrType !== "none" && qrUrl && (
-          <img src={qrUrl} alt={`${qrType} QR`} width={72} height={72} className="mb-1" />
-        )}
-        <p className="whitespace-nowrap text-sm font-bold uppercase tracking-widest text-ink-900">
-          {TYPE_TITLE[detail.type] ?? RECEIPT_TEXT.document.fallback}
-        </p>
-      </div>
-    </div>
-  );
-}
-
-function ThermalMeta({ detail, options }: { detail: TransactionDetail; options: PrintBooleanOptions }) {
-  const rows: { label: string; value: string }[] = [];
-  if (options.number) rows.push({ label: RECEIPT_TEXT.receiptNo, value: detail.number });
-  if (options.date) rows.push({ label: RECEIPT_TEXT.date, value: formatDateTime(detail.createdAt) });
-  if (options.contact) rows.push({ label: RECEIPT_TEXT.contact, value: detail.contact.name });
-  if (options.phone && detail.contact.phone) rows.push({ label: RECEIPT_TEXT.phone, value: detail.contact.phone });
-  if (options.cashier && detail.user.name) rows.push({ label: RECEIPT_TEXT.processedBy, value: detail.user.name });
-  if (rows.length === 0) return null;
-
-  return (
-    <div>
-      {rows.map((row) => (
-        <div key={row.label} className="flex items-baseline justify-between gap-4">
-          <span className="text-[9px] font-semibold uppercase tracking-wider text-ink-400">
-            {row.label}
-          </span>
-          <span className="text-right font-semibold text-ink-900">{row.value}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function ThermalTotals({ detail }: { detail: TransactionDetail }) {
-  return (
-    <div className="space-y-1">
-      <PrintRow label={RECEIPT_TEXT.subtotal} value={formatPKR(detail.subtotal)} />
-      {Number(detail.discount) > 0 && (
-        <PrintRow label={RECEIPT_TEXT.discount} value={`-${formatPKR(detail.discount)}`} />
-      )}
-      <div className="my-1.5 border-t-2 border-dashed border-ink-300" />
-      <div className="flex items-baseline justify-between gap-4">
-        <span className="text-sm font-bold uppercase tracking-wide text-ink-900">{RECEIPT_TEXT.grandTotal}</span>
-        <span className="text-base font-bold text-ink-900">{formatPKR(detail.total)}</span>
-      </div>
-    </div>
-  );
-}
-
-function A4Header({
-  detail,
-  options,
-  profile,
-}: {
-  detail: TransactionDetail;
-  options: PrintBooleanOptions;
-  profile: CompanyProfile | null;
-}) {
-  return (
-    <div className="flex items-start justify-between gap-8">
-      {options.header ? (
-        <div className="max-w-xs">
+      {options.header && (
+        <div className="text-center">
           {profile?.logoUrl && (
-            <img src={profile.logoUrl} alt="" className="mb-2 max-h-16 w-auto object-contain" />
+            <img src={profile.logoUrl} alt="" className="mx-auto mb-2 max-h-16 w-auto object-contain" />
           )}
-          <p className="break-words text-2xl font-bold tracking-tight text-ink-900">
+          <p className="break-words text-base font-bold uppercase tracking-wide text-ink-900">
             {profile?.name ?? APP.nameFull}
           </p>
-          {options.shopInfo && hasShopInfo(profile) && (
-            <div className="mt-2 space-y-0.5 text-ink-500">
-              {profile?.tagline && <p>{profile.tagline}</p>}
-              {profile?.address && <p>{profile.address}</p>}
-              {profile?.phone && <p>{RECEIPT_TEXT.phone}: {profile.phone}</p>}
-            </div>
+          {options.shopInfo && profile?.tagline && (
+            <p className="mt-0.5 text-ink-500">{profile.tagline}</p>
+          )}
+          <p className="mt-1 text-sm font-bold uppercase tracking-widest text-ink-900">
+            {EXPENSE_PRINT_TEXT.sheetTitle}
+          </p>
+          {options.date && (
+            <p className="mt-0.5 text-xs text-ink-500">{formatDateTime(new Date().toISOString())}</p>
           )}
         </div>
-      ) : (
-        <span />
       )}
-      <div className="text-right">
-        <p className="text-2xl font-bold uppercase tracking-wide text-ink-900">
-        {TYPE_TITLE[detail.type] ?? RECEIPT_TEXT.document.fallback}
-        </p>
-        <div className="mt-3 space-y-1 border-t-2 border-ink-900 pt-2">
-          {options.number && <A4MetaRow label={RECEIPT_TEXT.receiptNo} value={detail.number} />}
-          {options.date && <A4MetaRow label={RECEIPT_TEXT.date} value={formatDateTime(detail.createdAt)} />}
-          {options.contact && <A4MetaRow label={RECEIPT_TEXT.contact} value={detail.contact.name} />}
-          {options.phone && detail.contact.phone ? (
-            <A4MetaRow label={RECEIPT_TEXT.phone} value={detail.contact.phone} />
-          ) : null}
-          {options.cashier && detail.user.name ? <A4MetaRow label={RECEIPT_TEXT.processedBy} value={detail.user.name} /> : null}
-        </div>
-      </div>
-    </div>
-  );
-}
 
-function A4MetaRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-baseline justify-between gap-8 text-sm">
-      <span className="text-ink-500">{label}</span>
-      <span className="font-semibold text-ink-900">{value}</span>
-    </div>
-  );
-}
+      <div className={`my-4 ${divider}`} />
 
-function ThermalItems({ detail, options }: { detail: TransactionDetail; options: PrintBooleanOptions }) {
-  return (
-    <div>
-      <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-500">{RECEIPT_TEXT.items}</p>
-      <div className="my-1 border-b-2 border-ink-900" />
-      {detail.items.map((item) => {
-        const specs = [item.product.storage, item.product.ram].filter(Boolean).join(" · ");
-        const unitPrice = Number(item.unitPrice) - Number(item.discount);
-        return (
-          <div key={item.id} className="border-b border-dashed border-ink-200 py-1.5">
-            <div className="flex items-baseline justify-between gap-3">
-              <p className="font-semibold text-ink-900">
-                {item.product.brand} {item.product.model}
-              </p>
-              <p className="whitespace-nowrap text-right font-semibold text-ink-900">
-                {formatPKR(item.total)}
+      <table className="w-full border-collapse">
+        <thead>
+          <tr className="border-b border-ink-300 text-left text-[10px] font-semibold uppercase tracking-widest text-ink-500">
+            <th className="py-1 pr-2">{EXPENSE_PRINT_TEXT.no}</th>
+            {options.number && <th className="py-1 pr-2">Ref</th>}
+            {options.date && <th className="py-1 pr-2">{EXPENSE_PRINT_TEXT.date}</th>}
+            {options.category && <th className="py-1 pr-2">{EXPENSE_PRINT_TEXT.category}</th>}
+            {options.contact && <th className="py-1 pr-2">{EXPENSE_PRINT_TEXT.contact}</th>}
+            {options.note && <th className="py-1 pr-2">{EXPENSE_PRINT_TEXT.note}</th>}
+            <th className="py-1 text-right">{EXPENSE_PRINT_TEXT.amount}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {expenses.map((e, i) => (
+            <tr key={e.id} className="border-b border-ink-100 align-top">
+              <td className="py-1.5 pr-2 text-ink-500">{i + 1}</td>
+              {options.number && (
+                <td className="py-1.5 pr-2 font-mono text-[10px] text-ink-700">{e.number}</td>
+              )}
+              {options.date && (
+                <td className="py-1.5 pr-2 whitespace-nowrap text-ink-600">
+                  {new Date(e.date).toLocaleDateString()}
+                </td>
+              )}
+              {options.category && (
+                <td className="py-1.5 pr-2">{EXPENSE_CATEGORY_LABELS[e.category] ?? e.category}</td>
+              )}
+              {options.contact && (
+                <td className="py-1.5 pr-2">{e.contact?.name || "-"}</td>
+              )}
+              {options.note && <td className="py-1.5 pr-2 text-ink-600">{e.note || "-"}</td>}
+              <td className="py-1.5 text-right font-semibold text-ink-900">
+                {formatPKR(parseFloat(e.amount))}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {options.footer && (
+        <>
+          <div className={`my-4 ${divider}`} />
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-ink-500">
+              {EXPENSE_PRINT_TEXT.total}
+            </p>
+            <p className={`font-black text-ink-900 ${isA4 ? "text-2xl" : "text-xl"}`}>{formatPKR(total)}</p>
+          </div>
+          <p className="mt-1 text-right text-[10px] text-ink-400">
+            {expenses.length} {EXPENSE_PRINT_TEXT.count}
+          </p>
+          {profile?.footerText && (
+            <div className={`${divider} mt-4 pt-3`}>
+              <p className="text-center text-[10px] uppercase tracking-widest text-ink-400">
+                {profile.footerText}
               </p>
             </div>
-            <p className="text-ink-500">
-              {specs ? <span>{specs}</span> : null}
-              {specs ? <span> · </span> : null}
-              <span>
-                <span className="font-semibold text-ink-900">
-                  {item.quantity} {RECEIPT_TEXT.quantityUnits}
-                </span>{" "}
-                × {formatPKR(unitPrice)}
-              </span>
-            </p>
-            {options.imeis && item.unit?.imei ? (
-              <p className="font-mono text-[9px] text-ink-400">{RECEIPT_TEXT.imei}: {item.unit.imei}</p>
-            ) : null}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function A4Items({ detail, options }: { detail: TransactionDetail; options: PrintBooleanOptions }) {
-  return (
-    <table className="w-full border-collapse">
-      <thead>
-        <tr className="border-y-2 border-ink-900 text-left text-[10px] uppercase tracking-wider text-ink-500">
-          <th className="py-2 pr-2 font-semibold">{RECEIPT_TEXT.no}</th>
-          <th className="py-2 pr-2 font-semibold">{RECEIPT_TEXT.productDescription}</th>
-          <th className="py-2 pr-2 text-right font-semibold">{RECEIPT_TEXT.quantity}</th>
-          <th className="py-2 pr-2 text-right font-semibold">{RECEIPT_TEXT.unitPrice}</th>
-          <th className="py-2 text-right font-semibold">{RECEIPT_TEXT.amount}</th>
-        </tr>
-      </thead>
-      <tbody>
-        {detail.items.map((item, i) => {
-          const effectivePrice = Number(item.unitPrice) - Number(item.discount);
-          return (
-            <tr key={item.id} className={i % 2 ? "bg-ink-50/60" : ""}>
-              <td className="py-2 pr-2 align-top text-ink-500">{i + 1}</td>
-              <td className="py-2 pr-2 align-top">
-                <span className="font-semibold text-ink-900">
-                  {item.product.brand} {item.product.model} {item.product.storage ?? ""}
-                  {item.product.ram ? ` · ${item.product.ram}` : ""}
-                </span>
-                {item.quantity > 1 && (
-                  <span className="ml-1 text-ink-500">
-                    × <span className="font-semibold text-ink-900">{item.quantity} {RECEIPT_TEXT.quantityUnits}</span>
-                  </span>
-                )}
-                {options.imeis && item.unit?.imei ? (
-                  <span className="block font-mono text-[10px] text-ink-500">{RECEIPT_TEXT.imei}: {item.unit.imei}</span>
-                ) : null}
-              </td>
-              <td className="py-2 pr-2 text-right align-top text-ink-700">{item.quantity}</td>
-              <td className="py-2 pr-2 text-right align-top text-ink-700">
-                {Number(item.discount) > 0 ? (
-                  <>
-                    <s className="text-ink-400">{formatPKR(item.unitPrice)}</s>{" "}
-                    <span className="font-semibold text-ink-900">{formatPKR(effectivePrice)}</span>
-                  </>
-                ) : (
-                  formatPKR(item.unitPrice)
-                )}
-              </td>
-              <td className="py-2 text-right align-top font-semibold text-ink-900">{formatPKR(item.total)}</td>
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
-  );
-}
-
-function A4Totals({ detail }: { detail: TransactionDetail }) {
-  return (
-    <div className="flex justify-end">
-      <div className="w-64 space-y-1">
-        <PrintRow label={RECEIPT_TEXT.subtotal} value={formatPKR(detail.subtotal)} />
-        {Number(detail.discount) > 0 && (
-          <PrintRow label={RECEIPT_TEXT.discount} value={`-${formatPKR(detail.discount)}`} />
-        )}
-        <div className="mt-2 flex items-baseline justify-between gap-4 border-t-2 border-ink-900 pt-2">
-          <span className="text-base font-bold text-ink-900">{RECEIPT_TEXT.total}</span>
-          <span className="text-xl font-bold text-ink-900">{formatPKR(detail.total)}</span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function BankAccountsBlock({ accounts, isA4 }: { accounts: BankAccount[]; isA4: boolean }) {
-  return (
-    <div className={isA4 ? "mt-8" : "mt-4"}>
-      <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-500">
-        {PRINT.bankAccountsTitle}
-      </p>
-      <div className={isA4 ? "mt-2 grid grid-cols-2 gap-x-8 gap-y-4" : "mt-1.5 divide-y divide-dashed divide-ink-200"}>
-        {accounts.map((account) => (
-          <div key={account.id} className={isA4 ? "" : "py-1.5 first:pt-0"}>
-            <p className="font-bold text-ink-900">Bank: {account.bankName}</p>
-            <p className="mt-0.5 text-[11px] text-ink-800">Account No: {account.accountNo}</p>
-            {account.iban && (
-              <p className="break-all text-[10px] text-ink-500">IBAN: {account.iban}</p>
-            )}
-            {account.holderName && (
-              <p className="text-[10px] text-ink-500">Account Holder: {account.holderName}</p>
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function ReceiptBarcode({ value, format }: { value: string; format: PrintFormatId }) {
-  const ref = useRef<SVGSVGElement>(null);
-
-  const sizes = {
-    "58": { svgWidth: 244, barWidth: 2, height: 40 },
-    "80": { svgWidth: 336, barWidth: 2, height: 48 },
-    a4: { svgWidth: 360, barWidth: 1.6, height: 60 },
-  }[format];
-
-  useEffect(() => {
-    if (!ref.current) return;
-    const node = ref.current;
-    node.replaceChildren();
-    JsBarcode(node, value, {
-      format: "CODE128",
-      width: sizes.barWidth,
-      height: sizes.height,
-      displayValue: false,
-      margin: 0,
-    });
-  }, [value, sizes.barWidth, sizes.height]);
-
-  return (
-    <svg
-      ref={ref}
-      style={{ width: sizes.svgWidth, height: sizes.height }}
-      className="block"
-    />
-  );
-}
-
-function PrintRow({
-  label,
-  value,
-  bold = false,
-  large = false,
-}: {
-  label: string;
-  value: string;
-  bold?: boolean;
-  large?: boolean;
-}) {
-  return (
-    <div className="flex items-baseline justify-between gap-4">
-      <span className={`${bold ? "font-semibold" : ""} text-ink-500`}>{label}</span>
-      <span className={`text-right ${bold ? "font-semibold" : ""} ${large ? "text-base" : ""} text-ink-900`}>
-        {value}
-      </span>
+          )}
+          {options.signature && (
+            <div className="avoid-break mt-10">
+              <div className="ml-auto w-64 border-t border-ink-300 pt-1 text-center text-[10px] uppercase tracking-widest text-ink-400">
+                {EXPENSE_PRINT_TEXT.signature}
+              </div>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }

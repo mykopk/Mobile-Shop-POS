@@ -12,11 +12,16 @@ export async function createHandler(req: Request, res: Response) {
 }
 
 export async function updateHandler(req: Request, res: Response) {
-  const user = await updateUser(req.params.id, req.body as UpdateUserInput, req.user!.id);
+  const user = await updateUser(
+    req.params.id,
+    req.body as UpdateUserInput,
+    req.user!.id,
+    req.user!.role,
+  );
   res.json({ data: user });
 }
 
 export async function deleteHandler(req: Request, res: Response) {
-  const result = await deleteUser(req.params.id, req.user!.id);
+  const result = await deleteUser(req.params.id, req.user!.id, req.user!.role);
   res.json({ data: result });
 }

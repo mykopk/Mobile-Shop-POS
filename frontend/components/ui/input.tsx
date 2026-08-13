@@ -1,12 +1,12 @@
 "use client";
 
 import { forwardRef } from "react";
-import type { InputHTMLAttributes } from "react";
+import type { InputHTMLAttributes, TextareaHTMLAttributes } from "react";
 
 type Variant = "filled" | "outline" | "white";
 
 const VARIANTS: Record<Variant, string> = {
-  filled: "bg-ink-50 placeholder:text-ink-400",
+  filled: "bg-ink-100 placeholder:text-ink-400",
   outline: "bg-white placeholder:text-ink-400",
   white: "bg-white placeholder:text-ink-400",
 };
@@ -18,7 +18,21 @@ export const Input = forwardRef<
   return (
     <input
       ref={ref}
-      className={`w-full rounded-2xl px-3.5 py-2 text-sm text-ink-900 transition focus:outline-none focus:ring-2 focus:ring-brand-500/60 ${VARIANTS[variant]} ${className}`}
+      className={`h-9 w-full rounded-2xl px-3.5 text-sm text-ink-900 transition focus:outline-none focus:ring-2 focus:ring-brand-500/60 ${VARIANTS[variant]} ${className}`}
+      {...rest}
+    />
+  );
+});
+
+export const Textarea = forwardRef<
+  HTMLTextAreaElement,
+  TextareaHTMLAttributes<HTMLTextAreaElement> & { variant?: Variant }
+>(function Textarea({ variant = "filled", className = "", rows = 3, ...rest }, ref) {
+  return (
+    <textarea
+      ref={ref}
+      rows={rows}
+      className={`w-full resize-none rounded-2xl px-3.5 py-2 text-sm text-ink-900 transition focus:outline-none focus:ring-2 focus:ring-brand-500/60 ${VARIANTS[variant]} ${className}`}
       {...rest}
     />
   );

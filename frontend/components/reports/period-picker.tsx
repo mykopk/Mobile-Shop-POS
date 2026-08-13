@@ -3,7 +3,8 @@
 import type { ReportRange } from "@/lib/api-types";
 import { REPORT_QUICK_RANGES } from "@/lib/constants";
 import { toISODate } from "@/lib/dates";
-import { FilterPill } from "@/components/ui/filter-pill";
+import { SegmentedControl } from "@/components/ui/segmented-control";
+import { DatePicker } from "@/components/ui/date-picker";
 
 function quickRange(days: number): ReportRange {
   if (days === -1) return { from: undefined, to: undefined };
@@ -19,30 +20,33 @@ export function PeriodPicker({
   value: ReportRange;
   onChange: (range: ReportRange) => void;
 }) {
+  const activeKey =
+    REPORT_QUICK_RANGES.find((r) => {
+      const t = quickRange(r.days);
+      return value.from === t.from && value.to === t.to;
+    })?.key ?? "";
+
   return (
     <div className="flex flex-wrap items-center gap-2">
-      {REPORT_QUICK_RANGES.map((r) => {
-        const target = quickRange(r.days);
-        const active = value.from === target.from && value.to === target.to;
-        return (
-          <FilterPill key={r.key} active={active} onClick={() => onChange(target)}>
-            {r.label}
-          </FilterPill>
-        );
-      })}
-      <div className="ml-1 flex items-center gap-2 rounded-full bg-white px-2 py-1">
-        <input
-          type="date"
+      <SegmentedControl
+        options={REPORT_QUICK_RANGES.map((r) => ({ value: r.key, label: r.label }))}
+        value={activeKey}
+        onChange={(key) => {
+          const range = REPORT_QUICK_RANGES.find((r) => r.key === key);
+          if (range) onChange(quickRange(range.days));
+        }}
+      />
+      <div className="ml-1 flex h-9 items-center gap-2">
+        <DatePicker
           value={value.from ?? ""}
-          onChange={(e) => onChange({ ...value, from: e.target.value || undefined })}
-          className="bg-transparent text-xs text-ink-700 focus:outline-none"
+          onChange={(from) => onChange({ ...value, from: from || undefined })}
+          className="w-36"
         />
         <span className="text-ink-400">–</span>
-        <input
-          type="date"
+        <DatePicker
           value={value.to ?? ""}
-          onChange={(e) => onChange({ ...value, to: e.target.value || undefined })}
-          className="bg-transparent text-xs text-ink-700 focus:outline-none"
+          onChange={(to) => onChange({ ...value, to: to || undefined })}
+          className="w-36"
         />
       </div>
     </div>

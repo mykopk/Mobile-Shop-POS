@@ -23,6 +23,7 @@ export async function overview(permissions: readonly Permission[], timeZone: str
     lowStock,
     recentSales,
     todayExpenses,
+    rangeExpenses,
     todayVouchers,
     returnGroups,
     reservationAgg,
@@ -92,6 +93,10 @@ export async function overview(permissions: readonly Permission[], timeZone: str
       where: { date: { gte: today } },
       _count: true,
       _sum: { amount: true },
+    }),
+    prisma.expense.findMany({
+      where: { date: { gte: since } },
+      select: { date: true, amount: true },
     }),
     prisma.voucher.findMany({
       where: { status: "ACTIVE", date: { gte: today } },
@@ -187,6 +192,7 @@ export async function overview(permissions: readonly Permission[], timeZone: str
       include: { unit: true },
     });
     profitToday = items.reduce((sum, i) => sum + (Number(i.total) - Number(i.unit?.costPrice ?? 0)), 0);
+    profitToday -= Number(todayExpenses._sum.amount ?? 0);
   }
 
   const lowStockProducts = lowStock
@@ -214,6 +220,11 @@ export async function overview(permissions: readonly Permission[], timeZone: str
     });
   }
   const dayIndex = new Map(days.map((d, i) => [d.key, i]));
+  const expenseByDay = new Map<string, number>();
+  for (const e of rangeExpenses) {
+    const key = e.date.toISOString().slice(0, 10);
+    expenseByDay.set(key, (expenseByDay.get(key) ?? 0) + Number(e.amount));
+  }
 
   const productMap = new Map<string, { name: string; qty: number; revenue: number }>();
   const paymentSplit: Record<string, number> = { CASH: 0, CARD: 0, BANK_TRANSFER: 0, CREDIT: 0 };
@@ -258,7 +269,7 @@ export async function overview(permissions: readonly Permission[], timeZone: str
           profit += Number(it.total) - Number(it.unit?.costPrice ?? 0);
         }
       }
-      return Math.round(profit);
+      return Math.round(profit - (expenseByDay.get(day.key) ?? 0));
     });
   }
 

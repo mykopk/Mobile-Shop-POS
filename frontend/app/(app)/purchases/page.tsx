@@ -21,7 +21,7 @@ import { Kbd } from "@/components/ui/kbd";
 import { useSaveShortcut } from "@/lib/use-save-shortcut";
 import { playPop, playSuccess } from "@/lib/sound";
 import { Scanner } from "@/components/scanner";
-import { CameraIcon, CheckIcon, ChevronLeftIcon, HeadphonesIcon, PlusIcon, SmartphoneIcon } from "@/components/icons";
+import { CameraIcon, CheckIcon, ChevronLeftIcon, HeadphonesIcon, PlusIcon, ReportsIcon, SmartphoneIcon } from "@/components/icons";
 
 type PendingUnit = {
   key: string;
@@ -618,12 +618,21 @@ export default function PurchasesPage() {
           <ChevronLeftIcon className="h-4 w-4" />
           {flow === "ACCESSORY" ? "Accessories" : flow === "USED" ? "Used Phone" : "New Phone"}
         </button>
-        <Link
-          href="/purchase-returns"
-          className="inline-flex items-center gap-2 rounded-2xl bg-white px-5 py-3 text-sm font-semibold text-ink-700 transition hover:bg-ink-50"
-        >
-          Purchase returns
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/reports/purchases"
+            className="inline-flex items-center gap-2 rounded-2xl bg-white px-5 py-3 text-sm font-semibold text-ink-700 transition hover:bg-ink-50"
+          >
+            <ReportsIcon className="h-4 w-4" />
+            Reports
+          </Link>
+          <Link
+            href="/purchase-returns"
+            className="inline-flex items-center gap-2 rounded-2xl bg-white px-5 py-3 text-sm font-semibold text-ink-700 transition hover:bg-ink-50"
+          >
+            Purchase returns
+          </Link>
+        </div>
       </div>
       <div className="grid shrink-0 gap-3 md:grid-cols-[2fr_1fr_1fr_1fr] md:items-end">
         <div>
@@ -830,7 +839,7 @@ export default function PurchasesPage() {
                       <button
                         type="button"
                         onClick={() => removeRow(row.key)}
-                        className="text-ink-400 hover:text-red-500"
+                        className="text-ink-400 hover:text-error"
                         aria-label="Remove"
                       >
                         ✕
@@ -1024,7 +1033,7 @@ export default function PurchasesPage() {
                     <button
                       type="button"
                       onClick={() => clearPopupImei(i)}
-                      className="shrink-0 text-ink-300 hover:text-red-500"
+                      className="shrink-0 text-ink-300 hover:text-error"
                       aria-label="Clear IMEI"
                     >
                       ✕
@@ -1119,7 +1128,7 @@ export default function PurchasesPage() {
                         <button
                           type="button"
                           onClick={() => clearBarcode(i)}
-                          className="shrink-0 text-ink-300 hover:text-red-500"
+                          className="shrink-0 text-ink-300 hover:text-error"
                           aria-label="Clear barcode"
                         >
                           ✕

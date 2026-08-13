@@ -60,8 +60,15 @@ export async function saleReturnEligibleHandler(req: Request, res: Response) {
 }
 
 export async function movementsHandler(req: Request, res: Response) {
-  const limit = typeof req.query.limit === "string" ? Number(req.query.limit) : undefined;
-  res.json({ data: await listMovements({ limit }) });
+  const { limit, from, to, tz } = req.query;
+  res.json({
+    data: await listMovements({
+      limit: typeof limit === "string" ? Number(limit) : undefined,
+      from: typeof from === "string" ? from : undefined,
+      to: typeof to === "string" ? to : undefined,
+      tz: typeof tz === "string" ? tz : undefined,
+    }),
+  });
 }
 
 export async function adjustHandler(req: Request, res: Response) {

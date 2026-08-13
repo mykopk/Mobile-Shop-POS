@@ -2,6 +2,8 @@ import { prisma } from "../../core/lib/prisma";
 import { ApiError } from "../../core/middleware/error";
 import { writeAudit } from "../../core/lib/audit";
 import { nextNumber } from "../../core/lib/numbering";
+import { dateAtZone, DEFAULT_TIMEZONE } from "../../core/lib/time";
+import { getCompanyFinancials } from "../../core/lib/company";
 import type { TransactionType, UnitSource } from "../../generated/prisma/enums";
 import type { Prisma } from "../../generated/prisma/client";
 import type {
@@ -91,7 +93,11 @@ export async function createSale(input: CreateSaleInput, userId: string) {
     return { ...i, total };
   });
   const subtotal = items.reduce((sum, i) => sum + i.total, 0);
-  const total = subtotal - input.discount;
+  const { taxRate, cardFee: cardFeePct } = await getCompanyFinancials();
+  const tax = Math.round(subtotal * taxRate) / 100;
+  const cardUsed = input.payments.some((p) => p.method === "CARD");
+  const cardFee = cardUsed ? Math.round((subtotal - input.discount + tax) * cardFeePct) / 100 : 0;
+  const total = subtotal - input.discount + tax + cardFee;
   if (total < 0) throw new ApiError(400, "transaction.negative_total", "Total cannot be negative");
 
   const paidInput = input.payments.reduce((sum, p) => sum + p.amount, 0);
@@ -131,6 +137,9 @@ export async function createSale(input: CreateSaleInput, userId: string) {
           total: item.total,
         });
       } else {
+        await tx.stockMovement.create({
+          data: { productId: item.productId, type: "OUT", qty: item.quantity, note: "Sold" },
+        });
         createdItems.push({
           productId: item.productId,
           unitId: null,
@@ -150,6 +159,8 @@ export async function createSale(input: CreateSaleInput, userId: string) {
         userId,
         subtotal,
         discount: input.discount,
+        tax,
+        cardFee,
         total,
         status: statusFor(total, paidInput),
         note: input.note,
@@ -194,17 +205,6 @@ export async function createSale(input: CreateSaleInput, userId: string) {
         where: { id: reservation.id },
         data: { status: "COMPLETED", saleId: created.id },
       });
-      for (const item of reservation.items) {
-        if (!item.unitId || !soldUnitIds.includes(item.unitId)) continue;
-        await tx.stockMovement.create({
-          data: {
-            unitId: item.unitId,
-            productId: item.productId,
-            type: "OUT",
-            note: `Sold from ${reservation.number}`,
-          },
-        });
-      }
     }
 
     if (advanceAdded > 0) {
@@ -392,6 +392,9 @@ export async function createSaleReturn(input: SaleReturnInput, userId: string) {
         const saleItem = saleItemByProduct.get(item.productId);
         const unitPrice = saleItem ? Number(saleItem.unitPrice) : Number(product.sellPrice);
         const lineTotal = unitPrice * item.quantity;
+        await tx.stockMovement.create({
+          data: { productId: item.productId, type: "IN", qty: item.quantity, note: "Sale return" },
+        });
         createdItems.push({
           productId: item.productId,
           unitId: null,
@@ -590,10 +593,12 @@ export async function voidReturn(id: string, userId: string) {
 
   await prisma.$transaction(async (tx) => {
     const items = await tx.transactionItem.findMany({
-      where: { transactionId: id, unitId: { not: null } },
-      select: { unitId: true },
+      where: { transactionId: id },
+      select: { unitId: true, productId: true, quantity: true },
     });
-    const unitIds = items.map((i) => i.unitId).filter(Boolean) as string[];
+    const unitItems = items.filter((i) => i.unitId);
+    const qtyItems = items.filter((i) => !i.unitId && i.productId);
+    const unitIds = unitItems.map((i) => i.unitId).filter(Boolean) as string[];
     if (unitIds.length > 0) {
       const units = await tx.unit.findMany({ where: { id: { in: unitIds } } });
       for (const unit of units) {
@@ -616,6 +621,16 @@ export async function voidReturn(id: string, userId: string) {
           });
         }
       }
+    }
+    for (const item of qtyItems) {
+      await tx.stockMovement.create({
+        data: {
+          productId: item.productId,
+          type: txn.type === "PURCHASE_RETURN" ? "IN" : "OUT",
+          qty: item.quantity,
+          note: `Return voided (${txn.number})`,
+        },
+      });
     }
 
     for (const p of payments) {
@@ -647,11 +662,21 @@ export async function listTransactions({
   type,
   q,
   limit,
+  from,
+  to,
+  tz,
 }: {
   type?: string;
   q?: string;
   limit?: number;
+  from?: string;
+  to?: string;
+  tz?: string;
 }) {
+  const timezone = tz ?? DEFAULT_TIMEZONE;
+  const dateFilter: { gte?: Date; lte?: Date } = {};
+  if (from) dateFilter.gte = dateAtZone(from, "00:00:00", timezone);
+  if (to) dateFilter.lte = dateAtZone(to, "23:59:59", timezone);
   return prisma.transaction.findMany({
     where: {
       ...(type ? { type: type as TransactionType } : {}),
@@ -664,6 +689,7 @@ export async function listTransactions({
             ],
           }
         : {}),
+      ...(dateFilter.gte || dateFilter.lte ? { createdAt: dateFilter } : {}),
     },
     orderBy: { createdAt: "desc" },
     take: limit ?? 50,

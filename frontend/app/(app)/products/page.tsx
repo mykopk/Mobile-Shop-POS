@@ -27,6 +27,15 @@ import { CONDITION_FILTER_OPTIONS } from "@/lib/constants/products";
 
 type SortKey = "brand" | "color" | "categoryName" | "sku" | "sellPrice" | "retailPrice" | "costPrice";
 
+const PRODUCT_SORTS = [
+  { value: "brand-asc", label: "Brand A–Z" },
+  { value: "brand-desc", label: "Brand Z–A" },
+  { value: "sellPrice-desc", label: "Price: high to low" },
+  { value: "sellPrice-asc", label: "Price: low to high" },
+  { value: "categoryName-asc", label: "Category A–Z" },
+  { value: "categoryName-desc", label: "Category Z–A" },
+] as const;
+
 export default function ProductsPage() {
   const { user } = useAuth();
   const { data, loading, refetch } = useApi<ProductSummary[]>("/product");
@@ -406,6 +415,17 @@ export default function ProductsPage() {
             <Badge variant="brandSolid">{activeFilterCount}</Badge>
           )}
         </Button>
+        <div className="w-44">
+          <Dropdown
+            value={`${sort.key}-${sort.dir}`}
+            options={PRODUCT_SORTS.map((s) => ({ value: s.value, label: s.label }))}
+            onChange={(v) => {
+              const [key, dir] = v.split("-") as [SortKey, "asc" | "desc"];
+              setSort({ key, dir });
+            }}
+            placeholder="Sort"
+          />
+        </div>
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-none rounded-2xl bg-white">

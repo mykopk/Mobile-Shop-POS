@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import type { BadgeVariant } from "@/components/ui/badge";
 import { Dialog } from "@/components/ui/dialog";
 import { SearchInput } from "@/components/ui/search-input";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import { useToast } from "@/components/ui/toast";
 import { PlusIcon, XIcon } from "@/components/icons";
 
@@ -138,34 +139,16 @@ export default function AllReservationsPage() {
       </div>
 
       <div className="mt-4 flex shrink-0 flex-wrap items-center gap-3">
-        <div className="flex items-center gap-1 rounded-2xl bg-brand-100 p-1">
-          {TYPE_FILTERS.map((f) => (
-            <button
-              key={f.value}
-              type="button"
-              onClick={() => setTypeFilter(f.value)}
-              className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
-                typeFilter === f.value ? "bg-brand-600 text-white" : "text-brand-700 hover:text-ink-900"
-              }`}
-            >
-              {f.label}
-            </button>
-          ))}
-        </div>
-        <div className="flex items-center gap-1 rounded-2xl bg-brand-100 p-1">
-          {STATUS_FILTERS.map((f) => (
-            <button
-              key={f.value}
-              type="button"
-              onClick={() => setStatusFilter(f.value)}
-              className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
-                statusFilter === f.value ? "bg-brand-600 text-white" : "text-brand-700 hover:text-ink-900"
-              }`}
-            >
-              {f.label}
-            </button>
-          ))}
-        </div>
+        <SegmentedControl
+          options={TYPE_FILTERS.map((f) => ({ value: f.value, label: f.label }))}
+          value={typeFilter}
+          onChange={(v) => setTypeFilter(v as TypeFilter)}
+        />
+        <SegmentedControl
+          options={STATUS_FILTERS.map((f) => ({ value: f.value, label: f.label }))}
+          value={statusFilter}
+          onChange={(v) => setStatusFilter(v as StatusFilter)}
+        />
         <SearchInput
           value={q}
           onChange={setQ}
@@ -419,7 +402,7 @@ function FragmentRow({
               {r.status === "CANCELLED" && !isConsignment ? (
                 <div className="mt-1 flex items-center justify-between border-t border-ink-200 pt-1.5 text-xs font-semibold text-ink-900">
                   <span>Refund due</span>
-                  <span className={r.refundStatus === "PAID" ? "text-emerald-600" : "text-red-600"}>
+                  <span className={r.refundStatus === "PAID" ? "text-success" : "text-error"}>
                     {r.refundStatus === "PAID"
                       ? "Paid back"
                       : formatPKR(parseFloat(r.advance))}

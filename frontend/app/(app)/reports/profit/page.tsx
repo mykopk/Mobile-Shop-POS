@@ -1,6 +1,5 @@
 "use client";
 
-import { ReportNav } from "@/components/reports/report-nav";
 import { PeriodPicker } from "@/components/reports/period-picker";
 import { usePeriodReport } from "@/components/reports/use-period-report";
 import { KpiCard } from "@/components/reports/report-card";
@@ -18,10 +17,9 @@ export default function ProfitReportPage() {
     <div className="space-y-4">
       <div>
         <h2 className="text-lg font-bold text-ink-900">Profit report</h2>
-        <p className="text-xs text-ink-500">Revenue against cost of goods — by day, brand, model and condition.</p>
+        <p className="text-xs text-ink-500">Revenue against cost of goods and expenses — by day, brand, model and condition.</p>
       </div>
 
-      <ReportNav />
       <PeriodPicker value={range} onChange={setRange} />
 
       {loading ? (
@@ -31,7 +29,11 @@ export default function ProfitReportPage() {
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <KpiCard label="Revenue" value={formatPKR(data.revenue)} sub="Total sold value" />
             <KpiCard label="Cost of goods" value={formatPKR(data.cost)} sub="Purchase cost of sold items" />
-            <KpiCard label="Profit" value={formatPKR(data.profit)} sub="Revenue minus cost" />
+            <KpiCard label="Expenses" value={formatPKR(data.expenses)} sub="Operating expenses" />
+            <KpiCard label="Profit" value={formatPKR(data.profit)} sub="Revenue minus cost and expenses" />
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <KpiCard label="Margin" value={`${(data.margin * 100).toFixed(1)}%`} sub="Profit as % of revenue" />
           </div>
 

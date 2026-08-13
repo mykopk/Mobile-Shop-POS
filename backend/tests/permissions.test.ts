@@ -134,8 +134,8 @@ describe("permissions", () => {
     const list = await request(app).get("/api/user").set(admin());
     expect(list.status).toBe(200);
 
-    const cashierRec = list.body.data.find((u: { username: string }) => u.username === "perm_cashier");
-    const adminRec = list.body.data.find((u: { username: string }) => u.username === "perm_admin");
+    const cashierRec = list.body.data.find((u: { username: string }) => u.username === "PERM_CASHIER");
+    const adminRec = list.body.data.find((u: { username: string }) => u.username === "PERM_ADMIN");
     expect(cashierRec).toBeTruthy();
     expect(adminRec).toBeTruthy();
 
@@ -161,16 +161,23 @@ describe("permissions", () => {
     expect(cashierCreate.status).toBe(201);
 
     const revoke = await request(app)
-      .put(`/api/user/${adminRec.id}`)
+      .put(`/api/user/${cashierRec.id}`)
       .set(admin())
-      .send({ permissions: adminRec.permissions.filter((p: string) => p !== "sale.create") });
+      .send({ permissions: cashierRec.permissions.filter((p: string) => p !== "product.create") });
     expect(revoke.status).toBe(200);
 
-    const adminSale = await request(app)
-      .post("/api/transaction/sale")
-      .set(admin())
-      .send({ contactId: "x", items: [], payments: [] });
-    expect(adminSale.status).toBe(403);
+    const cashierCreateAfter = await request(app)
+      .post("/api/product")
+      .set(cashier())
+      .send({
+        brandId: brand.id,
+        categoryId: category.id,
+        model: "Revoked Model",
+        sku: "SKU-REVOKED",
+        sellPrice: 10000,
+        costPrice: 8000,
+      });
+    expect(cashierCreateAfter.status).toBe(403);
   });
 });
 

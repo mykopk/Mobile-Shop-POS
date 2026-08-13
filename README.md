@@ -1,4 +1,4 @@
-# DOST Mobile POS
+# Fig Mobile POS
 
 A unified Point-of-Sale system for mobile phone shops — built around **one simple idea: everything is a contact, every phone is a tracked unit.**
 

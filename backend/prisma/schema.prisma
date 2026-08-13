@@ -121,6 +121,7 @@ model User {
   pinHash   String
   role      Role     @default(CASHIER)
   permissions Json   @default("[]")
+  avatar    String?
   active    Boolean  @default(true)
   soundPrefs String?
   createdAt DateTime @default(now())
@@ -301,6 +302,8 @@ model Transaction {
   user      User            @relation(fields: [userId], references: [id])
   subtotal  Decimal
   discount  Decimal         @default(0)
+  tax       Decimal         @default(0)
+  cardFee   Decimal         @default(0)
   total     Decimal
   status    PaymentStatus   @default(PAID)
   note      String?
@@ -444,6 +447,7 @@ model CreditPayment {
 
 model Expense {
   id        String   @id @default(cuid())
+  number    String   @default("")
   category  String
   amount    Decimal
   note      String?
@@ -487,10 +491,12 @@ model PrintLayout {
   options   Json?
   qrType    String   @default("none")
   isDefault Boolean  @default(false)
+  isSystem  Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([userId, isDefault])
+  @@index([isSystem])
   @@map("print_layouts")
 }
 
@@ -510,6 +516,7 @@ model CompanyProfile {
   footerText String?
   currency   String   @default("PKR")
   taxRate    Decimal  @default(0)
+  cardFee    Decimal  @default(0)
   timezone   String   @default("Asia/Karachi")
   compactPrices Boolean @default(true)
   raastId    String?

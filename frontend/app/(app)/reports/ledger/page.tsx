@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useApi } from "@/lib/use-api";
 import type { Contact, LedgerReport, ReportRange } from "@/lib/api-types";
-import { ReportNav } from "@/components/reports/report-nav";
 import { PeriodPicker } from "@/components/reports/period-picker";
 import { ReportTable } from "@/components/reports/report-table";
 import { KpiCard, ReportCard } from "@/components/reports/report-card";
@@ -21,11 +21,13 @@ function buildPath(contactId: string, range: ReportRange) {
 }
 
 export default function LedgerPage() {
+  const params = useSearchParams();
   const { data: contacts, loading: loadingContacts } = useApi<Contact[]>("/contact");
-  const from = new Date();
-  from.setDate(from.getDate() - 29);
-  const [contactId, setContactId] = useState("");
-  const [range, setRange] = useState<ReportRange>({ from: toISODate(from), to: toISODate(new Date()) });
+  const [contactId, setContactId] = useState(params.get("contact") ?? "");
+  const [range, setRange] = useState<ReportRange>({
+    from: params.get("from") ?? toISODate(new Date()),
+    to: params.get("to") ?? toISODate(new Date()),
+  });
 
   const { data, loading } = useApi<LedgerReport>(contactId ? buildPath(contactId, range) : null);
 
@@ -35,8 +37,6 @@ export default function LedgerPage() {
         <h2 className="text-lg font-bold text-ink-900">Contact ledger</h2>
         <p className="text-xs text-ink-500">Every sale, payment, voucher and expense for one contact, with running balance.</p>
       </div>
-
-      <ReportNav />
 
       <div className="flex flex-wrap items-center gap-2">
         {loadingContacts ? (

@@ -19,23 +19,23 @@ const DEMO_USERS: {
   role: Role;
 }[] = [
   {
-    username: "arslan",
+    username: "ARSLAN",
     name: "Arslan Wahab",
-    email: "admin@dost.com",
+    email: "admin@fig.com",
     pin: "1111",
     role: "ADMIN",
   },
   {
-    username: "saima",
+    username: "SAIMA",
     name: "Saima Riaz",
-    email: "manager@dost.com",
+    email: "manager@fig.com",
     pin: "2222",
     role: "MANAGER",
   },
   {
-    username: "ali",
+    username: "ALI",
     name: "Ali Hassan",
-    email: "cashier@dost.com",
+    email: "cashier@fig.com",
     pin: "3333",
     role: "CASHIER",
   },
@@ -526,7 +526,7 @@ async function main() {
     });
   }
 
-  const admin = await prisma.user.findUnique({ where: { username: "arslan" } });
+  const admin = await prisma.user.findUnique({ where: { username: "ARSLAN" } });
   const allUnits = await prisma.unit.findMany({
     include: { items: { include: { transaction: true } }, product: true },
   });
@@ -668,7 +668,7 @@ async function main() {
       name: "Meezan - Business",
       bankName: "Meezan Bank",
       accountNo: "0001-1234567",
-      holderName: "DOST Mobile",
+      holderName: "Fig Mobile",
       iban: "PK36MEZN0001001234567",
       isDefault: true,
     },
@@ -677,7 +677,7 @@ async function main() {
       name: "HBL - Current",
       bankName: "HBL",
       accountNo: "00879001012345",
-      holderName: "DOST Mobile",
+      holderName: "Fig Mobile",
       iban: "PK06HABB00079010012345",
     },
     {
@@ -706,7 +706,7 @@ async function main() {
     update: {},
     create: {
       id: "store",
-      name: "DOST Mobile",
+      name: "Fig Mobile",
       tagline: "Point of Sale for mobile phone shops",
       address: "Karachi, Pakistan",
       phone: "0300-1234567",

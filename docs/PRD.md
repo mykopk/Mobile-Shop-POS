@@ -1,4 +1,4 @@
-# DOST Mobile POS — Product Requirements Document (PRD)
+# Fig Mobile POS — Product Requirements Document (PRD)
 
 ## 1. Vision
 

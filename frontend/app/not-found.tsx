@@ -15,8 +15,7 @@ export default function NotFound() {
         {UI.backToDashboard}
       </Link>
       <p className="text-xs text-ink-400">
-        {APP.name}
-        {APP.nameSuffix}
+        {APP.nameFull}
       </p>
     </main>
   );

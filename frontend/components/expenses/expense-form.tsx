@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { apiRequest } from "@/lib/apiClient";
-import type { Expense } from "@/lib/api-types";
+import type { Contact, Expense } from "@/lib/api-types";
 import { EXPENSE_CATEGORIES, EXPENSE_CATEGORY_LABELS, EXPENSE_TEXT } from "@/lib/constants";
-import { formatPKR } from "@/lib/money";
+import { formatAmountInput, formatPKR } from "@/lib/money";
 import { toISODate } from "@/lib/dates";
 import { useDirtyForm } from "@/lib/use-dirty-form";
 import { Button } from "@/components/ui/button";
@@ -38,16 +38,21 @@ function Field({
 
 export function ExpenseForm({
   editing,
+  contacts = [],
+  notes = [],
   onClose,
   onSaved,
 }: {
   editing: Expense | null;
+  contacts?: Contact[];
+  notes?: string[];
   onClose: () => void;
   onSaved: () => void;
 }) {
   const { toast } = useToast();
   const [category, setCategory] = useState(editing?.category ?? EXPENSE_CATEGORIES[0].value);
-  const [amount, setAmount] = useState(editing?.amount ?? "");
+  const [contactId, setContactId] = useState(editing?.contact?.id ?? "");
+  const [amount, setAmount] = useState(() => formatAmountInput(editing?.amount ?? ""));
   const [note, setNote] = useState(editing?.note ?? "");
   const [date, setDate] = useState(() => {
     if (editing) return toISODate(new Date(editing.date));
@@ -55,19 +60,31 @@ export function ExpenseForm({
   });
   const [submitting, setSubmitting] = useState(false);
 
-  const dirty = useDirtyForm({ category, amount, note, date });
+  const dirty = useDirtyForm({ category, contactId, amount, note, date });
 
-  function onFieldChange(next: { category?: string; amount?: string; note?: string; date?: string }) {
-    const updated = { category, amount, note, date, ...next };
+  const noteSuggestions = useMemo(
+    () => Array.from(new Set(notes.map((n) => n.trim()).filter(Boolean))).slice(0, 12),
+    [notes],
+  );
+
+  const contactOptions = (contacts ?? []).map((c) => ({
+    value: c.id,
+    label: c.name,
+    trailing: c.phone ? <span className="text-xs text-ink-400">{c.phone}</span> : null,
+  }));
+
+  function onFieldChange(next: { category?: string; contactId?: string; amount?: string; note?: string; date?: string }) {
+    const updated = { category, contactId, amount, note, date, ...next };
     if (next.category !== undefined) setCategory(next.category);
-    if (next.amount !== undefined) setAmount(next.amount);
+    if (next.contactId !== undefined) setContactId(next.contactId);
+    if (next.amount !== undefined) setAmount(formatAmountInput(next.amount));
     if (next.note !== undefined) setNote(next.note);
     if (next.date !== undefined) setDate(next.date);
     dirty.markDirty(updated);
   }
 
   async function save() {
-    const value = parseFloat(amount);
+    const value = parseFloat(amount.replace(/,/g, ""));
     if (!value || value <= 0) {
       toast("Enter a valid amount", "error");
       return;
@@ -82,6 +99,7 @@ export function ExpenseForm({
         category,
         amount: value,
         note: note || undefined,
+        contactId: contactId || undefined,
         date,
       };
       if (editing) {
@@ -99,6 +117,8 @@ export function ExpenseForm({
     }
   }
 
+  const previewContact = contacts?.find((c) => c.id === contactId);
+
   return (
     <form
       className="flex h-full flex-col"
@@ -115,6 +135,19 @@ export function ExpenseForm({
               options={EXPENSE_CATEGORIES.map((c) => ({ value: c.value, label: c.label }))}
               onChange={(value) => onFieldChange({ category: value })}
             />
+          </Field>
+
+          <Field label="Contact" hint="(optional)">
+            <Dropdown
+              value={contactId}
+              options={contactOptions}
+              onChange={(value) => onFieldChange({ contactId: value })}
+              searchable
+              placeholder="No contact"
+            />
+            <p className="mt-1.5 text-xs text-ink-400">
+              Optionally link the expense to a vendor or supplier.
+            </p>
           </Field>
 
           <Field label="Amount (Rs)">
@@ -136,12 +169,19 @@ export function ExpenseForm({
           </Field>
 
           <Field label={EXPENSE_TEXT.note}>
-            <Input
-              value={note}
-              onChange={(e) => onFieldChange({ note: e.target.value })}
-              placeholder={EXPENSE_TEXT.addNote}
-              className="bg-ink-100"
-            />
+            <div className="relative">
+              <Input
+                value={note}
+                onChange={(e) => onFieldChange({ note: e.target.value })}
+                placeholder={EXPENSE_TEXT.addNote}
+                list="expense-note-suggestions"
+              />
+              <datalist id="expense-note-suggestions">
+                {noteSuggestions.map((n) => (
+                  <option key={n} value={n} />
+                ))}
+              </datalist>
+            </div>
           </Field>
         </div>
 
@@ -149,6 +189,7 @@ export function ExpenseForm({
           <ExpensePreview
             editing={editing}
             category={category}
+            contact={previewContact}
             amount={amount}
             note={note}
             date={date}
@@ -174,17 +215,19 @@ export function ExpenseForm({
 function ExpensePreview({
   editing,
   category,
+  contact,
   amount,
   note,
   date,
 }: {
   editing: Expense | null;
   category: string;
+  contact: Contact | undefined;
   amount: string;
   note: string;
   date: string;
 }) {
-  const value = parseFloat(amount) || 0;
+  const value = parseFloat(amount.replace(/,/g, "")) || 0;
 
   return (
     <div className="rounded-3xl border border-ink-100 bg-white p-5">
@@ -214,6 +257,12 @@ function ExpensePreview({
               month: "short",
               year: "numeric",
             })}
+          </span>
+        </div>
+        <div className="flex justify-between gap-3">
+          <span className="text-ink-400">Contact</span>
+          <span className="truncate font-semibold text-ink-900">
+            {contact?.name ?? "—"}
           </span>
         </div>
         {note && (

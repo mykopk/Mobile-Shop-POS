@@ -723,7 +723,7 @@ export default function ReservationsPage() {
                     {formatPKR(line.unitPrice * line.quantity)}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <button type="button" onClick={() => removeLine(line.key)} className="text-ink-400 hover:text-red-500">
+                    <button type="button" onClick={() => removeLine(line.key)} className="text-ink-400 hover:text-error">
                       ✕
                     </button>
                   </td>

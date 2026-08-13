@@ -1,25 +1,27 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { apiRequest } from "@/lib/apiClient";
 import type { Contact } from "@/lib/api-types";
 import { useApi } from "@/lib/use-api";
 import { formatPKR } from "@/lib/money";
 import { parseCsvLine, downloadCsv } from "@/lib/csv";
+import { ledgerHref } from "@/lib/ledger";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import type { BadgeVariant } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dropdown } from "@/components/ui/dropdown";
 import { Dialog } from "@/components/ui/dialog";
 import { Sheet } from "@/components/ui/sheet";
 import { SearchInput } from "@/components/ui/search-input";
 import { CsvImportSheet } from "@/components/ui/csv-import-sheet";
+import { useToast } from "@/components/ui/toast";
 import { SortHeader } from "@/components/ui/sort-header";
 import { PaginationBar, usePagination } from "@/components/ui/pagination";
-import { useToast } from "@/components/ui/toast";
+import { ContextMenu } from "@/components/ui/context-menu";
+import { ContactTypePill } from "@/components/ui/type-pill";
 import { ContactForm, EMPTY_CONTACT_FORM, type ContactFormValues } from "@/components/contacts/contact-form";
-import { DownloadIcon, FilterIcon, PlusIcon, TrashIcon, UploadIcon } from "@/components/icons";
+import { DownloadIcon, EyeIcon, FilterIcon, PlusIcon, TrashIcon, UploadIcon } from "@/components/icons";
 
 type SortKey = "name" | "type" | "phone" | "creditLimit" | "creditBalance" | "transactionCount";
 
@@ -31,14 +33,8 @@ const TYPE_FILTER_OPTIONS: { value: string; label: string }[] = [
   { value: "BOTH", label: "Customer & vendor" },
 ];
 
-const TYPE_VARIANT: Record<string, BadgeVariant> = {
-  CUSTOMER: "brand",
-  VENDOR: "violet",
-  WALK_IN: "neutral",
-  BOTH: "blue",
-};
-
 export default function ContactsPage() {
+  const router = useRouter();
   const { data, loading, refetch } = useApi<Contact[]>("/contact");
   const { toast } = useToast();
   const [q, setQ] = useState("");
@@ -54,6 +50,8 @@ export default function ContactsPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [formKey, setFormKey] = useState(0);
+  const [confirmDeleteOne, setConfirmDeleteOne] = useState<Contact | null>(null);
+  const [deletingOne, setDeletingOne] = useState(false);
 
   const filtered = useMemo(() => {
     const list = data ?? [];
@@ -224,6 +222,29 @@ export default function ContactsPage() {
     }
   }
 
+  async function deleteOneContact() {
+    if (!confirmDeleteOne) return;
+    const target = confirmDeleteOne;
+    setDeletingOne(true);
+    try {
+      const result = await apiRequest<{ deleted: number; blocked: { id: string; name: string }[] }>(
+        "/contact",
+        { method: "DELETE", body: { ids: [target.id] } },
+      );
+      setConfirmDeleteOne(null);
+      refetch();
+      if (result.blocked.length > 0) {
+        toast("Can't delete — this contact has transactions", "error");
+      } else {
+        toast("Contact deleted", "success");
+      }
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Failed to delete contact", "error");
+    } finally {
+      setDeletingOne(false);
+    }
+  }
+
   function exportCsv() {
     const headers = ["Name", "Type", "Phone", "Email", "Address", "Notes", "Credit limit"];
     const rows = filtered.map((c) => [
@@ -321,7 +342,9 @@ export default function ContactsPage() {
           <FilterIcon className="h-4 w-4" />
           Filters
           {activeFilterCount > 0 && (
-            <Badge variant="brandSolid">{activeFilterCount}</Badge>
+            <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-600 px-1 text-[10px] font-semibold leading-none text-white">
+              {activeFilterCount}
+            </span>
           )}
         </Button>
       </div>
@@ -345,6 +368,7 @@ export default function ContactsPage() {
                 <SortHeader label="Credit limit" k="creditLimit" sort={sort} onSort={onSort} right />
                 <SortHeader label="Credit" k="creditBalance" sort={sort} onSort={onSort} right />
                 <SortHeader label="Transactions" k="transactionCount" sort={sort} onSort={onSort} right />
+                <th className="w-12 px-2 py-3" />
               </tr>
             </thead>
             <tbody>
@@ -353,7 +377,7 @@ export default function ContactsPage() {
                 return (
                   <tr
                     key={c.id}
-                    onClick={() => openEdit(c)}
+                    onClick={() => router.push(ledgerHref(c.id))}
                     className={`cursor-pointer transition ${
                       isSelected ? "bg-brand-50/40" : "hover:bg-ink-50"
                     }`}
@@ -371,9 +395,7 @@ export default function ContactsPage() {
                       </div>
                     </td>
                     <td className="px-5 py-3">
-                      <Badge variant={TYPE_VARIANT[c.type] ?? "neutral"}>
-                        {c.type.replace("_", " ")}
-                      </Badge>
+                      <ContactTypePill type={c.type} />
                     </td>
                     <td className="px-5 py-3 text-ink-700">{c.phone ?? "—"}</td>
                     <td className="px-5 py-3 text-right text-ink-500">
@@ -381,7 +403,7 @@ export default function ContactsPage() {
                     </td>
                     <td className="px-5 py-3 text-right font-medium text-ink-900">
                       {parseFloat(c.creditBalance) < 0 ? (
-                        <span className="text-amber-600">
+                        <span className="text-brand-600">
                           owe {formatPKR(Math.abs(parseFloat(c.creditBalance)))}
                         </span>
                       ) : (
@@ -389,12 +411,21 @@ export default function ContactsPage() {
                       )}
                     </td>
                     <td className="px-5 py-3 text-right text-ink-500">{c.transactionCount}</td>
+                    <td className="px-2 py-3 text-right" onClick={(e) => e.stopPropagation()}>
+                      <ContextMenu
+                        items={[
+                          { label: "View ledger", leading: <EyeIcon className="h-4 w-4" />, onClick: () => router.push(ledgerHref(c.id)) },
+                          { label: "Edit", onClick: () => openEdit(c) },
+                          { label: "Delete", leading: <TrashIcon className="h-4 w-4" />, danger: true, onClick: () => setConfirmDeleteOne(c) },
+                        ]}
+                      />
+                    </td>
                   </tr>
                 );
               })}
               {filtered.length === 0 && !loading && (
                 <tr>
-                  <td colSpan={7} className="px-5 py-8 text-center text-sm text-ink-400">
+                  <td colSpan={8} className="px-5 py-8 text-center text-sm text-ink-400">
                     No contacts found.
                   </td>
                 </tr>
@@ -405,6 +436,7 @@ export default function ContactsPage() {
       </div>
 
       <PaginationBar
+        className="mt-3"
         from={from}
         to={to}
         total={sorted.length}
@@ -486,6 +518,25 @@ export default function ContactsPage() {
         importing={importing}
         onFile={(file) => void handleImportFile(file)}
         onClose={() => setImportOpen(false)}
+      />
+
+      <Dialog
+        open={!!confirmDeleteOne}
+        title="Delete contact?"
+        message={
+          confirmDeleteOne ? (
+            <span>
+              This permanently deletes{" "}
+              <span className="font-semibold text-ink-900">{confirmDeleteOne.name}</span> if it has no transactions.
+            </span>
+          ) : null
+        }
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        destructive
+        busy={deletingOne}
+        onConfirm={() => void deleteOneContact()}
+        onCancel={() => setConfirmDeleteOne(null)}
       />
     </div>
   );

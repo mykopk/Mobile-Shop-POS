@@ -18,3 +18,14 @@ export async function getCompanyCurrency(): Promise<string> {
   });
   return profile?.currency ?? "PKR";
 }
+
+export async function getCompanyFinancials(): Promise<{ taxRate: number; cardFee: number }> {
+  const profile = await prisma.companyProfile.findUnique({
+    where: { id: COMPANY_ID },
+    select: { taxRate: true, cardFee: true },
+  });
+  return {
+    taxRate: Number(profile?.taxRate ?? 0),
+    cardFee: Number(profile?.cardFee ?? 0),
+  };
+}

@@ -40,11 +40,12 @@ export async function resetDb() {
 
 export async function seedUser(username: string, role: string, pin = "1234") {
   const pinHash = await bcrypt.hash(pin, 4);
+  const uname = username.toUpperCase();
   return prisma.user.create({
     data: {
-      username,
+      username: uname,
       name: username,
-      email: `${username}@test.local`,
+      email: `${uname.toLowerCase()}@test.local`,
       pinHash,
       role: role as never,
       permissions: [...ROLE_PERMISSIONS[role as keyof typeof ROLE_PERMISSIONS]],

@@ -221,7 +221,7 @@ export function Dropdown<T extends string>({
                   onChange(option.value);
                   setOpen(false);
                 }}
-                className={`flex w-full items-center gap-3 rounded-2xl px-3 py-2 text-left transition ${
+                className={`flex w-full items-center gap-3 rounded-[14px] px-3 py-2 text-left transition ${
                   activeIndex === i ? "bg-brand-50" : isSelected ? "bg-brand-50/50" : "hover:bg-ink-50"
                 } ${option.disabled ? "opacity-40" : ""}`}
               >
@@ -244,7 +244,7 @@ export function Dropdown<T extends string>({
           <button
             type="button"
             onClick={chooseCustom}
-            className="flex w-full items-center gap-3 rounded-2xl bg-brand-50 px-3 py-2 text-left font-semibold text-brand-700 transition hover:bg-brand-100"
+            className="flex w-full items-center gap-3 rounded-[14px] bg-brand-50 px-3 py-2 text-left font-semibold text-brand-700 transition hover:bg-brand-100"
           >
             <span className="min-w-0 flex-1 truncate text-sm">
               + Use “{filter.trim()}”
@@ -270,7 +270,7 @@ export function Dropdown<T extends string>({
           typeof trigger === "function" ? trigger(open) : trigger
         ) : (
           <div
-            className={`flex items-center justify-between rounded-2xl bg-ink-100 px-3.5 py-2 text-sm ${triggerClassName ?? ""}`}
+            className={`flex h-9 items-center justify-between rounded-2xl bg-ink-100 px-3.5 text-sm ${triggerClassName ?? ""}`}
           >
             <span className="truncate text-ink-900">{selectedLabel}</span>
           </div>

@@ -1,8 +1,8 @@
 {
-  "name": "dost-mobile-backend",
+  "name": "fig-mobile-backend",
   "version": "0.1.0",
   "private": true,
-  "description": "DOST Mobile POS — offline-capable backend API (Express + Prisma + SQLite)",
+  "description": "Fig Mobile POS — offline-capable backend API (Express + Prisma + SQLite)",
   "scripts": {
     "dev": "tsx watch server.ts",
     "start": "tsx server.ts",

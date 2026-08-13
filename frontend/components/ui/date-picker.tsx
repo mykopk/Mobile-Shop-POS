@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { CalendarIcon, ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon } from "@/components/icons";
+import { CalendarIcon, ChevronLeftIcon, ChevronRightIcon } from "@/components/icons";
 
 const WEEKDAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 const MONTHS = [
@@ -13,14 +13,34 @@ function startOfDay(d: Date) {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate());
 }
 
-function formatDisplay(value: string) {
+function formatValue(value: string) {
   const [y, m, d] = value.split("-").map(Number);
-  if (!y || !m || !d) return "Select date";
-  return new Date(y, m - 1, d).toLocaleDateString("en-PK", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
+  if (!y || !m || !d) return "";
+  return `${String(d).padStart(2, "0")}/${String(m).padStart(2, "0")}/${y}`;
+}
+
+function parseDateInput(text: string): string | null {
+  const match = text.trim().match(/^(\d{1,2})[/\-. ](\d{1,2})[/\-. ](\d{4})$/);
+  if (!match) return null;
+  const d = Number(match[1]);
+  const m = Number(match[2]);
+  const y = Number(match[3]);
+  if (m < 1 || m > 12 || d < 1 || d > 31) return null;
+  const date = new Date(y, m - 1, d);
+  if (date.getFullYear() !== y || date.getMonth() !== m - 1 || date.getDate() !== d) return null;
+  return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+}
+
+function autoFormatDateInput(raw: string): string {
+  const digits = raw.replace(/\D/g, "").slice(0, 8);
+  if (!digits) return "";
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+}
+
+function toISODate(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 export function DatePicker({
@@ -35,11 +55,25 @@ export function DatePicker({
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
-  const triggerRef = useRef<HTMLButtonElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [text, setText] = useState(() => formatValue(value));
 
   const selected = value ? new Date(`${value}T00:00:00`) : null;
   const [view, setView] = useState(() => startOfDay(selected ?? new Date()));
   const [mode, setMode] = useState<"day" | "month" | "year">("day");
+
+  useEffect(() => {
+    setText(formatValue(value));
+  }, [value]);
+
+  function commit() {
+    const parsed = parseDateInput(text);
+    if (parsed) {
+      onChange(parsed);
+    } else {
+      setText(formatValue(value));
+    }
+  }
 
   useEffect(() => {
     if (!open) {
@@ -47,7 +81,7 @@ export function DatePicker({
       return;
     }
     function update() {
-      const rect = triggerRef.current?.getBoundingClientRect();
+      const rect = rootRef.current?.getBoundingClientRect();
       if (rect) {
         const panelW = 280;
         setPos({
@@ -91,6 +125,8 @@ export function DatePicker({
     ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
   ];
   const today = startOfDay(new Date());
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
 
   const yearStart = Math.floor(year / 12) * 12;
   const years = Array.from({ length: 12 }, (_, i) => yearStart + i);
@@ -108,8 +144,13 @@ export function DatePicker({
   }
 
   function pick(day: number) {
-    const next = new Date(year, month, day);
-    onChange(`${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`);
+    const next = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    onChange(next);
+    setOpen(false);
+  }
+
+  function quickPick(d: Date) {
+    onChange(toISODate(d));
     setOpen(false);
   }
 
@@ -124,26 +165,63 @@ export function DatePicker({
 
   return (
     <div ref={rootRef} className={`relative ${className}`}>
-      <button
-        ref={triggerRef}
-        type="button"
-        onClick={() => setOpen((prev) => !prev)}
-        className="flex w-full items-center justify-between rounded-2xl bg-ink-100 px-3.5 py-2 text-sm"
-      >
-        <span className="flex items-center gap-2 text-ink-900">
-          <CalendarIcon className="h-4 w-4 text-ink-400" />
-          {formatDisplay(value)}
-        </span>
-        <ChevronDownIcon
-          className={`h-4 w-4 text-ink-400 transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+      <div className="flex h-9 w-full items-center gap-1 rounded-2xl bg-ink-100 pl-3.5 pr-1 transition focus-within:bg-white focus-within:ring-2 focus-within:ring-brand-500/40">
+        <input
+          ref={inputRef}
+          type="text"
+          inputMode="numeric"
+          value={text}
+          onChange={(e) => setText(autoFormatDateInput(e.target.value))}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              commit();
+              inputRef.current?.blur();
+            }
+          }}
+          placeholder="Select date"
+          className="w-full min-w-0 bg-transparent text-sm text-ink-900 outline-none placeholder:text-ink-400"
         />
-      </button>
+        <button
+          type="button"
+          onClick={() => setOpen((prev) => !prev)}
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-xl text-ink-400 transition hover:bg-ink-200 hover:text-ink-700"
+          aria-label="Open calendar"
+        >
+          <CalendarIcon className="h-4 w-4" />
+        </button>
+      </div>
 
       {open && pos && (
         <div
           style={{ position: "fixed", top: pos.top, left: pos.left }}
           className="z-[100] w-70 rounded-2xl bg-white p-3"
         >
+          <div className="mb-2 flex gap-1">
+            <button
+              type="button"
+              onClick={() => quickPick(today)}
+              className={`flex-1 rounded-xl py-1.5 text-xs font-semibold transition ${
+                selected && selected.getTime() === today.getTime()
+                  ? "bg-brand-50 text-brand-600"
+                  : "bg-ink-100 text-ink-700 hover:bg-ink-200"
+              }`}
+            >
+              Today
+            </button>
+            <button
+              type="button"
+              onClick={() => quickPick(yesterday)}
+              className={`flex-1 rounded-xl py-1.5 text-xs font-semibold transition ${
+                selected && selected.getTime() === yesterday.getTime()
+                  ? "bg-brand-50 text-brand-600"
+                  : "bg-ink-100 text-ink-700 hover:bg-ink-200"
+              }`}
+            >
+              Yesterday
+            </button>
+          </div>
+
           <div className="mb-2 flex items-center justify-between">
             <button
               type="button"

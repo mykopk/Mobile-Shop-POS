@@ -60,7 +60,7 @@ export type InventoryViewSettings = {
   columns: Record<InventoryColumnKey, boolean>;
 };
 
-export const INVENTORY_VIEW_STORAGE_KEY = "dost.inventory.view";
+export const INVENTORY_VIEW_STORAGE_KEY = "fig.inventory.view";
 
 export const DEFAULT_INVENTORY_VIEW: InventoryViewSettings = {
   mode: "units",

@@ -145,6 +145,29 @@ export async function updateVoucher(id: string, input: VoucherUpdateInput, userI
   return voucher;
 }
 
+export async function restoreVoucher(id: string, userId: string) {
+  const existing = await prisma.voucher.findUnique({ where: { id } });
+  if (!existing) throw new ApiError(404, "voucher.not_found", "Voucher not found");
+  if (existing.status !== "REVERSED") {
+    throw new ApiError(409, "voucher.not_reversed", "This voucher is not reversed");
+  }
+
+  const voucher = await prisma.voucher.update({
+    where: { id },
+    data: { status: "ACTIVE", reversedById: null, reversedAt: null, reversalNote: null },
+    include,
+  });
+  await applyBalance(existing.contactId!, deltaFor(existing.type, Number(existing.amount), 1));
+  await writeAudit({
+    userId,
+    action: "VOUCHER.RESTORE",
+    entity: "Voucher",
+    entityId: voucher.id,
+    details: JSON.stringify({ number: voucher.number }),
+  });
+  return voucher;
+}
+
 export async function reverseVoucher(id: string, note: string | null | undefined, userId: string) {
   const existing = await prisma.voucher.findUnique({ where: { id } });
   if (!existing) throw new ApiError(404, "voucher.not_found", "Voucher not found");

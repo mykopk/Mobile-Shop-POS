@@ -16,12 +16,15 @@ import type {
 } from "./schemas";
 
 export async function listHandler(req: Request, res: Response) {
-  const { type, q, limit } = req.query;
+  const { type, q, limit, from, to, tz } = req.query;
   res.json({
     data: await listTransactions({
       type: typeof type === "string" ? type : undefined,
       q: typeof q === "string" ? q : undefined,
       limit: typeof limit === "string" ? Number(limit) : undefined,
+      from: typeof from === "string" ? from : undefined,
+      to: typeof to === "string" ? to : undefined,
+      tz: typeof tz === "string" ? tz : undefined,
     }),
   });
 }

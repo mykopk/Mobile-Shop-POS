@@ -19,7 +19,6 @@ import {
 } from "recharts";
 import {
   ChartPieIcon,
-  ContactsIcon,
   InventoryIcon,
   PosIcon,
   ProductsIcon,
@@ -29,6 +28,7 @@ import {
   ReservationIcon,
   ReturnsIcon,
   TrendingUpIcon,
+  UserIcon,
   VoucherIcon,
   WalletIcon,
 } from "@/components/icons";
@@ -90,7 +90,7 @@ const SHORTCUTS = [
   { href: "/pos", label: "New Sale", icon: PosIcon },
   { href: "/purchases", label: "Buy New", icon: PurchasesIcon },
   { href: "/products", label: "Add Product", icon: ProductsIcon },
-  { href: "/contacts", label: "Add Customer", icon: ContactsIcon },
+  { href: "/contacts", label: "Add Customer", icon: UserIcon },
   { href: "/inventory", label: "Inventory", icon: InventoryIcon },
   { href: "/reports", label: "Reports", icon: ReportsIcon },
 ];
@@ -282,9 +282,9 @@ export default function DashboardPage() {
         />
         {viewCosts ? (
           <KpiCard
-            label="Today's Profit"
+            label="Net Profit"
             value={loading || !data || data.today.profit === null ? "…" : fmt(data.today.profit)}
-            tone="text-amber-600"
+            tone="text-warning"
             icon={TrendingUpIcon}
           />
         ) : (
@@ -324,7 +324,7 @@ export default function DashboardPage() {
               : `${fmt(data.today.cashIn)} in · ${fmt(data.today.cashOut)} out`
           }
           tone={
-            loading || !data || netCash >= 0 ? "text-emerald-600" : "text-red-600"
+            loading || !data || netCash >= 0 ? "text-success" : "text-error"
           }
           icon={VoucherIcon}
         />
@@ -618,7 +618,7 @@ export default function DashboardPage() {
                   <span className="text-ink-700">
                     {p.brand} {p.model} {p.storage ?? ""}
                   </span>
-                  <span className="font-semibold text-amber-600">{p.inStock} left</span>
+                  <span className="font-semibold text-warning">{p.inStock} left</span>
                 </li>
               ))}
             </ul>

@@ -30,7 +30,16 @@ export function rateLimit(opts: {
     }
     entry.count += 1;
     if (entry.count > max) {
-      next(new ApiError(429, "auth.rate_limited", "Too many attempts. Try again later."));
+      const retryAfterMs = entry.resetAt - now;
+      const seconds = Math.max(1, Math.ceil(retryAfterMs / 1000));
+      next(
+        new ApiError(
+          429,
+          "auth.rate_limited",
+          `Too many attempts. Try again in ${seconds} second${seconds === 1 ? "" : "s"}.`,
+          { retryAfterMs, retryAfterSeconds: seconds },
+        ),
+      );
       return;
     }
     next();

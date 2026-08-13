@@ -1,11 +1,21 @@
 import { prisma } from "../../core/lib/prisma";
 import { ApiError } from "../../core/middleware/error";
 import { writeAudit } from "../../core/lib/audit";
+import { nextNumber } from "../../core/lib/numbering";
 import type { ExpenseInput, ExpenseUpdateInput } from "./schemas";
+
+const EXPENSE_PREFIX = "EXP";
 
 const include = {
   contact: { select: { id: true, name: true, phone: true } },
 };
+
+async function nextExpenseNumber() {
+  return nextNumber(
+    () => prisma.expense.findMany({ where: { number: { startsWith: `${EXPENSE_PREFIX}-` } }, select: { number: true } }),
+    EXPENSE_PREFIX,
+  );
+}
 
 async function assertContact(contactId?: string | null) {
   if (!contactId) return;
@@ -42,6 +52,7 @@ export async function createExpense(input: ExpenseInput, userId: string) {
 
   const expense = await prisma.expense.create({
     data: {
+      number: await nextExpenseNumber(),
       category: input.category,
       amount: input.amount,
       note: input.note || null,

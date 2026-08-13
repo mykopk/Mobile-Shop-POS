@@ -144,7 +144,7 @@ export function ImagePicker({
               variant="ghost"
               size="sm"
               onClick={() => onChange("")}
-              className="text-red-600 hover:text-red-700"
+              className="text-error hover:text-red-700"
             >
               Remove
             </Button>
