@@ -1,4 +1,0 @@
-PRAGMA foreign_keys=OFF;
-ALTER TABLE "Transaction" ADD COLUMN "tax" DECIMAL NOT NULL DEFAULT 0;
-ALTER TABLE "Transaction" ADD COLUMN "cardFee" DECIMAL NOT NULL DEFAULT 0;
-PRAGMA foreign_keys=ON;

@@ -547,6 +547,8 @@ async function main() {
     const number = `PUR-${String(purchaseIndex).padStart(4, "0")}`;
     purchaseIndex++;
 
+    if (await prisma.transaction.findUnique({ where: { number } })) continue;
+
     const transaction = await prisma.transaction.create({
       data: {
         type: "PURCHASE",
@@ -601,6 +603,8 @@ async function main() {
     const subtotal = units.reduce((sum, u) => sum + Number(u.product.sellPrice), 0);
     const total = subtotal - group.discount;
     const number = `SAL-${String(saleIndex).padStart(4, "0")}`;
+
+    if (await prisma.transaction.findUnique({ where: { number } })) continue;
 
     const transaction = await prisma.transaction.create({
       data: {
@@ -689,18 +693,6 @@ async function main() {
     },
   ];
 
-  for (const account of DEMO_BANK_ACCOUNTS) {
-    await prisma.bankAccount.upsert({
-      where: { id: account.id },
-      update: { companyId: "store" },
-      create: {
-        ...account,
-        companyId: "store",
-        active: true,
-      },
-    });
-  }
-
   await prisma.companyProfile.upsert({
     where: { id: "store" },
     update: {},
@@ -714,6 +706,18 @@ async function main() {
       footerText: "Thank you for choosing us. We appreciate your business.",
     },
   });
+
+  for (const account of DEMO_BANK_ACCOUNTS) {
+    await prisma.bankAccount.upsert({
+      where: { id: account.id },
+      update: { companyId: "store" },
+      create: {
+        ...account,
+        companyId: "store",
+        active: true,
+      },
+    });
+  }
 
   console.log(
     `Seeded ${DEMO_USERS.length} users, ${DEMO_CONTACTS.length} contacts, ${DEMO_PRODUCTS.length} products, ${DEMO_UNITS.length} units, ${purchasesCreated} purchase records, ${salesCreated} sale records.`,

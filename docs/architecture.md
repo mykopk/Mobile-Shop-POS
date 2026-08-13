@@ -208,6 +208,12 @@ Frontend `.env.local`: `NEXT_PUBLIC_API_URL` (e.g. `http://localhost:4100/api`) 
 
 Only the **frontend** ships as the desktop app. The backend is either **bundled locally** or **hosted remotely**, selected at runtime in Settings → Connection. Both modes share one build.
 
+### Hosted backend (Render)
+
+For Remote mode the backend deploys as a standalone web service on **Render** (`render.yaml` at the repo root, `rootDir: backend`). It keeps the SQLite DB on a persistent disk (`/data`, `DATABASE_URL=file:/data/fig.db`), runs `prisma migrate deploy` + the idempotent seed in `preDeployCommand`, and starts with `npm start` (`tsx server.ts`). `HOST` must be `0.0.0.0`; `CORS_ORIGIN` (the frontend origin) and `JWT_SECRET` are set as Render env vars. Health check: `GET /api/health`.
+
+> The migration history is a single fresh baseline (`prisma/migrations/20260813120000_init`) generated from the current schema. Earlier hand-written migrations were never-applied on any database and were rebased out; dev DBs are rebuilt from the baseline + `prisma:seed` (idempotent — safe to run on every deploy).
+
 ### Modes
 
 | | **Local (offline, single terminal)** | **Remote (hosted, multi-terminal)** |
