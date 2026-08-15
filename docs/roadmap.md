@@ -18,29 +18,31 @@
 - [ ] Returns (sale + purchase), stock movements log
 
 ## Phase 2 — Money & Credit
-- [ ] Bank accounts: register shop accounts, tap-choice in payment sheet
-- [ ] Multi-payment split (cash/card/bank-account/credit) + change calculation
-- [ ] Partial credit: credit portion only goes to balance; remaining-due tracking
-- [ ] Credit accounts, installments, due dates, collect payments, overdue list
+- [x] Bank accounts: register shop accounts, tap-choice in payment sheet
+- [x] Multi-payment split (cash/card/bank-account/credit) + change calculation
+- [x] Partial credit: credit portion only goes to balance; remaining-due tracking
+- [ ] Credit accounts, installments, due dates, collect payments, overdue list *(collections + aging done; installments/due dates pending)*
 - [x] Expenses
 - [x] Contact ledger with running balance (reports → Ledger)
 - [x] **Cash vouchers**: CRV/CPV creation, modify, reverse (void with audit trail) — `Voucher` model + `/api/voucher`
+- [x] **Cash reconciliation / Z-report**: `CashSession` open/close + `/api/report/z`
 
 ## Phase 3 — Analytics & Reports
 - [x] Report hub (`/reports`): sales, purchases, profit (by brand/model/condition), expenses, stock valuation, payments/cash flow, receivables, payables, contact ledgers — `/api/report`
-- [ ] **Customizable dashboard**: widget gallery, drag/drop layout, saved per user
-- [ ] Export (PDF/Excel), print
+- [x] **Customizable dashboard**: widget gallery, drag/drop layout, saved per user
+- [x] Export (PDF) via Print Studio; CSV import/export on catalog/contacts/units
 
 ## Phase 4 — Hardening & Polish
 - [x] Audit log viewer + admin screens
-- [ ] Company profile: logo upload, footer, currency, tax
+- [x] Company profile: logo upload, footer, currency, tax
 - [x] **Print layouts**: premade layouts (58mm/80mm/A4 receipts, inventory lists, expense sheets) defined in `backend/data/print-layouts.json`, seeded into the DB on server start, served via `/api/print-layout` (system layouts) with a `POST /api/print-layout/import` JSON upload endpoint
-- [ ] Print formats: purchase slip, credit statement
-- [ ] Settings: printer default per use case, backup/restore
+- [x] **Print formats**: per-document thermal/A4 defaults + optional WebUSB ESC/POS direct thermal print
+- [x] **Backup / restore** in Settings (admin-only)
+- [x] **Offline POS queue** (local write queue flushed on reconnect)
+- [x] **Purchase orders** (order → partial/complete receive into stock)
 - [ ] Search perf (indexes, debounce, pagination)
-- [ ] Bulk import/export catalog
+- [ ] Bulk import/export catalog (partial: CSV import/export exists)
 - [ ] Package as **dual-mode desktop app** — static frontend shell (Electron); backend bundled locally or pointed at a hosted URL, switched at runtime
-- [ ] Backups: `data/fig.db` export / restore in Settings
 
 ## Phase 5 — Later
 - [ ] Offline queue for POS
