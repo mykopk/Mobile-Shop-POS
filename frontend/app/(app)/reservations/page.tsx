@@ -6,7 +6,7 @@ import { apiRequest } from "@/lib/apiClient";
 import { brandOf, type CompanyProfile, type Contact, type ReservationDetail } from "@/lib/api-types";
 import { useApi } from "@/lib/use-api";
 import { CARRIER_LABELS, APP, MAX_MONEY_AMOUNT } from "@/lib/constants";
-import { formatPKR, clampMoneyInput } from "@/lib/money";
+import { formatPKR, clampMoneyInput, roundMoney } from "@/lib/money";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -88,7 +88,7 @@ export default function ReservationsPage() {
   const [panelPos, setPanelPos] = useState<{ top: number; left: number; width: number } | null>(null);
 
   const total = useMemo(
-    () => cart.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0),
+    () => roundMoney(cart.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0)),
     [cart],
   );
 
@@ -367,7 +367,7 @@ export default function ReservationsPage() {
   ];
 
   const isWalkIn = contactId === WALK_IN;
-  const balanceDue = total - (advance === "" ? 0 : parseFloat(advance) || 0);
+  const balanceDue = roundMoney(total - (advance === "" ? 0 : parseFloat(advance) || 0));
 
   useSaveShortcut(() => {
     void reserve();
@@ -729,7 +729,7 @@ export default function ReservationsPage() {
                     </div>
                   </td>
                   <td className="px-4 py-2.5 text-right text-sm font-semibold text-ink-900">
-                    {formatPKR(g.lines.reduce((s, l) => s + l.unitPrice * l.quantity, 0))}
+                    {formatPKR(roundMoney(g.lines.reduce((s, l) => s + l.unitPrice * l.quantity, 0)))}
                   </td>
                   <td className="px-4 py-2.5" />
                 </tr>
@@ -750,7 +750,7 @@ export default function ReservationsPage() {
                       </div>
                     </td>
                     <td className="px-4 py-2.5 text-right font-semibold text-ink-900">
-                      {formatPKR(line.unitPrice * line.quantity)}
+                      {formatPKR(roundMoney(line.unitPrice * line.quantity))}
                     </td>
                     <td className="px-4 py-2.5 text-right">
                       <button
@@ -786,7 +786,7 @@ export default function ReservationsPage() {
                   </div>
                 </td>
                 <td className="px-4 py-3 text-right font-semibold text-ink-900">
-                  {formatPKR(line.unitPrice * line.quantity)}
+                  {formatPKR(roundMoney(line.unitPrice * line.quantity))}
                 </td>
                 <td className="px-4 py-3 text-right">
                   <button

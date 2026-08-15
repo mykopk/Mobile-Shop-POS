@@ -213,9 +213,9 @@ export async function updateContact(id: string, input: ContactInput, userId: str
       cnicFrontUrl: input.cnicFrontUrl || null,
       cnicBackUrl: input.cnicBackUrl || null,
       notes: input.notes || null,
-      creditAccount: input.creditLimit > 0
-        ? { upsert: { create: { limit: input.creditLimit, balance: 0 }, update: { limit: input.creditLimit } } }
-        : undefined,
+      creditAccount: {
+        upsert: { create: { limit: input.creditLimit, balance: 0 }, update: { limit: input.creditLimit } },
+      },
     },
     include: { creditAccount: true },
   });

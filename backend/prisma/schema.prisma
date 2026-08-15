@@ -442,6 +442,7 @@ model Voucher {
   reversalNote  String?
   userId        String
   user          User          @relation("VoucherCreated", fields: [userId], references: [id])
+  clientRef     String?       @unique
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
@@ -472,6 +473,7 @@ model Expense {
   contactId String?
   contact   Contact? @relation(fields: [contactId], references: [id])
   date      DateTime @default(now())
+  clientRef String?  @unique
 }
 
 model AuditLog {

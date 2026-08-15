@@ -20,6 +20,10 @@ export function formatPKR(amount: number | string | null | undefined) {
   return formatMoney(amount, "Rs");
 }
 
+export function roundMoney(n: number) {
+  return Math.round((n + Number.EPSILON) * 100) / 100;
+}
+
 export function clampMoneyInput(raw: string, max = MAX_MONEY_AMOUNT) {
   const n = parseFloat(raw.replace(/,/g, ""));
   if (Number.isNaN(n)) return raw;

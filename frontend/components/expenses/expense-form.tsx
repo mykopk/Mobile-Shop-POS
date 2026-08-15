@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { apiRequest } from "@/lib/apiClient";
 import type { Contact, Expense } from "@/lib/api-types";
@@ -59,6 +59,7 @@ export function ExpenseForm({
     return toISODate(new Date());
   });
   const [submitting, setSubmitting] = useState(false);
+  const expenseClientRef = useRef<string | null>(null);
 
   const dirty = useDirtyForm({ category, contactId, amount, note, date });
 
@@ -101,12 +102,14 @@ export function ExpenseForm({
         note: note || undefined,
         contactId: contactId || undefined,
         date,
+        ...(!editing ? { clientRef: (expenseClientRef.current ??= crypto.randomUUID()) } : {}),
       };
       if (editing) {
         await apiRequest(`/expense/${editing.id}`, { method: "PUT", body });
         toast("Expense updated", "success");
       } else {
         await apiRequest<Expense>("/expense", { method: "POST", body });
+        expenseClientRef.current = null;
         toast("Expense recorded", "success");
       }
       onSaved();

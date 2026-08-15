@@ -79,6 +79,11 @@ export async function createVoucher(input: VoucherInput, userId: string) {
   await assertBank(input);
   await assertContact(input.contactId);
 
+  if (input.clientRef) {
+    const existing = await prisma.voucher.findUnique({ where: { clientRef: input.clientRef } });
+    if (existing) return existing;
+  }
+
   const number = await nextVoucherNumber(input.type);
   const voucher = await prisma.voucher.create({
     data: {
@@ -88,6 +93,7 @@ export async function createVoucher(input: VoucherInput, userId: string) {
       method: input.method,
       bankAccountId: input.bankAccountId || null,
       contactId: input.contactId,
+      ...(input.clientRef ? { clientRef: input.clientRef } : {}),
       narration: input.narration || null,
       date: input.date ? new Date(input.date) : new Date(),
       userId,

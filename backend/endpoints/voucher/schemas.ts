@@ -8,6 +8,7 @@ export const voucherSchema = z.object({
   contactId: z.string().trim().min(1, "Pick a contact"),
   narration: z.string().trim().optional().nullable().or(z.literal("")),
   date: z.string().trim().optional().nullable().or(z.literal("")),
+  clientRef: z.string().trim().max(120).optional(),
 });
 
 export const voucherUpdateSchema = voucherSchema.partial();

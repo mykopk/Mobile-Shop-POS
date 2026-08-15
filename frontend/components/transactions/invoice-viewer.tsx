@@ -32,6 +32,22 @@ export function InvoiceViewer({
   const [voucher, setVoucher] = useState<Voucher | null>(null);
   const [expense, setExpense] = useState<Expense | null>(null);
   const [loading, setLoading] = useState(true);
+  const [voiding, setVoiding] = useState(false);
+
+  const isReturn = type === "SALE_RETURN" || type === "PURCHASE_RETURN";
+
+  async function voidReturn() {
+    setVoiding(true);
+    try {
+      await apiRequest(`/transaction/returns/${id}/void`, { method: "POST" });
+      toast("Return voided", "success");
+      onClose();
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Void failed", "error");
+    } finally {
+      setVoiding(false);
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -97,6 +113,11 @@ export function InvoiceViewer({
         <div className="flex shrink-0 items-center justify-between border-b border-ink-100 px-5 py-3">
           <h3 className="text-lg font-bold text-ink-900">Viewer</h3>
           <div className="flex items-center gap-2">
+            {isReturn && detail && (
+              <Button variant="destructive" size="sm" onClick={voidReturn} disabled={voiding}>
+                {voiding ? "Voiding…" : "Void return"}
+              </Button>
+            )}
             <a href={printHref} target="_blank" rel="noreferrer">
               <Button variant="secondary" size="sm">
                 <PrinterIcon className="h-4 w-4" />

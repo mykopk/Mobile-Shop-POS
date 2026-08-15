@@ -6,7 +6,7 @@ import { apiRequest } from "@/lib/apiClient";
 import { brandOf, type BankAccount, type CompanyProfile, type Contact, type ReservationConflict, type ReservationDetail, type TransactionDetail } from "@/lib/api-types";
 import { useApi } from "@/lib/use-api";
 import { CARRIER_LABELS, APP, MAX_MONEY_AMOUNT } from "@/lib/constants";
-import { formatPKR, clampMoneyInput } from "@/lib/money";
+import { formatPKR, clampMoneyInput, roundMoney } from "@/lib/money";
 import { toISODate } from "@/lib/dates";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -158,18 +158,18 @@ export default function PosPage() {
   const [panelPos, setPanelPos] = useState<{ top: number; left: number; width: number } | null>(null);
 
   const subtotal = useMemo(
-    () => cart.reduce((sum, line) => sum + (line.unitPrice - lineDiscount(line)) * line.quantity, 0),
+    () => roundMoney(cart.reduce((sum, line) => sum + (line.unitPrice - lineDiscount(line)) * line.quantity, 0)),
     [cart],
   );
 
   const taxRate = parseFloat(profile?.taxRate ?? "0") || 0;
   const cardFeePct = parseFloat(profile?.cardFee ?? "0") || 0;
-  const invoiceDisc = parseFloat(invoiceDiscount) || 0;
-  const tax = Math.round(subtotal * taxRate) / 100;
+  const invoiceDisc = roundMoney(parseFloat(invoiceDiscount) || 0);
+  const tax = roundMoney((subtotal * taxRate) / 100);
   const cardUsed =
     mode === "CARD" || (mode === "SPLIT" && (parseFloat(card) || 0) > 0);
-  const cardFee = cardUsed ? Math.round((subtotal - invoiceDisc + tax) * cardFeePct) / 100 : 0;
-  const total = subtotal - invoiceDisc + tax + cardFee;
+  const cardFee = roundMoney(cardUsed ? ((subtotal - invoiceDisc + tax) * cardFeePct) / 100 : 0);
+  const total = roundMoney(subtotal - invoiceDisc + tax + cardFee);
 
   const cartGroups = useMemo(() => {
     const map = new Map<string, { key: string; label: string; unitPrice: number; lines: CartLine[] }>();
@@ -969,7 +969,9 @@ export default function PosPage() {
                     </td>
                     <td className="px-4 py-2.5 text-right text-sm font-semibold text-ink-900">
                       {formatPKR(
-                        g.lines.reduce((s, l) => s + (l.unitPrice - lineDiscount(l)) * l.quantity, 0),
+                        roundMoney(
+                          g.lines.reduce((s, l) => s + (l.unitPrice - lineDiscount(l)) * l.quantity, 0),
+                        ),
                       )}
                     </td>
                     <td className="px-4 py-2.5" />
@@ -1003,7 +1005,7 @@ export default function PosPage() {
                         <DiscountFields line={line} onChange={(patch) => updateLine(line.key, patch)} />
                       </td>
                       <td className="px-4 py-2.5 text-right font-semibold text-ink-900">
-                        {formatPKR((line.unitPrice - lineDiscount(line)) * line.quantity)}
+                        {formatPKR(roundMoney((line.unitPrice - lineDiscount(line)) * line.quantity))}
                       </td>
                       <td className="px-4 py-2.5 text-right">
                         <button
@@ -1047,20 +1049,20 @@ export default function PosPage() {
                   <td className="px-4 py-2.5 text-right">
                     <DiscountFields line={line} onChange={(patch) => updateLine(line.key, patch)} />
                   </td>
-                  <td className="px-4 py-2.5 text-right font-semibold text-ink-900">
-                    {formatPKR((line.unitPrice - lineDiscount(line)) * line.quantity)}
-                  </td>
-                  <td className="px-4 py-2.5 text-right">
-                    <button
-                      type="button"
-                      onClick={() => removeLine(line.key)}
-                      title="Remove"
-                      className="rounded-lg p-1 text-ink-300 transition hover:bg-ink-100 hover:text-error"
-                    >
-                      <XIcon className="h-4 w-4" />
-                    </button>
-                  </td>
-                </tr>
+                      <td className="px-4 py-2.5 text-right font-semibold text-ink-900">
+                        {formatPKR(roundMoney((line.unitPrice - lineDiscount(line)) * line.quantity))}
+                      </td>
+                      <td className="px-4 py-2.5 text-right">
+                        <button
+                          type="button"
+                          onClick={() => removeLine(line.key)}
+                          title="Remove"
+                          className="rounded-lg p-1 text-ink-300 transition hover:bg-ink-100 hover:text-error"
+                        >
+                          <XIcon className="h-4 w-4" />
+                        </button>
+                      </td>
+                    </tr>
               ))}
               {cart.length === 0 && (
                 <tr>

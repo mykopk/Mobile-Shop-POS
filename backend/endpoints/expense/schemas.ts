@@ -6,6 +6,7 @@ export const expenseSchema = z.object({
   note: z.string().trim().optional().nullable().or(z.literal("")),
   contactId: z.string().trim().optional().nullable().or(z.literal("")),
   date: z.string().trim().optional().nullable().or(z.literal("")),
+  clientRef: z.string().trim().max(120).optional(),
 });
 
 export const expenseUpdateSchema = expenseSchema.partial();

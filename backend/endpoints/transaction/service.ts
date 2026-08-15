@@ -98,6 +98,21 @@ export async function createSale(input: CreateSaleInput, userId: string) {
     if (!product) throw new ApiError(404, "product.not_found", "Product not found");
   }
 
+  for (const item of input.items) {
+    if (!item.unitId) continue;
+    const unit = await prisma.unit.findUnique({ where: { id: item.unitId } });
+    if (!unit) continue;
+    if (unit.status === "RESERVED") {
+      const active = await prisma.reservation.findFirst({
+        where: { status: "ACTIVE", items: { some: { unitId: item.unitId } } },
+        select: { contactId: true },
+      });
+      if (active && active.contactId !== contact.id) {
+        throw new ApiError(400, "unit.reserved", "This unit is reserved for another customer");
+      }
+    }
+  }
+
   const items = input.items.map((i) => {
     const total = i.unitId
       ? i.unitPrice - i.discount
@@ -305,6 +320,14 @@ export async function createPurchase(input: CreatePurchaseInput, userId: string)
   const contact = await prisma.contact.findUnique({ where: { id: input.contactId } });
   if (!contact) throw new ApiError(404, "contact.not_found", "Contact not found");
 
+  if (input.clientRef) {
+    const existing = await prisma.transaction.findUnique({
+      where: { clientRef: input.clientRef },
+      include: includeTransaction(),
+    });
+    if (existing) return existing;
+  }
+
   for (const item of input.items) {
     const product = await prisma.product.findUnique({ where: { id: item.productId } });
     if (!product) throw new ApiError(404, "product.not_found", "Product not found");
@@ -330,6 +353,7 @@ export async function createPurchase(input: CreatePurchaseInput, userId: string)
       data: {
         type: "PURCHASE",
         number,
+        ...(input.clientRef ? { clientRef: input.clientRef } : {}),
         contactId: contact.id,
         userId,
         subtotal,
@@ -418,6 +442,14 @@ export async function createSaleReturn(input: SaleReturnInput, userId: string) {
     if (!product) throw new ApiError(404, "product.not_found", "Product not found");
   }
 
+  if (input.clientRef) {
+    const existing = await prisma.transaction.findUnique({
+      where: { clientRef: input.clientRef },
+      include: includeTransaction(),
+    });
+    if (existing) return existing;
+  }
+
   const number = await resolveNumber(input.number, "RET");
   const createdAt = input.date ? new Date(`${input.date}T00:00:00`) : undefined;
   const saleItems = await prisma.transactionItem.findMany({
@@ -496,6 +528,7 @@ export async function createSaleReturn(input: SaleReturnInput, userId: string) {
       data: {
         type: "SALE_RETURN",
         number,
+        ...(input.clientRef ? { clientRef: input.clientRef } : {}),
         contactId: sale.contactId,
         userId,
         subtotal: total,
@@ -544,6 +577,14 @@ export async function createPurchaseReturn(input: PurchaseReturnInput, userId: s
   if (!purchase) throw new ApiError(404, "transaction.not_found", "Transaction not found");
   if (purchase.type !== "PURCHASE") {
     throw new ApiError(400, "transaction.not_purchase", "Not a purchase");
+  }
+
+  if (input.clientRef) {
+    const existing = await prisma.transaction.findUnique({
+      where: { clientRef: input.clientRef },
+      include: includeTransaction(),
+    });
+    if (existing) return existing;
   }
 
   const number = await resolveNumber(input.number, "PCR");
@@ -607,6 +648,7 @@ export async function createPurchaseReturn(input: PurchaseReturnInput, userId: s
       data: {
         type: "PURCHASE_RETURN",
         number,
+        ...(input.clientRef ? { clientRef: input.clientRef } : {}),
         contactId: purchase.contactId,
         userId,
         subtotal: total,

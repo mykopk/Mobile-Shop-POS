@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { apiRequest } from "@/lib/apiClient";
 import type { BankAccount, Contact, Voucher } from "@/lib/api-types";
@@ -138,6 +138,7 @@ export function VoucherForm({
     return toISODate(new Date());
   });
   const [submitting, setSubmitting] = useState(false);
+  const voucherClientRef = useRef<string | null>(null);
 
   const dirty = useDirtyForm({ vType, amount, method, bankId, contactId, narration, date });
 
@@ -183,12 +184,14 @@ export function VoucherForm({
         contactId,
         narration: narration || undefined,
         date,
+        ...(!editing ? { clientRef: (voucherClientRef.current ??= crypto.randomUUID()) } : {}),
       };
       if (editing) {
         await apiRequest(`/voucher/${editing.id}`, { method: "PUT", body });
         toast(`${editing.number} updated`, "success");
       } else {
         const created = await apiRequest<Voucher>("/voucher", { method: "POST", body });
+        voucherClientRef.current = null;
         toast(`${created.number} created`, "success");
       }
       onSaved();

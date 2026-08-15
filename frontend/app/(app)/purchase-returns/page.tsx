@@ -376,6 +376,7 @@ export default function ReturnsPage() {
             payments,
             number: `PCR-${String(nextNo++).padStart(4, "0")}`,
             date: returnDate,
+            clientRef: crypto.randomUUID(),
           },
         });
       }

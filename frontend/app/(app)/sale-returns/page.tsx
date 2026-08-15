@@ -353,6 +353,7 @@ export default function SaleReturnsPage() {
             payments,
             number: `RET-${String(nextNo++).padStart(4, "0")}`,
             date: returnDate,
+            clientRef: crypto.randomUUID(),
           },
         });
       }

@@ -89,6 +89,7 @@ export default function PurchasesPage() {
   const [singleBarcode, setSingleBarcode] = useState("");
   const [scannerOpen, setScannerOpen] = useState(false);
   const barcodeFieldRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const purchaseClientRef = useRef<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -530,9 +531,11 @@ export default function PurchasesPage() {
           date: purchaseDate,
           discount: parseFloat(discount) || 0,
           note: note.trim() || undefined,
+          clientRef: (purchaseClientRef.current ??= crypto.randomUUID()),
         },
       });
       toast(`${txn.number} recorded (${formatPKR(txn.total)})`, "success");
+      purchaseClientRef.current = null;
       clearAll();
     } catch (err) {
       toast(err instanceof Error ? err.message : "Purchase failed", "error");

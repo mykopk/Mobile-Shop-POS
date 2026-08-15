@@ -12,7 +12,8 @@ export async function listHandler(req: Request, res: Response) {
   const category = typeof req.query.category === "string" ? req.query.category : undefined;
   const from = typeof req.query.from === "string" ? req.query.from : undefined;
   const to = typeof req.query.to === "string" ? req.query.to : undefined;
-  res.json({ data: await listExpenses({ category, from, to }) });
+  const tz = typeof req.query.tz === "string" ? req.query.tz : undefined;
+  res.json({ data: await listExpenses({ category, from, to, tz }) });
 }
 
 export async function getHandler(req: Request, res: Response) {

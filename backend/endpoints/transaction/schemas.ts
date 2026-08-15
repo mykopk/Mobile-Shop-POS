@@ -48,6 +48,7 @@ export const createPurchaseSchema = z.object({
   note: z.string().trim().optional(),
   number: z.string().trim().optional(),
   date: z.string().trim().optional(),
+  clientRef: z.string().trim().max(120).optional(),
 });
 
 export const saleReturnItemSchema = z.object({
@@ -64,6 +65,7 @@ export const saleReturnSchema = z.object({
   note: z.string().trim().optional(),
   number: z.string().trim().optional(),
   date: z.string().trim().optional(),
+  clientRef: z.string().trim().max(120).optional(),
 });
 
 export const purchaseReturnSchema = z.object({
@@ -74,6 +76,7 @@ export const purchaseReturnSchema = z.object({
   note: z.string().trim().optional(),
   number: z.string().trim().optional(),
   date: z.string().trim().optional(),
+  clientRef: z.string().trim().max(120).optional(),
 });
 
 export type CreateSaleInput = z.infer<typeof createSaleSchema>;

@@ -5,11 +5,6 @@ export const DASHBOARD_KPIS = [
   { label: "Units In Stock", value: "0" },
 ] as const;
 
-export const DASHBOARD_PLACEHOLDERS = [
-  "Sales chart coming soon",
-  "New vs Used breakdown coming soon",
-] as const;
-
 export type DashboardWidgetKey =
   | "kpis"
   | "kpis2"
