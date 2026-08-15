@@ -6,7 +6,7 @@ import { validate } from "../../core/middleware/validate";
 import {
   bulkDeleteHandler,
   createHandler,
-  dedupeHandler,
+  duplicatesHandler,
   getHandler,
   importHandler,
   listHandler,
@@ -19,7 +19,7 @@ const router = Router();
 router.use(requireAuth);
 
 router.get("/", requirePermission(PERMISSIONS.contactView), asyncHandler(listHandler));
-router.get("/dedupe", requirePermission(PERMISSIONS.contactView), asyncHandler(dedupeHandler));
+router.get("/duplicates", requirePermission(PERMISSIONS.contactView), asyncHandler(duplicatesHandler));
 router.get("/:id", requirePermission(PERMISSIONS.contactView), asyncHandler(getHandler));
 router.post("/import", requirePermission(PERMISSIONS.contactImport), validate(importContactsSchema), asyncHandler(importHandler));
 router.post("/", requirePermission(PERMISSIONS.contactCreate), validate(contactSchema), asyncHandler(createHandler));

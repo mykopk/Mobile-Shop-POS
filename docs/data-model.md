@@ -75,15 +75,20 @@ model User {
 // ============ CONTACTS (unified) ============
 
 model Contact {
-  id          String      @id @default(cuid())
-  type        ContactType @default(WALK_IN)  // upgradable, never duplicated
-  name        String
-  phone       String?
-  email       String?
-  address     String?
-  notes       String?
-  tags        String[]    // e.g. wholesale, trade-in
-  createdAt   DateTime    @default(now())
+  id           String      @id @default(cuid())
+  type         ContactType @default(WALK_IN)  // upgradable, never duplicated
+  name         String
+  phone        String?
+  email        String?
+  address      String?
+  city         String?
+  cnic         String?     // PK / national ID (Pakistan)
+  photoUrl     String?     // profile photo (data URL)
+  cnicFrontUrl String?     // CNIC front photo (data URL)
+  cnicBackUrl  String?     // CNIC back photo (data URL)
+  notes        String?
+  tags         String[]    // e.g. wholesale, trade-in
+  createdAt    DateTime    @default(now())
 
   creditAccount CreditAccount?
   transactions  Transaction[]   // as buyer or seller
@@ -131,6 +136,14 @@ model Color {
   active    Boolean   @default(true)
   createdAt DateTime  @default(now())
   products  Product[]
+}
+
+// Managed city lookup — seeded with major Pakistani cities; users can add more.
+model City {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
 }
 
 model Product {

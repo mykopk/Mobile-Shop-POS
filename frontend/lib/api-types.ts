@@ -110,6 +110,23 @@ export type Product = {
   units: { id: string; imei: string; condition: "NEW" | "USED"; carrier: "NON_PTA" | "PTA" | "SIM_LOCKED" }[];
 };
 
+export type ProductPriceEntry = {
+  id: string;
+  sellPrice: string;
+  costPrice: string;
+  fromDate: string;
+};
+
+export type ProductDetail = {
+  id: string;
+  brand: { id: string; name: string };
+  model: string;
+  sellPrice: string;
+  costPrice: string;
+  retailPrice: string | null;
+  priceHistory: ProductPriceEntry[];
+};
+
 export type Unit = {
   id: string;
   imei: string;
@@ -167,10 +184,26 @@ export type InventoryLowStock = {
   threshold: number;
 };
 
+export type City = {
+  id: string;
+  name: string;
+};
+
 export type InventoryData = {
   units: Unit[];
   products: InventoryProduct[];
   lowStock: InventoryLowStock[];
+  valuation: {
+    costValue: number | null;
+    retailValue: number;
+    potentialProfit: number | null;
+  };
+  byCondition: {
+    condition: string;
+    units: number;
+    costValue: number | null;
+    retailValue: number;
+  }[];
 };
 
 export type Contact = {
@@ -180,11 +213,28 @@ export type Contact = {
   phone: string | null;
   email: string | null;
   address: string | null;
+  city: string | null;
+  cnic: string | null;
+  photoUrl: string | null;
+  cnicFrontUrl: string | null;
+  cnicBackUrl: string | null;
   notes: string | null;
   createdAt: string;
   transactionCount: number;
   creditBalance: string;
   creditLimit: string;
+  receivable: string;
+  payable: string;
+};
+
+export type ContactDuplicate = {
+  id: string;
+  type: "WALK_IN" | "CUSTOMER" | "VENDOR" | "BOTH";
+  name: string;
+  phone: string | null;
+  email: string | null;
+  creditLimit: string;
+  transactionCount: number;
 };
 
 export type ContactDetail = Contact & {
@@ -295,6 +345,8 @@ export type TransactionDetail = {
     id: string;
     method: string;
     amount: string;
+    tendered: string | null;
+    change: string | null;
     reference: string | null;
     bankAccount: { id: string; name: string; bankName: string; accountNo: string; holderName: string | null } | null;
   }[];
@@ -418,7 +470,7 @@ export type DashboardOverview = {
     inStock: number;
     threshold: number;
   }[];
-  sales14d: { key: string; label: string; revenue: number; count: number }[];
+  salesTrend: { key: string; label: string; revenue: number; count: number }[];
   topProducts: { name: string; qty: number; revenue: number }[];
   paymentSplit: { CASH: number; CARD: number; BANK_TRANSFER: number; CREDIT: number };
   newUsedSold: { NEW: number; USED: number };
@@ -442,6 +494,14 @@ export type ActivityLog = {
   details: string | null;
   createdAt: string;
   user: { id: string; name: string; username: string };
+};
+
+export type DashboardWidget = {
+  id: string;
+  key: string;
+  layout: string;
+  settings: string;
+  order: number;
 };
 
 export type PaymentMethod = "CASH" | "CARD" | "BANK_TRANSFER" | "CREDIT";
@@ -516,6 +576,14 @@ export type StockReport = {
 
 export type PaymentsReport = {
   byMethod: { method: PaymentMethod; amount: number; count: number }[];
+  byBankAccount: {
+    id: string;
+    name: string;
+    bankName: string;
+    accountNo: string;
+    amount: number;
+    count: number;
+  }[];
   inflows: { label: string; amount: number }[];
   outflows: { label: string; amount: number }[];
   totalIn: number;
@@ -538,6 +606,32 @@ export type BalancesReport = {
   payables: BalanceRow[];
   receivableTotal: number;
   payableTotal: number;
+};
+
+export type AgingBucket = { key: string; label: string; amount: number; count: number };
+
+export type AgingSide = {
+  buckets: AgingBucket[];
+  overdue: number;
+  total: number;
+  rows: {
+    id: string;
+    number: string;
+    date: string;
+    contactId: string;
+    name: string;
+    phone: string | null;
+    total: number;
+    paid: number;
+    outstanding: number;
+    ageDays: number;
+    bucket: string;
+  }[];
+};
+
+export type AgingReport = {
+  receivables: AgingSide;
+  payables: AgingSide;
 };
 
 export type LedgerRow = {

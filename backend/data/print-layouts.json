@@ -155,5 +155,41 @@
       "signature": true,
       "footer": true
     }
+  },
+  {
+    "name": "80mm Contacts List",
+    "type": "contacts",
+    "format": "80",
+    "qrType": "whatsapp",
+    "isDefault": false,
+    "options": {
+      "header": true,
+      "shopInfo": true,
+      "phone": true,
+      "type": true,
+      "city": true,
+      "cnic": true,
+      "notes": false,
+      "signature": false,
+      "footer": true
+    }
+  },
+  {
+    "name": "A4 Contacts List",
+    "type": "contacts",
+    "format": "a4",
+    "qrType": "whatsapp",
+    "isDefault": false,
+    "options": {
+      "header": true,
+      "shopInfo": true,
+      "phone": true,
+      "type": true,
+      "city": true,
+      "cnic": true,
+      "notes": true,
+      "signature": true,
+      "footer": true
+    }
   }
 ]

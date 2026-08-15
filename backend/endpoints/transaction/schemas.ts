@@ -3,6 +3,7 @@ import { z } from "zod";
 const paymentSchema = z.object({
   method: z.enum(["CASH", "CARD", "BANK_TRANSFER", "CREDIT"]),
   amount: z.coerce.number().positive("Payment amount must be positive"),
+  tendered: z.coerce.number().min(0).optional(),
   reference: z.string().trim().optional(),
   bankAccountId: z.string().optional(),
 });
@@ -21,6 +22,8 @@ export const createSaleSchema = z.object({
   payments: z.array(paymentSchema).optional().default([]),
   discount: z.coerce.number().min(0).default(0),
   note: z.string().trim().optional(),
+  number: z.string().trim().optional(),
+  clientRef: z.string().trim().max(120).optional(),
   date: z.string().trim().optional(),
 });
 

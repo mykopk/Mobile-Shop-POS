@@ -141,14 +141,19 @@ model User {
 // ============ CONTACTS (unified) ============
 
 model Contact {
-  id        String      @id @default(cuid())
-  type      ContactType @default(WALK_IN)
-  name      String
-  phone     String?
-  email     String?
-  address   String?
-  notes     String?
-  createdAt DateTime    @default(now())
+  id           String      @id @default(cuid())
+  type         ContactType @default(WALK_IN)
+  name         String
+  phone        String?
+  email        String?
+  address      String?
+  city         String?
+  cnic         String?
+  photoUrl     String?
+  cnicFrontUrl String?
+  cnicBackUrl  String?
+  notes        String?
+  createdAt    DateTime    @default(now())
 
   creditAccount CreditAccount?
   transactions  Transaction[]
@@ -157,6 +162,7 @@ model Contact {
   vouchers      Voucher[]
 
   @@index([phone])
+  @@index([cnic])
 }
 
 model CreditAccount {
@@ -205,6 +211,15 @@ model Color {
   units     Unit[]
 
   @@map("colors")
+}
+
+model City {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@map("cities")
 }
 
 model Product {
@@ -296,6 +311,7 @@ model Transaction {
   id        String          @id @default(cuid())
   type      TransactionType
   number    String          @unique
+  clientRef String?         @unique
   contactId String
   contact   Contact         @relation(fields: [contactId], references: [id])
   userId    String
@@ -380,6 +396,8 @@ model Payment {
   transaction   Transaction   @relation(fields: [transactionId], references: [id], onDelete: Cascade)
   method        PaymentMethod
   amount        Decimal
+  tendered      Decimal?
+  change        Decimal?
   reference     String?
   bankAccountId String?
   bankAccount   BankAccount?  @relation(fields: [bankAccountId], references: [id])

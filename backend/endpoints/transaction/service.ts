@@ -18,6 +18,7 @@ type Db = Prisma.TransactionClient | typeof prisma;
 type PaymentInput = {
   method: "CASH" | "CARD" | "BANK_TRANSFER" | "CREDIT";
   amount: number;
+  tendered?: number;
   reference?: string;
   bankAccountId?: string;
 };
@@ -42,11 +43,22 @@ async function applyPayments(
 ) {
   let paid = 0;
   for (const p of payments) {
+    let tendered: number | undefined;
+    let change: number | undefined;
+    if (p.method === "CASH" && p.tendered !== undefined) {
+      if (p.tendered < p.amount - 0.001) {
+        throw new ApiError(400, "payment.tender_short", "Cash received is less than the payment amount");
+      }
+      tendered = p.tendered;
+      change = Math.round((tendered - p.amount) * 100) / 100;
+    }
     await db.payment.create({
       data: {
         transactionId,
         method: p.method,
         amount: p.amount,
+        ...(tendered !== undefined ? { tendered } : {}),
+        ...(change !== undefined ? { change } : {}),
         reference: p.reference,
         bankAccountId: p.bankAccountId,
       },
@@ -105,117 +117,175 @@ export async function createSale(input: CreateSaleInput, userId: string) {
     throw new ApiError(400, "payment.overpaid", "Payments exceed the total");
   }
 
-  const number = await nextNumber(
-    () => prisma.transaction.findMany({ where: { number: { startsWith: "SAL-" } }, select: { number: true } }),
-    "SAL",
-  );
-  const createdAt = input.date ? new Date(`${input.date}T00:00:00`) : undefined;
-  const transaction = await prisma.$transaction(async (tx) => {
-    const createdItems: Prisma.TransactionItemUncheckedCreateWithoutTransactionInput[] = [];
-
-    for (const item of items) {
-      if (item.unitId) {
-        const unit = await tx.unit.findUnique({ where: { id: item.unitId } });
-        if (!unit) throw new ApiError(404, "unit.not_found", "Unit not found");
-        if (unit.status !== "IN_STOCK" && unit.status !== "RESERVED" && unit.status !== "OUT") {
-          throw new ApiError(400, "unit.not_in_stock", `Unit ${unit.imei} is not in stock`);
-        }
-        if (unit.productId !== item.productId) {
-          throw new ApiError(400, "unit.product_mismatch", "Unit does not belong to the product");
-        }
-
-        await tx.unit.update({ where: { id: unit.id }, data: { status: "SOLD" } });
-        await tx.stockMovement.create({
-          data: { unitId: unit.id, productId: item.productId, type: "OUT", note: "Sold" },
-        });
-        createdItems.push({
-          productId: item.productId,
-          unitId: unit.id,
-          quantity: 1,
-          unitPrice: item.unitPrice,
-          discount: item.discount,
-          total: item.total,
-        });
-      } else {
-        await tx.stockMovement.create({
-          data: { productId: item.productId, type: "OUT", qty: item.quantity, note: "Sold" },
-        });
-        createdItems.push({
-          productId: item.productId,
-          unitId: null,
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
-          discount: item.discount,
-          total: item.total,
-        });
-      }
-    }
-
-    const created = await tx.transaction.create({
-      data: {
-        type: "SALE",
-        number,
-        contactId: contact.id,
-        userId,
-        subtotal,
-        discount: input.discount,
-        tax,
-        cardFee,
-        total,
-        status: statusFor(total, paidInput),
-        note: input.note,
-        ...(createdAt ? { createdAt } : {}),
-        items: { create: createdItems },
-      },
-      include: { items: true },
+  if (input.clientRef) {
+    const existing = await prisma.transaction.findUnique({
+      where: { clientRef: input.clientRef },
+      include: includeTransaction(),
     });
+    if (existing) return existing;
+  }
 
-    await applyPayments(tx, created.id, contact.id, input.payments);
+  let number = await resolveNumber(input.number, "SAL");
+  const createdAt = input.date ? new Date(`${input.date}T00:00:00`) : undefined;
 
-    const soldUnitIds = items.filter((i) => i.unitId).map((i) => i.unitId as string);
-    const reservations = soldUnitIds.length
-      ? await tx.reservation.findMany({
-          where: {
-            status: "ACTIVE",
-            items: { some: { unitId: { in: soldUnitIds } } },
+  let transaction;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      transaction = await prisma.$transaction(async (tx) => {
+        const createdItems: Prisma.TransactionItemUncheckedCreateWithoutTransactionInput[] = [];
+
+        for (const item of items) {
+          if (item.unitId) {
+            const updated = await tx.unit.updateMany({
+              where: {
+                id: item.unitId,
+                productId: item.productId,
+                status: { in: ["IN_STOCK", "RESERVED", "OUT"] },
+              },
+              data: { status: "SOLD" },
+            });
+            if (updated.count === 0) {
+              const unit = await tx.unit.findUnique({ where: { id: item.unitId } });
+              if (!unit) throw new ApiError(404, "unit.not_found", "Unit not found");
+              if (unit.productId !== item.productId) {
+                throw new ApiError(400, "unit.product_mismatch", "Unit does not belong to the product");
+              }
+              throw new ApiError(400, "unit.not_in_stock", `Unit ${unit.imei} is not in stock`);
+            }
+            await tx.stockMovement.create({
+              data: { unitId: item.unitId, productId: item.productId, type: "OUT", note: "Sold" },
+            });
+            createdItems.push({
+              productId: item.productId,
+              unitId: item.unitId,
+              quantity: 1,
+              unitPrice: item.unitPrice,
+              discount: item.discount,
+              total: item.total,
+            });
+          } else {
+            const soldItems = await tx.transactionItem.findMany({
+              where: { productId: item.productId },
+              select: { quantity: true, transaction: { select: { type: true } } },
+            });
+            let available = 0;
+            for (const si of soldItems) {
+              const t = si.transaction.type;
+              const sign =
+                t === "PURCHASE"
+                  ? 1
+                  : t === "SALE"
+                    ? -1
+                    : t === "PURCHASE_RETURN"
+                      ? -1
+                      : t === "SALE_RETURN"
+                        ? 1
+                        : 0;
+              available += sign * si.quantity;
+            }
+            if (item.quantity > available) {
+              throw new ApiError(400, "stock.insufficient", `Not enough stock — only ${available} available`);
+            }
+            await tx.stockMovement.create({
+              data: { productId: item.productId, type: "OUT", qty: item.quantity, note: "Sold" },
+            });
+            createdItems.push({
+              productId: item.productId,
+              unitId: null,
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+              discount: item.discount,
+              total: item.total,
+            });
+          }
+        }
+
+        const created = await tx.transaction.create({
+          data: {
+            type: "SALE",
+            number,
+            ...(input.clientRef ? { clientRef: input.clientRef } : {}),
+            contactId: contact.id,
+            userId,
+            subtotal,
+            discount: input.discount,
+            tax,
+            cardFee,
+            total,
+            status: statusFor(total, paidInput),
+            note: input.note,
+            ...(createdAt ? { createdAt } : {}),
+            items: { create: createdItems },
           },
           include: { items: true },
-        })
-      : [];
+        });
 
-    let advanceAdded = 0;
-    for (const reservation of reservations) {
-      const advance = Number(reservation.advance);
-      if (reservation.contactId === contact.id && advance > 0) {
-        const remainder = Math.max(0, total - paidInput - advanceAdded);
-        const toAdd = Math.min(advance, remainder);
-        if (toAdd > 0) {
-          await tx.payment.create({
-            data: {
-              transactionId: created.id,
-              method: "CASH",
-              amount: toAdd,
-              reference: `Advance from ${reservation.number}`,
-            },
+        await applyPayments(tx, created.id, contact.id, input.payments);
+
+        const soldUnitIds = items.filter((i) => i.unitId).map((i) => i.unitId as string);
+        const reservations = soldUnitIds.length
+          ? await tx.reservation.findMany({
+              where: {
+                status: "ACTIVE",
+                items: { some: { unitId: { in: soldUnitIds } } },
+              },
+              include: { items: true },
+            })
+          : [];
+
+        let advanceAdded = 0;
+        for (const reservation of reservations) {
+          const advance = Number(reservation.advance);
+          if (reservation.contactId === contact.id && advance > 0) {
+            const remainder = Math.max(0, total - paidInput - advanceAdded);
+            const toAdd = Math.min(advance, remainder);
+            if (toAdd > 0) {
+              await tx.payment.create({
+                data: {
+                  transactionId: created.id,
+                  method: "CASH",
+                  amount: toAdd,
+                  reference: `Advance from ${reservation.number}`,
+                },
+              });
+              advanceAdded += toAdd;
+            }
+          }
+          await tx.reservation.update({
+            where: { id: reservation.id },
+            data: { status: "COMPLETED", saleId: created.id },
           });
-          advanceAdded += toAdd;
         }
+
+        if (advanceAdded > 0) {
+          await tx.transaction.update({
+            where: { id: created.id },
+            data: { status: statusFor(total, paidInput + advanceAdded) },
+          });
+        }
+
+        return created;
+      });
+      break;
+    } catch (e) {
+      if (attempt >= 3) throw e;
+      const meta = (e as { meta?: { target?: string | string[] } })?.meta;
+      const target = Array.isArray(meta?.target) ? meta?.target : [meta?.target];
+      const fields = (target ?? []).map(String);
+      if (fields.includes("clientRef") && input.clientRef) {
+        const existing = await prisma.transaction.findUnique({
+          where: { clientRef: input.clientRef },
+          include: includeTransaction(),
+        });
+        if (existing) return existing;
       }
-      await tx.reservation.update({
-        where: { id: reservation.id },
-        data: { status: "COMPLETED", saleId: created.id },
-      });
+      if (fields.includes("number")) {
+        number = await resolveNumber(undefined, "SAL");
+        continue;
+      }
+      throw e;
     }
-
-    if (advanceAdded > 0) {
-      await tx.transaction.update({
-        where: { id: created.id },
-        data: { status: statusFor(total, paidInput + advanceAdded) },
-      });
-    }
-
-    return created;
-  });
+  }
 
   await writeAudit({
     userId,

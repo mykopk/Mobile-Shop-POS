@@ -2,6 +2,7 @@ import { env } from "./core/config/env";
 import { prisma } from "./core/lib/prisma";
 import { createApp } from "./app";
 import { seedPrintLayouts } from "./endpoints/print-layout/seed";
+import { seedCities } from "./endpoints/city/seed";
 
 const app = createApp();
 
@@ -11,6 +12,12 @@ async function bootstrap() {
     console.log(`Seeded ${seeded.length} premade print layout(s)`);
   } catch (err) {
     console.warn("Premade print layouts were not seeded:", err instanceof Error ? err.message : err);
+  }
+  try {
+    const seededCities = await seedCities();
+    console.log(`Seeded ${seededCities.length} new city/cities`);
+  } catch (err) {
+    console.warn("Cities were not seeded:", err instanceof Error ? err.message : err);
   }
   const server = app.listen(env.PORT, env.HOST, () => {
     console.log(

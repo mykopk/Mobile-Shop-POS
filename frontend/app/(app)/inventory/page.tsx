@@ -440,19 +440,6 @@ export default function InventoryPage() {
 
   const totalItems = filteredUnits.length + filteredProducts.length;
 
-  const valuation = useMemo(() => {
-    let newVal = 0;
-    let usedVal = 0;
-    for (const u of units) {
-      if (u.status !== "IN_STOCK") continue;
-      const cost = parseFloat(u.costPrice ?? "") || 0;
-      if (u.condition === "NEW") newVal += cost;
-      else usedVal += cost;
-    }
-    const accessoryVal = products.reduce((s, p) => s + (parseFloat(p.costPrice ?? "") || 0) * p.qty, 0);
-    return { newVal, usedVal, accessoryVal, total: newVal + usedVal + accessoryVal };
-  }, [units, products]);
-
   const lowStockIds = useMemo(() => new Set(data?.lowStock.map((l) => l.id) ?? []), [data]);
 
   return (
@@ -532,19 +519,30 @@ export default function InventoryPage() {
       </div>
 
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
-        {viewCosts && (
-          <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {data && viewCosts && (
+            <>
+              {data.byCondition.map((c) => (
+                <div key={c.condition} className="rounded-xl bg-ink-50 px-3 py-1.5 text-xs text-ink-500">
+                  {c.condition === "NEW" ? "New" : "Used"} value
+                  <span className="ml-1 font-semibold text-ink-900">{formatPKR(c.costValue ?? 0)}</span>
+                  <span className="ml-1 text-ink-400">({c.units} units)</span>
+                </div>
+              ))}
+              <div className="rounded-xl bg-ink-50 px-3 py-1.5 text-xs text-ink-500">
+                Total (cost) <span className="ml-1 font-semibold text-ink-900">{formatPKR(data.valuation.costValue ?? 0)}</span>
+              </div>
+              <div className="rounded-xl bg-brand-50 px-3 py-1.5 text-xs text-brand-700">
+                Potential profit <span className="ml-1 font-semibold text-brand-900">{formatPKR(data.valuation.potentialProfit ?? 0)}</span>
+              </div>
+            </>
+          )}
+          {data && (
             <div className="rounded-xl bg-ink-50 px-3 py-1.5 text-xs text-ink-500">
-              New value <span className="ml-1 font-semibold text-ink-900">{formatPKR(valuation.newVal)}</span>
+              Retail value <span className="ml-1 font-semibold text-ink-900">{formatPKR(data.valuation.retailValue)}</span>
             </div>
-            <div className="rounded-xl bg-ink-50 px-3 py-1.5 text-xs text-ink-500">
-              Used value <span className="ml-1 font-semibold text-ink-900">{formatPKR(valuation.usedVal)}</span>
-            </div>
-            <div className="rounded-xl bg-ink-50 px-3 py-1.5 text-xs text-ink-500">
-              Total value <span className="ml-1 font-semibold text-ink-900">{formatPKR(valuation.total)}</span>
-            </div>
-          </div>
-        )}
+          )}
+        </div>
         {data && data.lowStock.length > 0 && (
           <Button variant="secondary" size="sm" className="ml-auto bg-warning/10 text-warning hover:bg-warning/15" onClick={() => setLowStockOpen(true)}>
             <AlertIcon className="h-3.5 w-3.5" />

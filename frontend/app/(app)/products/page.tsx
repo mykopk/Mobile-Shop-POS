@@ -3,11 +3,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { apiRequest } from "@/lib/apiClient";
 import { useAuth } from "@/lib/auth-context";
-import type { Brand, Category, Color, ProductSummary } from "@/lib/api-types";
+import type { Brand, Category, Color, ProductDetail, ProductSummary } from "@/lib/api-types";
 import { useApi } from "@/lib/use-api";
 import { canViewCosts, hasPermission } from "@/lib/roles";
 import { PERMISSIONS } from "@/lib/constants/permissions";
 import { formatPKR } from "@/lib/money";
+import { formatDateTime } from "@/lib/dates";
 import { parseCsvLine, downloadCsv } from "@/lib/csv";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -22,7 +23,7 @@ import { ManageWindow } from "@/components/products/manage-window";
 import { SortHeader } from "@/components/ui/sort-header";
 import { PaginationBar, usePagination } from "@/components/ui/pagination";
 import { useToast } from "@/components/ui/toast";
-import { CameraIcon, FilterIcon, PlusIcon, SettingsIcon, TrashIcon, UploadIcon, DownloadIcon } from "@/components/icons";
+import { CameraIcon, FilterIcon, PlusIcon, SettingsIcon, TrashIcon, UploadIcon, DownloadIcon, HistoryIcon } from "@/components/icons";
 import { CONDITION_FILTER_OPTIONS } from "@/lib/constants/products";
 
 type SortKey = "brand" | "color" | "categoryName" | "sku" | "sellPrice" | "retailPrice" | "costPrice";
@@ -61,6 +62,9 @@ export default function ProductsPage() {
   const [manageOpen, setManageOpen] = useState(false);
   const [manageTab, setManageTab] = useState<"category" | "brand" | "color">("category");
   const [formKey, setFormKey] = useState(0);
+  const [historyProduct, setHistoryProduct] = useState<ProductSummary | null>(null);
+  const [historyData, setHistoryData] = useState<ProductDetail | null>(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   const viewCosts = canViewCosts(user);
   const canCreate = hasPermission(user, PERMISSIONS.productCreate);
@@ -176,6 +180,19 @@ export default function ProductsPage() {
     setEditingId(p.id);
     setFormKey((k) => k + 1);
     setOpen(true);
+  }
+
+  async function openPriceHistory(p: ProductSummary) {
+    setHistoryProduct(p);
+    setHistoryData(null);
+    setHistoryLoading(true);
+    try {
+      setHistoryData(await apiRequest<ProductDetail>(`/product/${p.id}`));
+    } catch {
+      toast("Failed to load price history", "error");
+    } finally {
+      setHistoryLoading(false);
+    }
   }
 
   function initialForm(): ProductFormValues {
@@ -448,6 +465,7 @@ export default function ProductsPage() {
                 <SortHeader label="Sell price" k="sellPrice" sort={sort} onSort={onSort} right />
                 <SortHeader label="Retail price" k="retailPrice" sort={sort} onSort={onSort} right />
                 {viewCosts && <SortHeader label="Cost" k="costPrice" sort={sort} onSort={onSort} right />}
+                <th className="w-12 px-2 py-3" />
               </tr>
             </thead>
             <tbody>
@@ -494,12 +512,21 @@ export default function ProductsPage() {
                     {viewCosts && (
                       <td className="px-5 py-3 text-right text-ink-500">{formatPKR(p.costPrice)}</td>
                     )}
+                    <td className="px-2 py-3 text-right" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        onClick={() => void openPriceHistory(p)}
+                        title="Price history"
+                        className="rounded-lg p-1.5 text-ink-400 transition hover:bg-ink-100 hover:text-ink-700"
+                      >
+                        <HistoryIcon className="h-4 w-4" />
+                      </button>
+                    </td>
                   </tr>
                 );
               })}
               {filtered.length === 0 && !loading && (
                 <tr>
-                  <td colSpan={viewCosts ? 8 : 7} className="px-5 py-8 text-center text-sm text-ink-400">
+                  <td colSpan={viewCosts ? 9 : 8} className="px-5 py-8 text-center text-sm text-ink-400">
                     No products found.
                   </td>
                 </tr>
@@ -550,6 +577,52 @@ export default function ProductsPage() {
           onSave={save}
           onCancel={() => setOpen(false)}
         />
+      </Sheet>
+
+      <Sheet
+        open={!!historyProduct}
+        title={historyProduct ? `Price history — ${historyProduct.brand} ${historyProduct.model}` : ""}
+        onClose={() => setHistoryProduct(null)}
+        width="max-w-lg"
+      >
+        {historyLoading ? (
+          <p className="text-sm text-ink-400">Loading…</p>
+        ) : historyData ? (
+          historyData.priceHistory.length === 0 ? (
+            <p className="text-sm text-ink-400">No price changes recorded yet.</p>
+          ) : (
+            <div className="space-y-2">
+              {historyData.priceHistory.map((h, i) => {
+                const prev = historyData.priceHistory[i + 1];
+                const sellDelta = prev ? Number(h.sellPrice) - Number(prev.sellPrice) : null;
+                const costDelta = prev ? Number(h.costPrice) - Number(prev.costPrice) : null;
+                const showDelta = (delta: number | null) =>
+                  delta === null || delta === 0 ? null : (
+                    <span className={`ml-1 text-xs font-semibold ${delta > 0 ? "text-brand-600" : "text-error"}`}>
+                      {delta > 0 ? "▲" : "▼"} {formatPKR(Math.abs(delta))}
+                    </span>
+                  );
+                return (
+                  <div key={h.id} className="rounded-2xl bg-ink-50/60 px-4 py-3">
+                    <p className="text-xs text-ink-400">{formatDateTime(h.fromDate)}</p>
+                    <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+                      <span className="text-ink-700">
+                        Sell <span className="font-semibold text-ink-900">{formatPKR(h.sellPrice)}</span>
+                        {showDelta(sellDelta)}
+                      </span>
+                      {viewCosts && (
+                        <span className="text-ink-700">
+                          Cost <span className="font-semibold text-ink-900">{formatPKR(h.costPrice)}</span>
+                          {showDelta(costDelta)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )
+        ) : null}
       </Sheet>
 
       <Sheet

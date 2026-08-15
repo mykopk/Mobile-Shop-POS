@@ -53,7 +53,7 @@ const CONTACT_TYPE_TONES: Record<string, TypePillTone> = {
   BOTH: "brand",
 };
 
-const CONTACT_TYPE_LABELS: Record<string, string> = {
+export const CONTACT_TYPE_LABELS: Record<string, string> = {
   CUSTOMER: "Customer",
   VENDOR: "Vendor",
   WALK_IN: "Walk-in",

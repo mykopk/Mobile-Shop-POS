@@ -1,7 +1,10 @@
 import { prisma } from "../../core/lib/prisma";
 import { listUnits } from "../unit/service";
 
-export async function listInventory() {
+const n = (v: unknown) => Number(v ?? 0);
+const round = (v: number) => Math.round(v * 100) / 100;
+
+export async function listInventory(canViewCosts = false) {
   const [units, items] = await Promise.all([
     listUnits({}),
     prisma.transactionItem.findMany({
@@ -130,9 +133,37 @@ export async function listInventory() {
     .filter((x): x is NonNullable<typeof x> => !!x)
     .sort((a, b) => a.inStock - b.inStock);
 
+  let costValue = 0;
+  let retailValue = 0;
+  const condMap = new Map<string, { condition: string; units: number; costValue: number; retailValue: number }>();
+  for (const u of units) {
+    if (u.status !== "IN_STOCK") continue;
+    const cost = n(u.costPrice);
+    const retail = n(u.product.sellPrice);
+    costValue += cost;
+    retailValue += retail;
+    const cur = condMap.get(u.condition) ?? { condition: u.condition, units: 0, costValue: 0, retailValue: 0 };
+    cur.units += 1;
+    cur.costValue += cost;
+    cur.retailValue += retail;
+    condMap.set(u.condition, cur);
+  }
+  for (const p of quantityProducts) {
+    costValue += n(p.costPrice) * p.qty;
+    retailValue += n(p.sellPrice) * p.qty;
+  }
+
   return {
     units,
     products: quantityProducts,
     lowStock,
+    valuation: {
+      costValue: canViewCosts ? round(costValue) : null,
+      retailValue: round(retailValue),
+      potentialProfit: canViewCosts ? round(retailValue - costValue) : null,
+    },
+    byCondition: [...condMap.values()]
+      .map((c) => ({ ...c, costValue: canViewCosts ? round(c.costValue) : null, retailValue: round(c.retailValue) }))
+      .sort((a, b) => b.units - a.units),
   };
 }

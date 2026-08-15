@@ -18,6 +18,7 @@ import { Dropdown } from "@/components/ui/dropdown";
 import { Sheet } from "@/components/ui/sheet";
 import { Dialog } from "@/components/ui/dialog";
 import { ScrollView } from "@/components/ui/scroll-view";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import { useToast } from "@/components/ui/toast";
 
 type ManageTab = "view" | "category" | "brand" | "color";
@@ -59,26 +60,16 @@ export function ManageWindow({
 
   return (
     <Sheet open title={title} onClose={onClose} width="max-w-xl">
-      <div className="flex items-center gap-1 rounded-2xl bg-brand-100 p-1">
-        {(
-          [
-            { value: "category", label: "Categories" },
-            { value: "brand", label: "Brands" },
-            { value: "color", label: "Colors" },
-          ] as const
-        ).map((t) => (
-          <button
-            key={t.value}
-            type="button"
-            onClick={() => setTab(t.value)}
-            className={`flex-1 rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
-              tab === t.value ? "bg-brand-600 text-white" : "text-brand-700 hover:text-ink-900"
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+      <SegmentedControl
+        className="w-full"
+        value={tab}
+        options={[
+          { value: "category", label: "Categories" },
+          { value: "brand", label: "Brands" },
+          { value: "color", label: "Colors" },
+        ]}
+        onChange={(value) => setTab(value as ManageTab)}
+      />
 
       {tab === "category" ? (
         <EntityList

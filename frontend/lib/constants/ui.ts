@@ -14,3 +14,5 @@ export const TOAST = {
   maxVisible: 3,
   durationMs: 3200,
 } as const;
+
+export const MAX_MONEY_AMOUNT = 99_000_000;

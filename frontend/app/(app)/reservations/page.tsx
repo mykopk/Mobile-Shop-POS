@@ -1,17 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { apiRequest } from "@/lib/apiClient";
 import { brandOf, type CompanyProfile, type Contact, type ReservationDetail } from "@/lib/api-types";
 import { useApi } from "@/lib/use-api";
-import { CARRIER_LABELS, APP } from "@/lib/constants";
-import { formatPKR } from "@/lib/money";
+import { CARRIER_LABELS, APP, MAX_MONEY_AMOUNT } from "@/lib/constants";
+import { formatPKR, clampMoneyInput } from "@/lib/money";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Dropdown } from "@/components/ui/dropdown";
 import { Kbd } from "@/components/ui/kbd";
+import { PriceInput } from "@/components/ui/price-input";
 import { useToast } from "@/components/ui/toast";
 import { useSaveShortcut } from "@/lib/use-save-shortcut";
 import { ChevronLeftIcon, PlusIcon, PrinterIcon, ReservationIcon, SmartphoneIcon, XIcon } from "@/components/icons";
@@ -90,6 +91,27 @@ export default function ReservationsPage() {
     () => cart.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0),
     [cart],
   );
+
+  const totalQuantity = useMemo(() => cart.reduce((sum, line) => sum + line.quantity, 0), [cart]);
+
+  const cartGroups = useMemo(() => {
+    const map = new Map<string, { key: string; label: string; unitPrice: number; lines: CartLine[] }>();
+    const plain: CartLine[] = [];
+    for (const line of cart) {
+      if (line.imei) {
+        const key = line.productId;
+        let g = map.get(key);
+        if (!g) {
+          g = { key, label: line.label, unitPrice: line.unitPrice, lines: [] };
+          map.set(key, g);
+        }
+        g.lines.push(line);
+      } else {
+        plain.push(line);
+      }
+    }
+    return { groups: [...map.values()], plain };
+  }, [cart]);
 
   const showPanel = searching || results.length > 0;
 
@@ -241,8 +263,12 @@ export default function ReservationsPage() {
     setCart((prev) => prev.filter((l) => l.key !== key));
   }
 
-  function setLinePrice(key: string, value: string) {
-    setCart((prev) => prev.map((l) => (l.key === key ? { ...l, unitPrice: parseFloat(value) || 0 } : l)));
+  function setLinePrice(key: string, value: number) {
+    setCart((prev) => prev.map((l) => (l.key === key ? { ...l, unitPrice: value } : l)));
+  }
+
+  function updateGroupPrice(productId: string, unitPrice: number) {
+    setCart((prev) => prev.map((l) => (l.productId === productId ? { ...l, unitPrice } : l)));
   }
 
   async function reserve() {
@@ -499,7 +525,7 @@ export default function ReservationsPage() {
         <ReservationsToolbar />
       </div>
 
-      <div className="mt-3 grid shrink-0 gap-3 md:grid-cols-[2fr_1fr_1fr] md:items-end">
+      <div className="mt-3 grid shrink-0 gap-3 md:grid-cols-[2fr_1fr] md:items-end">
         <div>
           <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Customer</p>
           {contactOptions.length > 0 && (
@@ -516,25 +542,6 @@ export default function ReservationsPage() {
         <div>
           <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Reservation #</p>
           <Input value={reserveNo} readOnly className="bg-ink-100" />
-        </div>
-
-        <div>
-          <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">
-            {flow === "CONSIGNMENT" ? "Agreed payment" : "Advance (Rs)"}
-          </p>
-          {flow === "CONSIGNMENT" ? (
-            <p className="rounded-2xl bg-sky-50 px-4 py-3 text-xs font-medium text-sky-700">
-              Phone leaves the shop — collect payment when it sells.
-            </p>
-          ) : (
-            <Input
-              value={advance}
-              onChange={(e) => setAdvance(e.target.value)}
-              placeholder="0 = nothing paid"
-              inputMode="numeric"
-              className="bg-ink-100"
-            />
-          )}
         </div>
       </div>
 
@@ -677,98 +684,201 @@ export default function ReservationsPage() {
           </div>
       </section>
 
-      <div className="mt-6 flex-1 overflow-y-auto pt-0.5">
-        <section>
-          <div className="mb-3 flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wide text-ink-500">Reserved items</span>
-            <span className="text-xs text-ink-500">{cart.length} line(s)</span>
-          </div>
-
-        <div className="overflow-x-auto rounded-2xl bg-white">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-xs uppercase tracking-wide text-ink-500">
-                <th className="px-4 py-2.5 font-semibold">Item</th>
-                <th className="px-4 py-2.5 text-center font-semibold">Qty</th>
-                <th className="px-4 py-2.5 text-right font-semibold">
-                  {flow === "CONSIGNMENT" ? "Agreed price" : "Unit price"}
-                </th>
-                <th className="px-4 py-2.5 text-right font-semibold">Amount</th>
-                <th className="px-4 py-2.5" />
-              </tr>
-            </thead>
-            <tbody>
-              {cart.map((line, i) => (
-                <tr key={line.key} className={i % 2 === 0 ? "bg-white" : "bg-ink-50"}>
-                  <td className="px-4 py-3">
-                    <p className="font-medium text-ink-900">{line.label}</p>
-                    <p className="text-[11px] text-ink-400">
-                      {line.imei ?? `${line.quantity} × ${formatPKR(line.unitPrice)}`}
-                    </p>
-                  </td>
-                  <td className="px-4 py-3 text-center text-ink-700">{line.quantity}</td>
-                  <td className="px-4 py-3 text-right">
-                    {flow === "CONSIGNMENT" ? (
-                      <Input
-                        value={String(line.unitPrice)}
-                        onChange={(e) => setLinePrice(line.key, e.target.value)}
-                        inputMode="numeric"
-                        className="ml-auto w-28 bg-ink-50 text-right"
-                      />
-                    ) : (
-                      <span className="text-ink-700">{formatPKR(line.unitPrice)}</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-right font-semibold text-ink-900">
-                    {formatPKR(line.unitPrice * line.quantity)}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <button type="button" onClick={() => removeLine(line.key)} className="text-ink-400 hover:text-error">
-                      ✕
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        </section>
+      <div className="mb-3 flex shrink-0 items-center justify-between">
+        <span className="text-xs font-semibold uppercase tracking-wide text-ink-500">Reserved items</span>
+        <span className="text-xs text-ink-500">{totalQuantity} item(s)</span>
       </div>
 
-      <div className="-mx-6 -mb-6 mt-6 shrink-0 bg-white px-6 py-4">
-        <div className="mt-4 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className="flex items-baseline gap-3">
-              <span className="text-sm font-medium text-ink-500">
-                {flow === "CONSIGNMENT" ? "Agreed total" : "Total"}
-              </span>
-              <span className="text-3xl font-bold text-brand-600">{formatPKR(total)}</span>
-            </div>
-            {flow === "RESERVATION" && advance !== "" && !Number.isNaN(parseFloat(advance)) && (
-              <div className="flex items-baseline gap-2 text-sm">
-                <span className="text-ink-500">Advance</span>
-                <span className="font-semibold text-ink-900">{formatPKR(parseFloat(advance) || 0)}</span>
-                <span className="text-ink-500">· Due</span>
-                <span className="font-semibold text-ink-900">{formatPKR(Math.max(0, balanceDue))}</span>
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-none rounded-2xl bg-white">
+        <table className="w-full text-sm">
+          <thead className="sticky top-0 z-10 bg-white">
+            <tr className="border-b border-ink-100 text-left text-xs uppercase tracking-wide text-ink-500">
+              <th className="px-4 py-3">Item</th>
+              <th className="w-14 px-4 py-3 text-center">Qty</th>
+              <th className="w-28 px-4 py-3 text-right">
+                {flow === "CONSIGNMENT" ? "Agreed price" : "Price"}
+              </th>
+              <th className="w-28 px-4 py-3 text-right">Amount</th>
+              <th className="w-12 px-4 py-3" />
+            </tr>
+          </thead>
+          <tbody>
+            {cartGroups.groups.map((g) => (
+              <Fragment key={g.key}>
+                <tr className="bg-ink-50/80">
+                  <td className="px-4 py-2.5">
+                    <div className="flex items-center gap-2.5">
+                      <div className="h-6 w-1 shrink-0 rounded-full bg-brand-500" />
+                      <span className="truncate text-sm font-semibold text-ink-900">{g.label}</span>
+                      <span className="shrink-0 rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink-500 ring-1 ring-ink-200">
+                        {g.lines.length} unit{g.lines.length === 1 ? "" : "s"}
+                      </span>
+                    </div>
+                  </td>
+                  <td className="px-4 py-2.5 text-center text-sm font-semibold text-ink-900">
+                    {g.lines.reduce((s, l) => s + l.quantity, 0)}
+                  </td>
+                  <td className="px-4 py-2.5 text-right">
+                    <div className="w-20">
+                      <PriceInput
+                        value={g.unitPrice}
+                        max={MAX_MONEY_AMOUNT}
+                        onChange={(n) => updateGroupPrice(g.key, n)}
+                        className="bg-white px-2 text-right"
+                      />
+                    </div>
+                  </td>
+                  <td className="px-4 py-2.5 text-right text-sm font-semibold text-ink-900">
+                    {formatPKR(g.lines.reduce((s, l) => s + l.unitPrice * l.quantity, 0))}
+                  </td>
+                  <td className="px-4 py-2.5" />
+                </tr>
+                {g.lines.map((line) => (
+                  <tr key={line.key} className="border-b border-ink-50 bg-white transition hover:bg-ink-50/60">
+                    <td className="px-4 py-2.5 pl-9">
+                      <span className="font-mono text-[13px] font-medium text-ink-900">{line.imei}</span>
+                    </td>
+                    <td className="px-4 py-2.5 text-center text-ink-700">{line.quantity}</td>
+                    <td className="px-4 py-2.5 text-right">
+                      <div className="w-20">
+                        <PriceInput
+                          value={line.unitPrice}
+                          max={MAX_MONEY_AMOUNT}
+                          onChange={(n) => setLinePrice(line.key, n)}
+                          className="px-2 text-right"
+                        />
+                      </div>
+                    </td>
+                    <td className="px-4 py-2.5 text-right font-semibold text-ink-900">
+                      {formatPKR(line.unitPrice * line.quantity)}
+                    </td>
+                    <td className="px-4 py-2.5 text-right">
+                      <button
+                        type="button"
+                        onClick={() => removeLine(line.key)}
+                        title="Remove"
+                        className="rounded-lg p-1 text-ink-300 transition hover:bg-ink-100 hover:text-error"
+                      >
+                        <XIcon className="h-4 w-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </Fragment>
+            ))}
+            {cartGroups.plain.map((line) => (
+              <tr key={line.key} className="border-b border-ink-50 bg-white transition hover:bg-ink-50/60">
+                <td className="px-4 py-3">
+                  <p className="font-medium text-ink-900">{line.label}</p>
+                  <p className="text-[11px] text-ink-400">
+                    {line.imei ?? `${line.quantity} × ${formatPKR(line.unitPrice)}`}
+                  </p>
+                </td>
+                <td className="px-4 py-3 text-center text-ink-700">{line.quantity}</td>
+                <td className="px-4 py-3 text-right">
+                  <div className="ml-auto w-20">
+                    <PriceInput
+                      value={line.unitPrice}
+                      max={MAX_MONEY_AMOUNT}
+                      onChange={(n) => setLinePrice(line.key, n)}
+                      className="px-2 text-right"
+                    />
+                  </div>
+                </td>
+                <td className="px-4 py-3 text-right font-semibold text-ink-900">
+                  {formatPKR(line.unitPrice * line.quantity)}
+                </td>
+                <td className="px-4 py-3 text-right">
+                  <button
+                    type="button"
+                    onClick={() => removeLine(line.key)}
+                    title="Remove"
+                    className="rounded-lg p-1 text-ink-300 transition hover:bg-ink-100 hover:text-error"
+                  >
+                    <XIcon className="h-4 w-4" />
+                  </button>
+                </td>
+              </tr>
+            ))}
+            {cart.length === 0 && (
+              <tr>
+                <td colSpan={5} className="px-4 py-8 text-center text-sm text-ink-400">
+                  Cart is empty — search and add items.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="-mx-6 -mb-6 mt-6 shrink-0 border-t border-ink-100 bg-white px-6 py-5">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div className="min-w-0 flex-1">
+            {flow === "CONSIGNMENT" ? (
+              <p className="max-w-xs rounded-2xl bg-ink-50 px-4 py-3 text-xs font-medium text-ink-500">
+                Phone leaves the shop — collect payment when it sells.
+              </p>
+            ) : (
+              <div className="max-w-64">
+                <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">
+                  Advance payment
+                </p>
+                <Input
+                  value={advance}
+                  onChange={(e) => setAdvance(clampMoneyInput(e.target.value))}
+                  placeholder="0 = nothing paid"
+                  inputMode="decimal"
+                  className="bg-ink-100"
+                />
+                {advance !== "" && !Number.isNaN(parseFloat(advance)) && (
+                  <p className="mt-1.5 text-xs text-ink-500">
+                    Balance due{" "}
+                    <span className="font-semibold text-ink-900">{formatPKR(Math.max(0, balanceDue))}</span>
+                  </p>
+                )}
               </div>
             )}
           </div>
-          <div className="flex items-center gap-3">
-            <Button variant="grey" className="px-4 py-2" onClick={reset}>
-              Clear
-            </Button>
-            <Button
-              className="min-w-72 px-8 py-4 text-base"
-              type="submit"
-              disabled={submitting || cart.length === 0}
-            >
-              {submitting
-                ? "Saving…"
-                : flow === "CONSIGNMENT"
-                  ? `Consign ${formatPKR(total)}`
-                  : `Reserve ${formatPKR(total)}`}
-              <Kbd>Ctrl+S</Kbd>
-            </Button>
+          <div className="flex shrink-0 flex-col items-end gap-2">
+            <div className="text-right">
+              <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">
+                {flow === "CONSIGNMENT" ? "Agreed total" : "Total"}
+              </p>
+              <p className="text-3xl font-bold leading-tight text-brand-600">{formatPKR(total)}</p>
+              {flow === "RESERVATION" && advance !== "" && !Number.isNaN(parseFloat(advance)) && (
+                <div className="mt-1 space-y-0.5 text-xs text-ink-500">
+                  <p className="flex items-center justify-end gap-2">
+                    <span>Advance</span>
+                    <span className="w-20 text-right font-medium text-ink-700">
+                      {formatPKR(parseFloat(advance) || 0)}
+                    </span>
+                  </p>
+                  <p className="flex items-center justify-end gap-2">
+                    <span>Balance due</span>
+                    <span className="w-20 text-right font-medium text-ink-700">
+                      {formatPKR(Math.max(0, balanceDue))}
+                    </span>
+                  </p>
+                </div>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="grey" className="px-4 py-2" onClick={reset}>
+                Clear
+              </Button>
+              <Button
+                className="min-w-72 px-8 py-4 text-base"
+                type="submit"
+                disabled={submitting || cart.length === 0}
+              >
+                {submitting
+                  ? "Saving…"
+                  : flow === "CONSIGNMENT"
+                    ? `Consign ${formatPKR(total)}`
+                    : `Reserve ${formatPKR(total)}`}
+                <Kbd>Ctrl+S</Kbd>
+              </Button>
+            </div>
           </div>
         </div>
       </div>

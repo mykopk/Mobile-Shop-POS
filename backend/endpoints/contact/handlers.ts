@@ -10,6 +10,17 @@ import {
 } from "./service";
 import type { ContactInput, ImportContactInput } from "./schemas";
 
+export async function duplicatesHandler(req: Request, res: Response) {
+  const { phone, name, excludeId } = req.query;
+  res.json({
+    data: await findDuplicates({
+      phone: typeof phone === "string" ? phone : undefined,
+      name: typeof name === "string" ? name : undefined,
+      excludeId: typeof excludeId === "string" ? excludeId : undefined,
+    }),
+  });
+}
+
 export async function listHandler(req: Request, res: Response) {
   const { q, type } = req.query;
   res.json({
@@ -22,16 +33,6 @@ export async function listHandler(req: Request, res: Response) {
 
 export async function getHandler(req: Request, res: Response) {
   res.json({ data: await getContact(req.params.id) });
-}
-
-export async function dedupeHandler(req: Request, res: Response) {
-  const { phone, name } = req.query;
-  res.json({
-    data: await findDuplicates(
-      typeof phone === "string" ? phone : undefined,
-      typeof name === "string" ? name : undefined,
-    ),
-  });
 }
 
 export async function createHandler(req: Request, res: Response) {

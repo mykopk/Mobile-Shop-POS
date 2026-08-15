@@ -522,7 +522,7 @@ export async function stockReport(permissions: readonly Permission[]) {
 // ============ PAYMENTS / CASH FLOW ============
 
 export async function paymentsReport(r: Range) {
-  const [byMethod, salePaid, purchasePaid, creditPaid, vouchers, expenseTotal] = await Promise.all([
+  const [byMethod, salePaid, purchasePaid, creditPaid, vouchers, expenseTotal, bankPayments, bankVouchers] = await Promise.all([
     prisma.payment.groupBy({
       by: ["method"],
       where: { ...rangeWhere(r) },
@@ -549,7 +549,47 @@ export async function paymentsReport(r: Range) {
       where: { ...rangeWhere(r, "date") },
       _sum: { amount: true },
     }),
+    prisma.payment.groupBy({
+      by: ["bankAccountId"],
+      where: { bankAccountId: { not: null }, ...rangeWhere(r) },
+      _sum: { amount: true },
+      _count: true,
+    }),
+    prisma.voucher.groupBy({
+      by: ["bankAccountId"],
+      where: { status: "ACTIVE", method: "BANK_TRANSFER", bankAccountId: { not: null }, ...rangeWhere(r, "date") },
+      _sum: { amount: true },
+      _count: true,
+    }),
   ]);
+
+  const bankIds = [...new Set([
+    ...bankPayments.map((b) => b.bankAccountId),
+    ...bankVouchers.map((b) => b.bankAccountId),
+  ].filter((id): id is string => !!id))];
+  const accounts = bankIds.length > 0
+    ? await prisma.bankAccount.findMany({ where: { id: { in: bankIds } } })
+    : [];
+  const accountMap = new Map(accounts.map((a) => [a.id, a]));
+  const bankMap = new Map<string, { id: string; name: string; bankName: string; accountNo: string; amount: number; count: number }>();
+  for (const p of bankPayments) {
+    if (!p.bankAccountId) continue;
+    const a = accountMap.get(p.bankAccountId);
+    if (!a) continue;
+    const cur = bankMap.get(a.id) ?? { id: a.id, name: a.name, bankName: a.bankName, accountNo: a.accountNo, amount: 0, count: 0 };
+    cur.amount += n(p._sum.amount);
+    cur.count += p._count;
+    bankMap.set(a.id, cur);
+  }
+  for (const v of bankVouchers) {
+    if (!v.bankAccountId) continue;
+    const a = accountMap.get(v.bankAccountId);
+    if (!a) continue;
+    const cur = bankMap.get(a.id) ?? { id: a.id, name: a.name, bankName: a.bankName, accountNo: a.accountNo, amount: 0, count: 0 };
+    cur.amount += n(v._sum.amount);
+    cur.count += v._count;
+    bankMap.set(a.id, cur);
+  }
 
   const crv = vouchers.filter((v) => v.type === "RECEIVING").reduce((s, v) => s + n(v.amount), 0);
   const cpv = vouchers.filter((v) => v.type === "PAYMENT").reduce((s, v) => s + n(v.amount), 0);
@@ -569,6 +609,9 @@ export async function paymentsReport(r: Range) {
   return {
     byMethod: byMethod
       .map((p) => ({ method: p.method, amount: n(p._sum.amount), count: p._count }))
+      .sort((a, b) => b.amount - a.amount),
+    byBankAccount: [...bankMap.values()]
+      .filter((b) => b.amount > 0)
       .sort((a, b) => b.amount - a.amount),
     inflows: inflows.map((i) => ({ ...i, amount: round(i.amount) })),
     outflows: outflows.map((i) => ({ ...i, amount: round(i.amount) })),
@@ -787,4 +830,112 @@ export async function ledgerReport(contactId: string, r: Range) {
     rows,
     closing: rows.length > 0 ? rows[rows.length - 1].balance : 0,
   };
+}
+
+// ============ CREDIT AGING ============
+
+const AGING_BUCKETS = [
+  { key: "current", label: "0–30 days", min: 0, max: 30 },
+  { key: "d31_60", label: "31–60 days", min: 31, max: 60 },
+  { key: "d61_90", label: "61–90 days", min: 61, max: 90 },
+  { key: "over90", label: "90+ days", min: 91, max: Infinity },
+];
+
+type AgingRow = {
+  id: string;
+  number: string;
+  date: string;
+  contactId: string;
+  name: string;
+  phone: string | null;
+  total: number;
+  paid: number;
+  outstanding: number;
+  ageDays: number;
+  bucket: string;
+};
+
+function ageDays(createdAt: Date, tz: string): number {
+  const todayKey = Date.parse(dayKeyInTz(new Date(), tz));
+  const createdKey = Date.parse(dayKeyInTz(createdAt, tz));
+  return Math.max(0, Math.floor((todayKey - createdKey) / 86_400_000));
+}
+
+export async function agingReport(r: Range) {
+  const tz = r.tz ?? DEFAULT_TIMEZONE;
+  const [openSales, openPurchases] = await Promise.all([
+    prisma.transaction.findMany({
+      where: { type: "SALE", status: { in: ["PARTIAL", "PENDING"] } },
+      select: {
+        id: true,
+        number: true,
+        total: true,
+        createdAt: true,
+        contact: { select: { id: true, name: true, phone: true } },
+        payments: { select: { amount: true } },
+      },
+    }),
+    prisma.transaction.findMany({
+      where: { type: "PURCHASE", status: { in: ["PARTIAL", "PENDING"] } },
+      select: {
+        id: true,
+        number: true,
+        total: true,
+        createdAt: true,
+        contact: { select: { id: true, name: true, phone: true } },
+        payments: { select: { amount: true } },
+      },
+    }),
+  ]);
+
+  function build(
+    rows: (typeof openSales)[number][],
+  ): {
+    buckets: { key: string; label: string; amount: number; count: number }[];
+    overdue: number;
+    total: number;
+    rows: AgingRow[];
+  } {
+    const bucketMap = new Map(AGING_BUCKETS.map((b) => [b.key, { key: b.key, label: b.label, amount: 0, count: 0 }]));
+    const list: AgingRow[] = [];
+    for (const t of rows) {
+      const paid = t.payments.reduce((s, p) => s + n(p.amount), 0);
+      const outstanding = Math.max(0, n(t.total) - paid);
+      if (outstanding <= 0) continue;
+      const age = ageDays(t.createdAt, tz);
+      const bucket = AGING_BUCKETS.find((b) => age >= b.min && age <= b.max)?.key ?? "over90";
+      const cur = bucketMap.get(bucket)!;
+      cur.amount += outstanding;
+      cur.count += 1;
+      list.push({
+        id: t.id,
+        number: t.number,
+        date: t.createdAt.toISOString(),
+        contactId: t.contact.id,
+        name: t.contact.name,
+        phone: t.contact.phone,
+        total: round(n(t.total)),
+        paid: round(paid),
+        outstanding: round(outstanding),
+        ageDays: age,
+        bucket,
+      });
+    }
+    const buckets = AGING_BUCKETS.map((b) => {
+      const cur = bucketMap.get(b.key)!;
+      return { key: b.key, label: b.label, amount: round(cur.amount), count: cur.count };
+    });
+    const overdue = buckets
+      .filter((b) => b.key !== "current")
+      .reduce((s, b) => s + b.amount, 0);
+    const total = buckets.reduce((s, b) => s + b.amount, 0);
+    return {
+      buckets,
+      overdue: round(overdue),
+      total: round(total),
+      rows: list.sort((a, b) => b.outstanding - a.outstanding),
+    };
+  }
+
+  return { receivables: build(openSales), payables: build(openPurchases) };
 }

@@ -25,6 +25,10 @@ export const PERMISSIONS = {
   colorCreate: "color.create",
   colorUpdate: "color.update",
   colorDelete: "color.delete",
+  cityView: "city.view",
+  cityCreate: "city.create",
+  cityUpdate: "city.update",
+  cityDelete: "city.delete",
   inventoryView: "inventory.view",
 
   // Contacts
@@ -106,6 +110,7 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     PERMISSIONS.brandView,
     PERMISSIONS.categoryView,
     PERMISSIONS.colorView,
+    PERMISSIONS.cityView,
     PERMISSIONS.contactView,
     PERMISSIONS.inventoryView,
     PERMISSIONS.voucherView,

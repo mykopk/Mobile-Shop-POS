@@ -7,7 +7,7 @@ import { useSearchParams } from "next/navigation";
 import QRCode from "qrcode";
 import { apiRequest } from "@/lib/apiClient";
 import { useAuth } from "@/lib/auth-context";
-import type { CompanyProfile, Expense, Transaction, TransactionDetail, Unit, Voucher } from "@/lib/api-types";
+import type { CompanyProfile, Contact, Expense, Transaction, TransactionDetail, Unit, Voucher } from "@/lib/api-types";
 import { formatPKR } from "@/lib/money";
 import { formatDateTime } from "@/lib/dates";
 import { whatsappLink } from "@/lib/whatsapp";
@@ -15,6 +15,8 @@ import { canViewCosts } from "@/lib/roles";
 import { CARRIER_LABELS } from "@/lib/constants/units";
 import {
   APP,
+  CONTACTS_DEFAULT_OPTIONS,
+  CONTACTS_TEXT,
   EXPENSE_CATEGORY_LABELS,
   EXPENSE_PRINT_TEXT,
   EXPENSE_SHEET_DEFAULT_OPTIONS,
@@ -25,6 +27,7 @@ import {
   PRINT_FORMATS,
   QR_TARGETS,
   RECEIPT_TEXT,
+  type ContactsPrintOptions,
   type ExpenseSheetOptions,
   type InventoryPrintOptions,
   type PrintBooleanOptions,
@@ -42,7 +45,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Dropdown } from "@/components/ui/dropdown";
 import { useToast } from "@/components/ui/toast";
-import html2canvas from "html2canvas";
+import { CONTACT_TYPE_LABELS } from "@/components/ui/type-pill";
+import html2canvas from "html2canvas-pro";
 import { jsPDF } from "jspdf";
 import { DownloadIcon, InventoryIcon, PrinterIcon, XIcon } from "@/components/icons";
 
@@ -136,6 +140,16 @@ function loadExpenseSheetOptions(): ExpenseSheetOptions {
   return { ...EXPENSE_SHEET_DEFAULT_OPTIONS };
 }
 
+function loadContactsOptions(): ContactsPrintOptions {
+  try {
+    const raw = localStorage.getItem(PRINT.contactsOptionsKey);
+    if (raw) return { ...CONTACTS_DEFAULT_OPTIONS, ...JSON.parse(raw) };
+  } catch {
+    /* ignore */
+  }
+  return { ...CONTACTS_DEFAULT_OPTIONS };
+}
+
 function PrintStudioContent() {
   const params = useSearchParams();
   const { user } = useAuth();
@@ -149,7 +163,13 @@ function PrintStudioContent() {
   const [invOptions, setInvOptions] = useState<InventoryPrintOptions>({ ...INVENTORY_DEFAULT_OPTIONS });
   const [qrType, setQrType] = useState<QrTarget>("whatsapp");
   const [layoutType, setLayoutType] = useState<PrintLayoutType>(
-    deepLinkType === "inventory" ? "inventory" : deepLinkType === "expense" ? "expense" : "document",
+    deepLinkType === "inventory"
+      ? "inventory"
+      : deepLinkType === "expense"
+        ? "expense"
+        : deepLinkType === "contacts"
+          ? "contacts"
+          : "document",
   );
   const [typePickerOpen, setTypePickerOpen] = useState(!deepLinkType);
   const [profile, setProfile] = useState<CompanyProfile | null>(null);
@@ -164,6 +184,11 @@ function PrintStudioContent() {
   const [expenseSheetOptions, setExpenseSheetOptions] = useState<ExpenseSheetOptions>({
     ...EXPENSE_SHEET_DEFAULT_OPTIONS,
   });
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [loadingContacts, setLoadingContacts] = useState(false);
+  const [contactsOptions, setContactsOptions] = useState<ContactsPrintOptions>({
+    ...CONTACTS_DEFAULT_OPTIONS,
+  });
   const [docType, setDocType] = useState<DocType>(isTxnDeepLink ? (deepLinkType as DocType) : "SALE");
   const [selectedId, setSelectedId] = useState<string | null>(deepLinkId);
   const [detail, setDetail] = useState<TransactionDetail | null>(null);
@@ -174,7 +199,9 @@ function PrintStudioContent() {
   const applyingLayoutRef = useRef(false);
 
   const activeFormat: PrintFormatId =
-    (layoutType === "inventory" || layoutType === "expense") && format === "58" ? "80" : format;
+    (layoutType === "inventory" || layoutType === "expense" || layoutType === "contacts") && format === "58"
+      ? "80"
+      : format;
   const fmt = PRINT_FORMATS.find((f) => f.id === activeFormat) ?? PRINT_FORMATS[1];
   const selectedDoc = documents.find((d) => d.id === selectedId) ?? null;
   const selectedVoucher = vouchers.find((v) => v.id === selectedId) ?? null;
@@ -183,11 +210,15 @@ function PrintStudioContent() {
   const premadeLayouts = layouts.filter((l) => l.isSystem);
   const showCost = canViewCosts(user) && invOptions.cost;
   const inStockCount = units.filter((u) => u.status === "IN_STOCK").length;
+  const contactsReceivable = contacts.reduce((sum, c) => sum + (parseFloat(c.receivable) || 0), 0);
+  const contactsPayable = contacts.reduce((sum, c) => sum + (parseFloat(c.payable) || 0), 0);
   const canPrint =
-    layoutType === "inventory" || layoutType === "expense"
+    layoutType === "inventory" || layoutType === "expense" || layoutType === "contacts"
       ? layoutType === "inventory"
         ? units.length > 0
-        : expenses.length > 0
+        : layoutType === "expense"
+          ? expenses.length > 0
+          : contacts.length > 0
       : docType === "VOUCHER"
         ? selectedVoucher !== null
         : docType === "EXPENSE"
@@ -197,11 +228,13 @@ function PrintStudioContent() {
     ? "inventory"
     : layoutType === "expense"
       ? "expense-sheet"
-      : docType === "VOUCHER"
-        ? selectedVoucher?.number ?? "voucher"
-        : docType === "EXPENSE"
-          ? selectedExpense?.number ?? "expense"
-          : selectedDoc?.number ?? "document";
+      : layoutType === "contacts"
+        ? "contacts-list"
+        : docType === "VOUCHER"
+          ? selectedVoucher?.number ?? "voucher"
+          : docType === "EXPENSE"
+            ? selectedExpense?.number ?? "expense"
+            : selectedDoc?.number ?? "document";
   const [downloadingPdf, setDownloadingPdf] = useState(false);
 
   const docOptions =
@@ -245,7 +278,7 @@ function PrintStudioContent() {
         const list = await apiRequest<PrintLayout[]>("/print-layout");
         if (cancelled) return;
         setLayouts(list ?? []);
-        const def = (list ?? []).find((l) => l.isSystem && l.isDefault);
+        const def = !deepLinkType ? (list ?? []).find((l) => l.isSystem && l.isDefault) : undefined;
         if (def) {
           applyLayout(def);
         } else {
@@ -253,6 +286,7 @@ function PrintStudioContent() {
           setOptions(loadOptions());
           setInvOptions(loadInvOptions());
           setExpenseSheetOptions(loadExpenseSheetOptions());
+          setContactsOptions(loadContactsOptions());
           setQrType(loadQrType());
         }
       } catch {
@@ -260,6 +294,7 @@ function PrintStudioContent() {
         setOptions(loadOptions());
         setInvOptions(loadInvOptions());
         setExpenseSheetOptions(loadExpenseSheetOptions());
+        setContactsOptions(loadContactsOptions());
         setQrType(loadQrType());
       }
     })();
@@ -278,6 +313,8 @@ function PrintStudioContent() {
       setInvOptions({ ...INVENTORY_DEFAULT_OPTIONS, ...(layout.options ?? {}) } as InventoryPrintOptions);
     } else if (layout.type === "expense") {
       setExpenseSheetOptions({ ...EXPENSE_SHEET_DEFAULT_OPTIONS, ...(layout.options ?? {}) } as ExpenseSheetOptions);
+    } else if (layout.type === "contacts") {
+      setContactsOptions({ ...CONTACTS_DEFAULT_OPTIONS, ...(layout.options ?? {}) } as ContactsPrintOptions);
     } else {
       setOptions({ ...PRINT_DEFAULT_OPTIONS, ...(layout.options ?? {}) } as PrintBooleanOptions);
     }
@@ -290,7 +327,7 @@ function PrintStudioContent() {
       return;
     }
     setActiveLayoutId(null);
-  }, [format, options, invOptions, expenseSheetOptions, qrType, layoutType]);
+  }, [format, options, invOptions, expenseSheetOptions, contactsOptions, qrType, layoutType]);
 
   useEffect(() => {
     try {
@@ -315,6 +352,14 @@ function PrintStudioContent() {
       /* ignore */
     }
   }, [expenseSheetOptions]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(PRINT.contactsOptionsKey, JSON.stringify(contactsOptions));
+    } catch {
+      /* ignore */
+    }
+  }, [contactsOptions]);
 
   useEffect(() => {
     try {
@@ -438,6 +483,25 @@ function PrintStudioContent() {
   }, [layoutType, toast]);
 
   useEffect(() => {
+    if (layoutType !== "contacts") return;
+    let cancelled = false;
+    (async () => {
+      setLoadingContacts(true);
+      try {
+        const list = await apiRequest<Contact[]>("/contact");
+        if (!cancelled) setContacts(list ?? []);
+      } catch (err) {
+        if (!cancelled) toast(err instanceof Error ? err.message : "Failed to load contacts", "error");
+      } finally {
+        if (!cancelled) setLoadingContacts(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [layoutType, toast]);
+
+  useEffect(() => {
     if (!selectedId || docType === "VOUCHER") {
       setDetail(null);
       setQrUrl(null);
@@ -542,6 +606,11 @@ function PrintStudioContent() {
               <span className={`h-2 w-2 rounded-full ${TYPE_DOT.EXPENSE}`} />
               Expense sheet
             </>
+          ) : layoutType === "contacts" ? (
+            <>
+              <span className={`h-2 w-2 rounded-full ${TYPE_DOT.VOUCHER}`} />
+              Contacts list
+            </>
           ) : (
             <>
               <span className={`h-2 w-2 rounded-full ${TYPE_DOT[docType]}`} />
@@ -591,6 +660,21 @@ function PrintStudioContent() {
                 {formatPKR(expenses.reduce((sum, e) => sum + parseFloat(e.amount), 0))}
               </span>{" "}
               total
+            </span>
+          </div>
+        ) : layoutType === "contacts" ? (
+          <div className="flex items-center gap-2 rounded-2xl bg-white px-4 py-2 text-sm shadow-sm">
+            <span className="h-2 w-2 rounded-full bg-brand-600" />
+            <span className="text-ink-900">
+              <span className="font-semibold">{contacts.length}</span> contact(s)
+            </span>
+            <span className="text-ink-500">·</span>
+            <span className="text-ink-500">
+              <span className="font-semibold text-brand-600">{formatPKR(contactsReceivable)}</span> receivable
+            </span>
+            <span className="text-ink-500">·</span>
+            <span className="text-ink-500">
+              <span className="font-semibold text-ink-900">{formatPKR(contactsPayable)}</span> payable
             </span>
           </div>
         ) : (
@@ -704,6 +788,28 @@ function PrintStudioContent() {
               <div className="flex flex-col items-center justify-center gap-2 py-16 text-center">
                 <PrinterIcon className="h-8 w-8 text-ink-300" />
                 <p className="text-sm text-ink-400">{EXPENSE_PRINT_TEXT.noData}</p>
+              </div>
+            )
+          ) : layoutType === "contacts" ? (
+            loadingContacts ? (
+              <p className="py-10 text-sm text-ink-400">Loading contacts…</p>
+            ) : contacts.length > 0 ? (
+              <div
+                id="print-area"
+                style={{ width: fmt.previewWidth }}
+                className="shrink-0 bg-white shadow-lg transition-all"
+              >
+                <ContactsDocument
+                  contacts={contacts}
+                  options={contactsOptions}
+                  format={fmt.id}
+                  profile={profile}
+                />
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center gap-2 py-16 text-center">
+                <PrinterIcon className="h-8 w-8 text-ink-300" />
+                <p className="text-sm text-ink-400">{CONTACTS_TEXT.noData}</p>
               </div>
             )
           ) : docType === "VOUCHER" ? (
@@ -839,6 +945,20 @@ function PrintStudioContent() {
               <span className="block text-xs text-ink-500">List of all your expenses</span>
             </span>
           </button>
+          <button
+            type="button"
+            onClick={() => {
+              setLayoutType("contacts");
+              setTypePickerOpen(false);
+            }}
+            className="flex w-full items-center gap-3 rounded-2xl border border-ink-100 px-4 py-3 text-left transition hover:bg-ink-50"
+          >
+            <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-brand-600" />
+            <span className="min-w-0">
+              <span className="block text-sm font-semibold text-ink-900">Contacts list</span>
+              <span className="block text-xs text-ink-500">List of all your customers and vendors</span>
+            </span>
+          </button>
         </div>
       </PrintModal>
 
@@ -856,6 +976,28 @@ function PrintStudioContent() {
                       format={fmt.id}
                       profile={profile}
                       showCost={showCost}
+                    />
+                  </div>
+                )
+              ) : layoutType === "expense" ? (
+                expenses.length > 0 && (
+                  <div className="print-doc">
+                    <ExpenseSheetDocument
+                      expenses={expenses}
+                      options={expenseSheetOptions}
+                      format={fmt.id}
+                      profile={profile}
+                    />
+                  </div>
+                )
+              ) : layoutType === "contacts" ? (
+                contacts.length > 0 && (
+                  <div className="print-doc">
+                    <ContactsDocument
+                      contacts={contacts}
+                      options={contactsOptions}
+                      format={fmt.id}
+                      profile={profile}
                     />
                   </div>
                 )
@@ -1302,5 +1444,121 @@ export default function PrintPage() {
     <Suspense fallback={<div className="flex h-full items-center justify-center text-sm text-ink-400">Loading…</div>}>
       <PrintStudioContent />
     </Suspense>
+  );
+}
+
+function ContactsDocument({
+  contacts,
+  options,
+  format,
+  profile,
+}: {
+  contacts: Contact[];
+  options: ContactsPrintOptions;
+  format: PrintFormatId;
+  profile: CompanyProfile | null;
+}) {
+  const isA4 = format === "a4";
+  const pad = isA4 ? "px-12 py-10" : "px-3 py-3";
+  const base = isA4 ? "text-sm" : "text-[11px]";
+  const divider = isA4 ? "border-t border-ink-200" : "border-t-2 border-dashed border-ink-200";
+
+  const sorted = useMemo(
+    () => [...contacts].sort((a, b) => a.name.localeCompare(b.name)),
+    [contacts],
+  );
+  const totalReceivable = sorted.reduce((sum, c) => sum + (parseFloat(c.receivable) || 0), 0);
+  const totalPayable = sorted.reduce((sum, c) => sum + (parseFloat(c.payable) || 0), 0);
+
+  return (
+    <div className={`bg-white ${pad} ${base} text-ink-900`}>
+      {options.header && (
+        <div className="text-center">
+          {profile?.logoUrl && (
+            <img src={profile.logoUrl} alt="" className="mx-auto mb-2 max-h-16 w-auto object-contain" />
+          )}
+          <p className="break-words text-base font-bold uppercase tracking-wide text-ink-900">
+            {profile?.name ?? APP.nameFull}
+          </p>
+          {options.shopInfo && profile?.tagline && (
+            <p className="mt-0.5 text-ink-500">{profile.tagline}</p>
+          )}
+          <p className="mt-1 text-sm font-bold uppercase tracking-widest text-ink-900">
+            {CONTACTS_TEXT.title}
+          </p>
+          <p className="mt-0.5 text-xs text-ink-500">{formatDateTime(new Date().toISOString())}</p>
+        </div>
+      )}
+
+      <div className={`my-4 ${divider}`} />
+
+      <table className="w-full border-collapse">
+        <thead>
+          <tr className="border-b border-ink-300 text-left text-[10px] font-semibold uppercase tracking-widest text-ink-500">
+            <th className="py-1 pr-2">{CONTACTS_TEXT.no}</th>
+            <th className="py-1 pr-2">{CONTACTS_TEXT.name}</th>
+            {options.type && <th className="py-1 pr-2">{CONTACTS_TEXT.type}</th>}
+            {options.phone && <th className="py-1 pr-2">{CONTACTS_TEXT.phone}</th>}
+            {options.email && <th className="py-1 pr-2">{CONTACTS_TEXT.email}</th>}
+            {options.city && <th className="py-1 pr-2">{CONTACTS_TEXT.city}</th>}
+            {options.cnic && <th className="py-1 pr-2">{CONTACTS_TEXT.cnic}</th>}
+            {options.address && <th className="py-1 pr-2">{CONTACTS_TEXT.address}</th>}
+            {options.notes && <th className="py-1 pr-2">{CONTACTS_TEXT.notes}</th>}
+          </tr>
+        </thead>
+        <tbody>
+          {sorted.map((c, i) => (
+            <tr key={c.id} className="border-b border-ink-100 align-top">
+              <td className="py-1.5 pr-2 text-ink-500">{i + 1}</td>
+              <td className="py-1.5 pr-2 font-semibold text-ink-900">{c.name}</td>
+              {options.type && (
+                <td className="py-1.5 pr-2">{CONTACT_TYPE_LABELS[c.type] ?? c.type.replace("_", " ")}</td>
+              )}
+              {options.phone && <td className="py-1.5 pr-2 whitespace-nowrap text-ink-600">{c.phone || "-"}</td>}
+              {options.email && <td className="py-1.5 pr-2 break-all text-ink-600">{c.email || "-"}</td>}
+              {options.city && <td className="py-1.5 pr-2 text-ink-600">{c.city || "-"}</td>}
+              {options.cnic && <td className="py-1.5 pr-2 font-mono text-[10px] text-ink-600">{c.cnic || "-"}</td>}
+              {options.address && <td className="py-1.5 pr-2 text-ink-600">{c.address || "-"}</td>}
+              {options.notes && <td className="py-1.5 pr-2 text-ink-600">{c.notes || "-"}</td>}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {options.footer && (
+        <>
+          <div className={`my-4 ${divider}`} />
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-ink-500">
+              {sorted.length} {sorted.length === 1 ? CONTACTS_TEXT.contact : CONTACTS_TEXT.contacts}
+            </p>
+            <div className="text-right">
+              <p className="text-[10px] uppercase tracking-widest text-ink-500">
+                {CONTACTS_TEXT.receivable}{" "}
+                <span className="font-bold text-ink-900">{formatPKR(totalReceivable)}</span>
+              </p>
+              <p className="text-[10px] uppercase tracking-widest text-ink-500">
+                {CONTACTS_TEXT.payable}{" "}
+                <span className="font-bold text-ink-900">{formatPKR(totalPayable)}</span>
+              </p>
+            </div>
+          </div>
+          {profile?.footerText && (
+            <div className={`${divider} mt-4 pt-3`}>
+              <p className="text-center text-[10px] uppercase tracking-widest text-ink-400">
+                {profile.footerText}
+              </p>
+            </div>
+          )}
+          {options.signature && (
+            <div className="avoid-break mt-10">
+              <div className="ml-auto w-64 border-t border-ink-300 pt-1 text-center text-[10px] uppercase tracking-widest text-ink-400">
+                {CONTACTS_TEXT.signature}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
   );
 }

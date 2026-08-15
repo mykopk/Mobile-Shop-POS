@@ -10,6 +10,59 @@ export const DASHBOARD_PLACEHOLDERS = [
   "New vs Used breakdown coming soon",
 ] as const;
 
+export type DashboardWidgetKey =
+  | "kpis"
+  | "kpis2"
+  | "salesTrend"
+  | "payments"
+  | "topProducts"
+  | "newUsed"
+  | "recentActivity"
+  | "stockPta"
+  | "topSellers"
+  | "soldCategory"
+  | "lowStock"
+  | "recentTransactions";
+
+export const DASHBOARD_WIDGETS: {
+  key: DashboardWidgetKey;
+  label: string;
+  description: string;
+  span: string;
+}[] = [
+  { key: "kpis", label: "Key metrics", description: "Today's sales, profit, stock and total revenue", span: "lg:col-span-3" },
+  { key: "kpis2", label: "Cash & liabilities", description: "Expenses, net cash, credit, reservations, stock value, returns", span: "lg:col-span-3" },
+  { key: "salesTrend", label: "Sales trend", description: "Revenue line chart for the selected period", span: "lg:col-span-2" },
+  { key: "payments", label: "Payments by method", description: "Cash / card / bank / credit split", span: "lg:col-span-1" },
+  { key: "topProducts", label: "Top products", description: "Best selling products in the period", span: "lg:col-span-2" },
+  { key: "newUsed", label: "Sold · New vs Used", description: "New vs used units sold", span: "lg:col-span-1" },
+  { key: "recentActivity", label: "Recent activity", description: "Latest audit log entries", span: "lg:col-span-2" },
+  { key: "stockPta", label: "Stock · PTA status", description: "PTA / Non-PTA / SIM locked units in stock", span: "lg:col-span-1" },
+  { key: "topSellers", label: "Top sellers", description: "Best staff by revenue in the period", span: "lg:col-span-1" },
+  { key: "soldCategory", label: "Sold · Phones vs Accessories", description: "Phones vs accessories sold", span: "lg:col-span-2" },
+  { key: "lowStock", label: "Low stock", description: "Products near their low-stock threshold", span: "lg:col-span-1" },
+  { key: "recentTransactions", label: "Recent transactions", description: "Latest transactions", span: "lg:col-span-2" },
+];
+
+export const DEFAULT_DASHBOARD_WIDGETS: DashboardWidgetKey[] = [
+  "kpis",
+  "kpis2",
+  "salesTrend",
+  "payments",
+  "topProducts",
+  "newUsed",
+  "recentActivity",
+  "stockPta",
+  "topSellers",
+  "soldCategory",
+  "lowStock",
+  "recentTransactions",
+];
+
+export const DASHBOARD_WIDGET_SPANS = Object.fromEntries(
+  DASHBOARD_WIDGETS.map((w) => [w.key, w.span]),
+) as Record<DashboardWidgetKey, string>;
+
 export const ACTIVITY_ACTION_LABELS: Record<string, string> = {
   "SALE.CREATE": "Sale created",
   "PURCHASE.CREATE": "Purchase made",

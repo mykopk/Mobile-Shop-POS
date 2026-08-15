@@ -46,6 +46,18 @@ export default function PaymentsReportPage() {
               }))}
               format={formatPKR}
             />
+            {data.byBankAccount.length > 0 && (
+              <TopList
+                title="By bank account"
+                rows={data.byBankAccount.map((b) => ({
+                  id: b.id,
+                  label: b.name,
+                  sub: `${b.bankName} · ${b.accountNo} · ${pluralize(b.count, "payment")}`,
+                  value: b.amount,
+                }))}
+                format={formatPKR}
+              />
+            )}
             <TopList title="Cash inflows" rows={data.inflows.map((i) => ({ id: i.label, label: i.label, value: i.amount }))} format={formatPKR} />
             <TopList title="Cash outflows" rows={data.outflows.map((i) => ({ id: i.label, label: i.label, value: i.amount }))} format={formatPKR} />
           </div>

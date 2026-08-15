@@ -5,8 +5,8 @@ import Link from "next/link";
 import { apiRequest } from "@/lib/apiClient";
 import { brandOf, type BankAccount, type CompanyProfile, type Contact, type ReservationConflict, type ReservationDetail, type TransactionDetail } from "@/lib/api-types";
 import { useApi } from "@/lib/use-api";
-import { CARRIER_LABELS, APP } from "@/lib/constants";
-import { formatPKR } from "@/lib/money";
+import { CARRIER_LABELS, APP, MAX_MONEY_AMOUNT } from "@/lib/constants";
+import { formatPKR, clampMoneyInput } from "@/lib/money";
 import { toISODate } from "@/lib/dates";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -16,10 +16,12 @@ import { DatePicker } from "@/components/ui/date-picker";
 import { Dialog } from "@/components/ui/dialog";
 import { Sheet } from "@/components/ui/sheet";
 import { Kbd } from "@/components/ui/kbd";
+import { PriceInput } from "@/components/ui/price-input";
 import { useToast } from "@/components/ui/toast";
 import { useSaveShortcut } from "@/lib/use-save-shortcut";
 import { PlusIcon, PosIcon, PrinterIcon, RefundIcon, ReservationIcon, XIcon } from "@/components/icons";
 import { SearchInput } from "@/components/ui/search-input";
+import { TypePill } from "@/components/ui/type-pill";
 
 type SearchResult = {
   id: string;
@@ -48,12 +50,54 @@ type CartLine = {
   unitId: string | null;
   unitPrice: number;
   quantity: number;
+  discountPct: number;
+  discountFlat: number;
   condition?: "NEW" | "USED";
   carrier?: string;
+  color?: string;
 };
 
-type PaymentMode = "CASH" | "CARD" | "BANK" | "CREDIT" | "SPLIT";
+function lineDiscount(line: CartLine) {
+  const combined = (line.unitPrice * line.discountPct) / 100 + line.discountFlat;
+  return Math.min(Math.max(combined, 0), line.unitPrice);
+}
 
+function DiscountFields({
+  line,
+  onChange,
+}: {
+  line: CartLine;
+  onChange: (patch: Partial<CartLine>) => void;
+}) {
+  return (
+    <div className="flex items-center justify-end gap-1">
+      <div className="flex items-center">
+        <div className="w-12">
+          <PriceInput
+            value={line.discountPct}
+            max={100}
+            onChange={(n) => onChange({ discountPct: n })}
+            className="px-2 text-right"
+          />
+        </div>
+        <span className="ml-0.5 w-3 text-[10px] text-ink-400">%</span>
+      </div>
+      <div className="flex items-center">
+        <div className="w-12">
+          <PriceInput
+            value={line.discountFlat}
+            max={line.unitPrice}
+            onChange={(n) => onChange({ discountFlat: n })}
+            className="px-2 text-right"
+          />
+        </div>
+        <span className="ml-0.5 w-3 text-[10px] text-ink-400">Rs</span>
+      </div>
+    </div>
+  );
+}
+
+type PaymentMode = "CASH" | "CARD" | "BANK" | "CREDIT" | "SPLIT";
 const WALK_IN = "__walk_in__";
 
 const PAYMENT_MODES: { value: PaymentMode; label: string }[] = [
@@ -87,6 +131,7 @@ export default function PosPage() {
   const [card, setCard] = useState("");
   const [credit, setCredit] = useState("");
   const [bankAmount, setBankAmount] = useState("");
+  const [invoiceDiscount, setInvoiceDiscount] = useState("");
   const [bankId, setBankId] = useState<string | null>(null);
   const [bankRows, setBankRows] = useState<{ id: string; amount: string; bankId: string }[]>([]);
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
@@ -94,6 +139,7 @@ export default function PosPage() {
   const [receipt, setReceipt] = useState<TransactionDetail | null>(null);
   const [conflicts, setConflicts] = useState<ReservationConflict[] | null>(null);
   const confirmedRef = useRef(false);
+  const clientRefRef = useRef<string | null>(null);
   const [mode, setMode] = useState<PaymentMode>("CASH");
   const [reservationPickOpen, setReservationPickOpen] = useState(false);
   const [pickReservations, setPickReservations] = useState<ReservationDetail[] | null>(null);
@@ -112,24 +158,25 @@ export default function PosPage() {
   const [panelPos, setPanelPos] = useState<{ top: number; left: number; width: number } | null>(null);
 
   const subtotal = useMemo(
-    () => cart.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0),
+    () => cart.reduce((sum, line) => sum + (line.unitPrice - lineDiscount(line)) * line.quantity, 0),
     [cart],
   );
 
   const taxRate = parseFloat(profile?.taxRate ?? "0") || 0;
   const cardFeePct = parseFloat(profile?.cardFee ?? "0") || 0;
+  const invoiceDisc = parseFloat(invoiceDiscount) || 0;
   const tax = Math.round(subtotal * taxRate) / 100;
   const cardUsed =
     mode === "CARD" || (mode === "SPLIT" && (parseFloat(card) || 0) > 0);
-  const cardFee = cardUsed ? Math.round((subtotal + tax) * cardFeePct) / 100 : 0;
-  const total = subtotal + tax + cardFee;
+  const cardFee = cardUsed ? Math.round((subtotal - invoiceDisc + tax) * cardFeePct) / 100 : 0;
+  const total = subtotal - invoiceDisc + tax + cardFee;
 
   const cartGroups = useMemo(() => {
     const map = new Map<string, { key: string; label: string; unitPrice: number; lines: CartLine[] }>();
     const plain: CartLine[] = [];
     for (const line of cart) {
       if (line.imei) {
-        const key = `${line.productId}|${line.unitPrice}`;
+        const key = line.productId;
         let g = map.get(key);
         if (!g) {
           g = { key, label: line.label, unitPrice: line.unitPrice, lines: [] };
@@ -148,6 +195,15 @@ export default function PosPage() {
   const advanceApplies =
     loadedReservation && loadedReservation.contactId === contactId ? loadedReservation.advance : 0;
   const due = Math.max(0, total - advanceApplies);
+
+  const cashTendered = mode === "CASH" ? parseFloat(cash) || 0 : 0;
+  const change = cashTendered > due ? cashTendered - due : 0;
+  const cashShort = cashTendered > 0 && cashTendered < due;
+  const tenderStep = due >= 100000 ? 10000 : due >= 10000 ? 1000 : 500;
+  const quickTenders =
+    due > 0
+      ? [...new Set([due, Math.ceil(due / tenderStep) * tenderStep, Math.ceil(due / tenderStep) * tenderStep + tenderStep])]
+      : [];
 
   useSaveShortcut(() => {
     void pay();
@@ -270,7 +326,6 @@ export default function PosPage() {
       result.storage,
       result.ram,
       result.screenSize,
-      result.color,
       unit?.carrier ? CARRIER_LABELS[unit.carrier] : null,
     ]
       .filter(Boolean)
@@ -297,8 +352,11 @@ export default function PosPage() {
         unitId: unit?.id ?? null,
         unitPrice: parseFloat(result.sellPrice),
         quantity: 1,
+        discountPct: 0,
+        discountFlat: 0,
         condition: unit?.condition,
         carrier: unit?.carrier ? CARRIER_LABELS[unit.carrier] : undefined,
+        color: result.color ?? undefined,
       },
     ]);
     return true;
@@ -306,6 +364,18 @@ export default function PosPage() {
 
   function removeLine(key: string) {
     setCart((prev) => prev.filter((l) => l.key !== key));
+  }
+
+  function updateLine(key: string, patch: Partial<CartLine>) {
+    setCart((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
+  }
+
+  function updateGroupPrice(productId: string, unitPrice: number) {
+    setCart((prev) => prev.map((l) => (l.productId === productId ? { ...l, unitPrice } : l)));
+  }
+
+  function updateGroupDiscount(productId: string, patch: Partial<CartLine>) {
+    setCart((prev) => prev.map((l) => (l.productId === productId ? { ...l, ...patch } : l)));
   }
 
   async function openReservationPicker() {
@@ -339,7 +409,6 @@ export default function PosPage() {
           item.product.storage,
           item.product.ram,
           item.product.screenSize,
-          item.product.color,
         ]
           .filter(Boolean)
           .join(" "),
@@ -347,6 +416,9 @@ export default function PosPage() {
         unitId: item.unit?.id ?? null,
         unitPrice: parseFloat(item.unitPrice),
         quantity: item.quantity,
+        discountPct: 0,
+        discountFlat: parseFloat(item.discount ?? "0") || 0,
+        color: item.product.color ?? undefined,
       })),
     );
     setQ("");
@@ -363,6 +435,14 @@ export default function PosPage() {
   async function pay() {
     if (cart.length === 0) {
       toast("Cart is empty", "error");
+      return;
+    }
+    if (total < 0) {
+      toast("Discount exceeds the sale total", "error");
+      return;
+    }
+    if (total > MAX_MONEY_AMOUNT) {
+      toast(`Total cannot exceed ${formatPKR(MAX_MONEY_AMOUNT)}`, "error");
       return;
     }
     let customerId = contactId;
@@ -392,10 +472,15 @@ export default function PosPage() {
     let payments: {
       method: "CASH" | "CARD" | "BANK_TRANSFER" | "CREDIT";
       amount: number;
+      tendered?: number;
       bankAccountId?: string;
     }[] = [];
     if (mode === "CASH") {
-      payments = [{ method: "CASH", amount: parseFloat(cash) || due }];
+      if (due > 0.01 && cashTendered < due - 0.01) {
+        toast("Cash received is less than the amount due", "error");
+        return;
+      }
+      payments = due > 0.01 ? [{ method: "CASH", amount: due, tendered: cashTendered }] : [];
     } else if (mode === "CARD") {
       payments = [{ method: "CARD", amount: parseFloat(card) || due }];
     } else if (mode === "BANK") {
@@ -463,22 +548,28 @@ export default function PosPage() {
         method: "POST",
         body: {
           contactId: customerId,
+          number: invoiceNo,
+          clientRef: (clientRefRef.current ??= crypto.randomUUID()),
           items: cart.map((l) => ({
             productId: l.productId,
             unitId: l.unitId ?? undefined,
             quantity: l.quantity,
             unitPrice: l.unitPrice,
+            discount: lineDiscount(l),
           })),
           payments,
+          discount: invoiceDisc,
           date: saleDate,
         },
       });
       setReceipt(txn);
       toast(`Sale ${txn.number} completed`, "success");
+      clientRefRef.current = null;
       const match = invoiceNo.match(/SAL-(\d+)$/);
       const next = match ? parseInt(match[1], 10) + 1 : 1;
       setInvoiceNo(`SAL-${String(next).padStart(4, "0")}`);
     } catch (err) {
+      confirmedRef.current = false;
       toast(err instanceof Error ? err.message : "Sale failed", "error");
     } finally {
       setSubmitting(false);
@@ -488,6 +579,7 @@ export default function PosPage() {
   function reset() {
     setReceipt(null);
     confirmedRef.current = false;
+    clientRefRef.current = null;
     setLoadedReservation(null);
     setCart([]);
     setQ("");
@@ -496,6 +588,7 @@ export default function PosPage() {
     setCard("");
     setCredit("");
     setBankAmount("");
+    setInvoiceDiscount("");
     setBankRows([]);
     setMode("CASH");
     setWalkInName("");
@@ -558,6 +651,12 @@ export default function PosPage() {
               <span>{formatPKR(receipt.cardFee)}</span>
             </div>
           )}
+          {parseFloat(receipt.discount ?? "0") > 0 && (
+            <div className="flex justify-between text-xs">
+              <span>DISCOUNT</span>
+              <span>−{formatPKR(receipt.discount)}</span>
+            </div>
+          )}
           <div className="flex justify-between font-bold">
             <span>TOTAL</span>
             <span>{formatPKR(receipt.total)}</span>
@@ -568,6 +667,22 @@ export default function PosPage() {
               <span>{formatPKR(p.amount)}</span>
             </div>
           ))}
+          {receipt.payments
+            .filter((p) => p.method === "CASH" && p.tendered != null)
+            .map((p) => (
+              <div key={`${p.id}-tendered`} className="flex justify-between text-xs text-ink-400">
+                <span className="uppercase">Cash tendered</span>
+                <span>{formatPKR(parseFloat(p.tendered ?? "0"))}</span>
+              </div>
+            ))}
+          {receipt.payments
+            .filter((p) => p.method === "CASH" && p.change != null && parseFloat(p.change) > 0)
+            .map((p) => (
+              <div key={`${p.id}-change`} className="flex justify-between text-xs text-ink-400">
+                <span className="uppercase">Change</span>
+                <span>{formatPKR(parseFloat(p.change ?? "0"))}</span>
+              </div>
+            ))}
           {receipt.status === "PARTIAL" && (
             <p className="mt-3 text-center text-xs font-bold text-warning">PARTIAL PAYMENT</p>
           )}
@@ -595,26 +710,29 @@ export default function PosPage() {
         void pay();
       }}
     >
-      <div className="flex shrink-0 items-center justify-end gap-2">
-        <Link href="/sale-returns">
-          <Button variant="grey">
-            <RefundIcon className="h-4 w-4" />
-            Sale Return
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
+        <h1 className="text-lg font-bold text-ink-900">Sale Invoice</h1>
+        <div className="flex flex-wrap items-center gap-2">
+          <Link href="/sale-returns">
+            <Button variant="grey">
+              <RefundIcon className="h-4 w-4" />
+              Sale Return
+            </Button>
+          </Link>
+          <Button variant="grey" onClick={() => void openReservationPicker()}>
+            <ReservationIcon className="h-4 w-4" />
+            Process Reservation
           </Button>
-        </Link>
-        <Button variant="grey" onClick={() => void openReservationPicker()}>
-          <ReservationIcon className="h-4 w-4" />
-          Process Reservation
-        </Button>
-        <Link href="/reservations">
-          <Button>
-            <PlusIcon className="h-4 w-4" />
-            New Reservation
-          </Button>
-        </Link>
+          <Link href="/reservations">
+            <Button>
+              <PlusIcon className="h-4 w-4" />
+              New Reservation
+            </Button>
+          </Link>
+        </div>
       </div>
 
-      <div className="mt-4 grid shrink-0 gap-3 md:grid-cols-[2fr_1fr_1fr_1fr] md:items-end">
+      <div className="mt-4 grid shrink-0 gap-3 md:grid-cols-[2fr_1fr_1fr_1fr_1fr] md:items-end">
         <div>
           <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Customer</p>
           {contactOptions.length > 0 && (
@@ -644,6 +762,16 @@ export default function PosPage() {
             value={mode}
             options={modeOptions}
             onChange={(v) => setMode(v as PaymentMode)}
+          />
+        </div>
+
+        <div>
+          <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Invoice discount</p>
+          <PriceInput
+            value={invoiceDisc}
+            max={MAX_MONEY_AMOUNT}
+            onChange={(n) => setInvoiceDiscount(n > 0 ? String(n) : "")}
+            className="bg-ink-100 text-right"
           />
         </div>
       </div>
@@ -790,81 +918,153 @@ export default function PosPage() {
           </div>
       </section>
 
-      <div className="mt-6 flex-1 overflow-y-auto pt-0.5">
-        <section>
-          <div className="mb-3 flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wide text-ink-500">Sale items</span>
-            <span className="text-xs text-ink-500">{totalQuantity} item(s)</span>
-          </div>
+      <div className="mt-6 mb-3 flex shrink-0 items-center justify-between">
+        <span className="text-xs font-semibold uppercase tracking-wide text-ink-500">Sale items</span>
+        <span className="text-xs text-ink-500">{totalQuantity} item(s)</span>
+      </div>
 
-        <div className="overflow-x-auto rounded-2xl bg-white">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-none rounded-2xl bg-white">
           <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-xs uppercase tracking-wide text-ink-500">
-                <th className="px-4 py-2.5 font-semibold">Item</th>
-                <th className="px-4 py-2.5 text-center font-semibold">Qty</th>
-                <th className="px-4 py-2.5 text-right font-semibold">Unit price</th>
-                <th className="px-4 py-2.5 text-right font-semibold">Amount</th>
-                <th className="px-4 py-2.5" />
+            <thead className="sticky top-0 z-10 bg-white">
+              <tr className="border-b border-ink-100 text-left text-xs uppercase tracking-wide text-ink-500">
+                <th className="px-4 py-3">Item</th>
+                <th className="w-14 px-4 py-3 text-center">Qty</th>
+                <th className="w-28 px-4 py-3 text-right">Price</th>
+                <th className="px-4 py-3 text-right">Disc</th>
+                <th className="w-28 px-4 py-3 text-right">Amount</th>
+                <th className="w-12 px-4 py-3" />
               </tr>
             </thead>
             <tbody>
               {cartGroups.groups.map((g) => (
                 <Fragment key={g.key}>
-                  <tr className="border-y border-ink-100 bg-ink-50/70">
-                    <td colSpan={5} className="px-4 py-2">
-                      <div className="flex w-full items-center gap-2 text-left">
-                        <span className="truncate font-semibold text-ink-900">{g.label}</span>
-                        <Badge variant="neutral" className="shrink-0">
+                  <tr className="bg-ink-50/80">
+                    <td className="px-4 py-2.5">
+                      <div className="flex items-center gap-2.5">
+                        <div className="h-6 w-1 shrink-0 rounded-full bg-brand-500" />
+                        <span className="truncate text-sm font-semibold text-ink-900">{g.label}</span>
+                        <span className="shrink-0 rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink-500 ring-1 ring-ink-200">
                           {g.lines.length} unit{g.lines.length === 1 ? "" : "s"}
-                        </Badge>
+                        </span>
                       </div>
                     </td>
+                    <td className="px-4 py-2.5 text-center text-sm font-semibold text-ink-900">
+                      {g.lines.reduce((s, l) => s + l.quantity, 0)}
+                    </td>
+                    <td className="px-4 py-2.5 text-right">
+                      <div className="w-20">
+                        <PriceInput
+                          value={g.unitPrice}
+                          max={MAX_MONEY_AMOUNT}
+                          onChange={(n) => updateGroupPrice(g.key, n)}
+                          className="bg-white px-2 text-right"
+                        />
+                      </div>
+                    </td>
+                    <td className="px-4 py-2.5 text-right">
+                      <DiscountFields
+                        line={g.lines[0]}
+                        onChange={(patch) => updateGroupDiscount(g.key, patch)}
+                      />
+                    </td>
+                    <td className="px-4 py-2.5 text-right text-sm font-semibold text-ink-900">
+                      {formatPKR(
+                        g.lines.reduce((s, l) => s + (l.unitPrice - lineDiscount(l)) * l.quantity, 0),
+                      )}
+                    </td>
+                    <td className="px-4 py-2.5" />
                   </tr>
                   {g.lines.map((line) => (
-                    <tr key={line.key} className="bg-white transition hover:bg-ink-50">
-                      <td className="px-4 py-3 pl-8">
+                    <tr key={line.key} className="border-b border-ink-50 bg-white transition hover:bg-ink-50/60">
+                      <td className="px-4 py-2.5 pl-9">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="font-mono text-xs text-ink-700">{line.imei}</span>
-                          {line.condition && <Badge variant="neutral">{line.condition}</Badge>}
+                          <span className="font-mono text-[13px] font-medium text-ink-900">{line.imei}</span>
+                          {line.color && <Badge variant="neutral">{line.color}</Badge>}
+                          {line.condition && (
+                            <TypePill tone={line.condition === "NEW" ? "brand" : "grey"}>
+                              {line.condition}
+                            </TypePill>
+                          )}
                           {line.carrier && <Badge variant="neutral">{line.carrier}</Badge>}
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-center text-ink-700">{line.quantity}</td>
-                      <td className="px-4 py-3 text-right text-ink-700">{formatPKR(line.unitPrice)}</td>
-                      <td className="px-4 py-3 text-right font-semibold text-ink-900">
-                        {formatPKR(line.unitPrice * line.quantity)}
+                      <td className="px-4 py-2.5 text-center text-ink-700">{line.quantity}</td>
+                      <td className="px-4 py-2.5 text-right">
+                        <div className="w-20">
+                          <PriceInput
+                            value={line.unitPrice}
+                            max={MAX_MONEY_AMOUNT}
+                            onChange={(n) => updateLine(line.key, { unitPrice: n })}
+                            className="px-2 text-right"
+                          />
+                        </div>
                       </td>
-                      <td className="px-4 py-3 text-right">
-                        <button type="button" onClick={() => removeLine(line.key)} className="text-ink-400 hover:text-brand-600">
-                          ✕
+                      <td className="px-4 py-2.5 text-right">
+                        <DiscountFields line={line} onChange={(patch) => updateLine(line.key, patch)} />
+                      </td>
+                      <td className="px-4 py-2.5 text-right font-semibold text-ink-900">
+                        {formatPKR((line.unitPrice - lineDiscount(line)) * line.quantity)}
+                      </td>
+                      <td className="px-4 py-2.5 text-right">
+                        <button
+                          type="button"
+                          onClick={() => removeLine(line.key)}
+                          title="Remove"
+                          className="rounded-lg p-1 text-ink-300 transition hover:bg-ink-100 hover:text-error"
+                        >
+                          <XIcon className="h-4 w-4" />
                         </button>
                       </td>
                     </tr>
                   ))}
                 </Fragment>
               ))}
-              {cartGroups.plain.map((line, i) => (
-                <tr key={line.key} className={i % 2 === 0 ? "bg-white" : "bg-ink-50"}>
-                  <td className="px-4 py-3">
-                    <p className="font-medium text-ink-900">{line.label}</p>
-                    <p className="text-[11px] text-ink-400">{`${line.quantity} × ${formatPKR(line.unitPrice)}`}</p>
+              {cartGroups.plain.map((line) => (
+                <tr key={line.key} className="border-b border-ink-50 bg-white transition hover:bg-ink-50/60">
+                  <td className="px-4 py-2.5">
+                    <div className="flex items-center gap-2.5">
+                      <div className="h-6 w-1 shrink-0 rounded-full bg-ink-300" />
+                      <div className="min-w-0">
+                        <p className="truncate font-medium text-ink-900">
+                          {line.label}
+                          {line.color && <span className="text-ink-500"> · {line.color}</span>}
+                        </p>
+                        <p className="text-[11px] text-ink-400">{`${line.quantity} × ${formatPKR(line.unitPrice)}`}</p>
+                      </div>
+                    </div>
                   </td>
-                  <td className="px-4 py-3 text-center text-ink-700">{line.quantity}</td>
-                  <td className="px-4 py-3 text-right text-ink-700">{formatPKR(line.unitPrice)}</td>
-                  <td className="px-4 py-3 text-right font-semibold text-ink-900">
-                    {formatPKR(line.unitPrice * line.quantity)}
+                  <td className="px-4 py-2.5 text-center text-ink-700">{line.quantity}</td>
+                  <td className="px-4 py-2.5 text-right">
+                    <div className="w-20">
+                      <PriceInput
+                        value={line.unitPrice}
+                        max={MAX_MONEY_AMOUNT}
+                        onChange={(n) => updateLine(line.key, { unitPrice: n })}
+                        className="px-2 text-right"
+                      />
+                    </div>
                   </td>
-                  <td className="px-4 py-3 text-right">
-                    <button type="button" onClick={() => removeLine(line.key)} className="text-ink-400 hover:text-brand-600">
-                      ✕
+                  <td className="px-4 py-2.5 text-right">
+                    <DiscountFields line={line} onChange={(patch) => updateLine(line.key, patch)} />
+                  </td>
+                  <td className="px-4 py-2.5 text-right font-semibold text-ink-900">
+                    {formatPKR((line.unitPrice - lineDiscount(line)) * line.quantity)}
+                  </td>
+                  <td className="px-4 py-2.5 text-right">
+                    <button
+                      type="button"
+                      onClick={() => removeLine(line.key)}
+                      title="Remove"
+                      className="rounded-lg p-1 text-ink-300 transition hover:bg-ink-100 hover:text-error"
+                    >
+                      <XIcon className="h-4 w-4" />
                     </button>
                   </td>
                 </tr>
               ))}
               {cart.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-8 text-center text-sm text-ink-400">
+                  <td colSpan={6} className="px-4 py-8 text-center text-sm text-ink-400">
                     Cart is empty — search and add items.
                   </td>
                 </tr>
@@ -872,11 +1072,10 @@ export default function PosPage() {
             </tbody>
           </table>
         </div>
-        </section>
-      </div>
 
       <div className="-mx-6 -mb-6 mt-6 shrink-0 border-t border-ink-100 bg-white px-6 py-5">
-        <div className="w-full max-w-2xl">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+        <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between">
             <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">
               {mode === "SPLIT" ? "Split payment" : "Payment"}
@@ -921,15 +1120,15 @@ export default function PosPage() {
               <div className="grid grid-cols-3 gap-2">
                 <div>
                   <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Cash</p>
-                  <Input value={cash} onChange={(e) => setCash(e.target.value)} placeholder="0" inputMode="decimal" className="bg-ink-100" />
+                  <Input value={cash} onChange={(e) => setCash(clampMoneyInput(e.target.value))} placeholder="0" inputMode="decimal" className="bg-ink-100" />
                 </div>
                 <div>
                   <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Card</p>
-                  <Input value={card} onChange={(e) => setCard(e.target.value)} placeholder="0" inputMode="decimal" className="bg-ink-100" />
+                  <Input value={card} onChange={(e) => setCard(clampMoneyInput(e.target.value))} placeholder="0" inputMode="decimal" className="bg-ink-100" />
                 </div>
                 <div>
                   <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Credit</p>
-                  <Input value={credit} onChange={(e) => setCredit(e.target.value)} placeholder="0" inputMode="decimal" className="bg-ink-100" />
+                  <Input value={credit} onChange={(e) => setCredit(clampMoneyInput(e.target.value))} placeholder="0" inputMode="decimal" className="bg-ink-100" />
                 </div>
               </div>
 
@@ -942,12 +1141,12 @@ export default function PosPage() {
                         value={row.amount}
                         onChange={(e) =>
                           setBankRows((r) =>
-                            r.map((x) => (x.id === row.id ? { ...x, amount: e.target.value } : x))
+                            r.map((x) => (x.id === row.id ? { ...x, amount: clampMoneyInput(e.target.value) } : x))
                           )
                         }
                         placeholder="Amount"
                         inputMode="decimal"
-                        className="w-32 bg-white"
+                        className="min-w-0 flex-1 bg-white"
                       />
                       {bankAccounts.length > 0 ? (
                         <Dropdown
@@ -1011,12 +1210,14 @@ export default function PosPage() {
                   className="px-3 py-1.5 text-xs"
                   onClick={() =>
                     setCash(
-                      String(
-                        due -
-                          (parseFloat(card) || 0) -
-                          (parseFloat(credit) || 0) -
-                          bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0)
-                      )
+                      clampMoneyInput(
+                        String(
+                          due -
+                            (parseFloat(card) || 0) -
+                            (parseFloat(credit) || 0) -
+                            bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0),
+                        ),
+                      ),
                     )
                   }
                 >
@@ -1039,17 +1240,47 @@ export default function PosPage() {
                 value={mode === "CASH" ? cash : mode === "CARD" ? card : mode === "BANK" ? bankAmount : credit}
                 onChange={(e) =>
                   mode === "CASH"
-                    ? setCash(e.target.value)
+                    ? setCash(clampMoneyInput(e.target.value))
                     : mode === "CARD"
-                      ? setCard(e.target.value)
+                      ? setCard(clampMoneyInput(e.target.value))
                       : mode === "BANK"
-                        ? setBankAmount(e.target.value)
-                        : setCredit(e.target.value)
+                        ? setBankAmount(clampMoneyInput(e.target.value))
+                        : setCredit(clampMoneyInput(e.target.value))
                 }
                 placeholder={formatPKR(due)}
                 inputMode="decimal"
                 className="bg-ink-100"
               />
+              {mode === "CASH" && (
+                <>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {quickTenders.map((amt) => (
+                      <Button
+                        key={amt}
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => setCash(clampMoneyInput(String(amt)))}
+                      >
+                        {amt === due ? "Exact" : formatPKR(amt)}
+                      </Button>
+                    ))}
+                  </div>
+                  {cashTendered > 0 && (
+                    <div
+                      className={`mt-2 flex items-center justify-between rounded-xl px-3 py-2 text-sm font-semibold ${
+                        change > 0
+                          ? "bg-brand-50 text-brand-700"
+                          : cashShort
+                            ? "bg-warning/10 text-warning"
+                            : "bg-ink-50 text-ink-500"
+                      }`}
+                    >
+                      <span>{change > 0 ? "Change to give" : cashShort ? "Short by" : "Exact amount"}</span>
+                      <span>{formatPKR(change > 0 ? change : cashShort ? due - cashTendered : 0)}</span>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           )}
           {loadedReservation && (
@@ -1090,34 +1321,44 @@ export default function PosPage() {
           )}
         </div>
 
-      <div className="mt-4 flex items-center justify-between gap-4 border-t border-ink-100 pt-4">
-          <div className="flex items-center gap-4">
-            <div className="flex flex-col gap-0.5">
-              <div className="flex items-baseline gap-3">
-                <span className="text-sm font-medium text-ink-500">Total</span>
-                <span className="text-3xl font-bold text-brand-600">{formatPKR(total)}</span>
+        <div className="flex shrink-0 flex-col items-end gap-2">
+            <div className="text-right">
+              <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">Total</p>
+              <p className="text-3xl font-bold leading-tight text-brand-600">{formatPKR(total)}</p>
+              <div className="mt-1 space-y-0.5 text-xs text-ink-500">
+                <p className="flex items-center justify-end gap-2">
+                  <span>Discount</span>
+                  <span className="w-20 text-right font-medium text-ink-700">{formatPKR(invoiceDisc)}</span>
+                </p>
+                <p className="flex items-center justify-end gap-2">
+                  <span>Tax</span>
+                  <span className="w-20 text-right font-medium text-ink-700">{formatPKR(tax)}</span>
+                </p>
+                <p className="flex items-center justify-end gap-2">
+                  <span>Card fee</span>
+                  <span className="w-20 text-right font-medium text-ink-700">{formatPKR(cardFee)}</span>
+                </p>
+                {change > 0 && (
+                  <p className="flex items-center justify-end gap-2 text-brand-600">
+                    <span>Change</span>
+                    <span className="w-20 text-right font-medium">{formatPKR(change)}</span>
+                  </p>
+                )}
               </div>
-              {(tax > 0 || cardFee > 0) && (
-                <div className="text-xs text-ink-400">
-                  {tax > 0 && <span>{formatPKR(tax)} tax</span>}
-                  {tax > 0 && cardFee > 0 && <span> · </span>}
-                  {cardFee > 0 && <span>{formatPKR(cardFee)} card fee</span>}
-                </div>
-              )}
             </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <Button variant="grey" className="px-4 py-2" onClick={reset}>
-              Clear
-            </Button>
-            <Button
-              className="min-w-72 px-8 py-4 text-base"
-              type="submit"
-              disabled={submitting || cart.length === 0}
-            >
-              {submitting ? "Processing…" : `Charge ${formatPKR(due)}`}
-              <Kbd>Ctrl+S</Kbd>
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="grey" className="px-4 py-2" onClick={reset}>
+                Clear
+              </Button>
+              <Button
+                className="min-w-72 px-8 py-4 text-base"
+                type="submit"
+                disabled={submitting || cart.length === 0}
+              >
+                {submitting ? "Processing…" : `Charge ${formatPKR(due)}`}
+                <Kbd>Ctrl+S</Kbd>
+              </Button>
+            </div>
           </div>
         </div>
       </div>

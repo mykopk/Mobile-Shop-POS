@@ -8,7 +8,7 @@ export const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
     title: "Shop",
     items: [
       { href: "/dashboard", label: "Dashboard", icon: "dashboard" },
-      { href: "/pos", label: "POS", icon: "pos" },
+      { href: "/pos", label: "Sale Invoice", icon: "pos" },
       { href: "/reservations", label: "Reservations", icon: "reservation" },
       { href: "/vouchers", label: "Vouchers", icon: "voucher" },
       { href: "/expenses", label: "Expenses", icon: "expenses" },

@@ -6,6 +6,11 @@ export const contactSchema = z.object({
   phone: z.string().trim().optional(),
   email: z.string().trim().email("Invalid email").optional().or(z.literal("")),
   address: z.string().trim().optional(),
+  city: z.string().trim().optional(),
+  cnic: z.string().trim().optional(),
+  photoUrl: z.string().trim().optional(),
+  cnicFrontUrl: z.string().trim().optional(),
+  cnicBackUrl: z.string().trim().optional(),
   notes: z.string().trim().optional(),
   creditLimit: z.coerce.number().min(0).default(0),
 });
@@ -18,6 +23,8 @@ export const importContactSchema = z.object({
   phone: z.string().trim().optional(),
   email: z.string().trim().optional(),
   address: z.string().trim().optional(),
+  city: z.string().trim().optional(),
+  cnic: z.string().trim().optional(),
   notes: z.string().trim().optional(),
   creditLimit: z.coerce.number().min(0).default(0),
 });

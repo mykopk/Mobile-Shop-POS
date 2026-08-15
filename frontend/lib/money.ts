@@ -1,3 +1,5 @@
+import { MAX_MONEY_AMOUNT } from "@/lib/constants";
+
 function parseAmount(amount: number | string | null | undefined) {
   return typeof amount === "string" ? parseFloat(amount) : (amount ?? 0);
 }
@@ -16,6 +18,12 @@ export function formatMoney(amount: number | string | null | undefined, symbol =
 
 export function formatPKR(amount: number | string | null | undefined) {
   return formatMoney(amount, "Rs");
+}
+
+export function clampMoneyInput(raw: string, max = MAX_MONEY_AMOUNT) {
+  const n = parseFloat(raw.replace(/,/g, ""));
+  if (Number.isNaN(n)) return raw;
+  return n > max ? String(max) : raw;
 }
 
 function groupInt(s: string) {

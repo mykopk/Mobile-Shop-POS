@@ -7,12 +7,34 @@ const startOfDay = (timeZone: string) => {
   return dateAtZone(dayKeyInTz(now, timeZone), "00:00:00", timeZone);
 };
 
-export async function overview(permissions: readonly Permission[], timeZone: string) {
+export type DashboardRange = { from?: string; to?: string };
+
+function rangeWhere(range: DashboardRange, timeZone: string, field: "createdAt" | "date" = "createdAt") {
+  const cond: { gte?: Date; lte?: Date } = {};
+  if (range.from) cond.gte = dateAtZone(range.from, "00:00:00", timeZone);
+  if (range.to) cond.lte = dateAtZone(range.to, "23:59:59", timeZone);
+  if (!cond.gte && !cond.lte) return {};
+  return { [field]: cond };
+}
+
+function buildDayList(from: string, to: string, timeZone: string) {
+  const days: { key: string; date: Date }[] = [];
+  const cursor = dateAtZone(from, "00:00:00", timeZone);
+  const end = dateAtZone(to, "23:59:59", timeZone);
+  while (cursor.getTime() <= end.getTime()) {
+    days.push({ key: dayKeyInTz(cursor, timeZone), date: new Date(cursor) });
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return days;
+}
+
+export async function overview(
+  permissions: readonly Permission[],
+  timeZone: string,
+  range: DashboardRange = {},
+) {
   const today = startOfDay(timeZone);
   const canViewCosts = hasPermissionList(permissions, PERMISSIONS.reportProfit);
-
-  const since = new Date(today);
-  since.setDate(since.getDate() - 13);
 
   const [
     todaySales,
@@ -69,7 +91,7 @@ export async function overview(permissions: readonly Permission[], timeZone: str
       },
     }),
     prisma.transaction.findMany({
-      where: { type: "SALE", createdAt: { gte: since } },
+      where: { type: "SALE", ...rangeWhere(range, timeZone) },
       select: {
         createdAt: true,
         total: true,
@@ -95,7 +117,7 @@ export async function overview(permissions: readonly Permission[], timeZone: str
       _sum: { amount: true },
     }),
     prisma.expense.findMany({
-      where: { date: { gte: since } },
+      where: { ...rangeWhere(range, timeZone, "date") },
       select: { date: true, amount: true },
     }),
     prisma.voucher.findMany({
@@ -128,7 +150,7 @@ export async function overview(permissions: readonly Permission[], timeZone: str
     }),
     prisma.transaction.groupBy({
       by: ["userId"],
-      where: { type: "SALE", createdAt: { gte: today } },
+      where: { type: "SALE", ...rangeWhere(range, timeZone) },
       _count: true,
       _sum: { total: true },
     }),
@@ -207,34 +229,46 @@ export async function overview(permissions: readonly Permission[], timeZone: str
       threshold: p.lowStockThreshold,
     }));
 
-  const days = [];
-  for (let i = 13; i >= 0; i--) {
-    const d = new Date(since);
-    d.setDate(since.getDate() + i);
-    const iso = d.toISOString().slice(0, 10);
-    days.push({
-      key: iso,
-      label: d.toLocaleDateString("en-PK", { weekday: "short" }),
-      revenue: 0,
-      count: 0,
-    });
+  let dayList: { key: string; date: Date }[];
+  if (range.from && range.to) {
+    dayList = buildDayList(range.from, range.to, timeZone);
+  } else if (recentSales.length > 0) {
+    let min = new Date(recentSales[0].createdAt);
+    let max = new Date(recentSales[0].createdAt);
+    for (const s of recentSales) {
+      const t = new Date(s.createdAt).getTime();
+      if (t < min.getTime()) min = new Date(s.createdAt);
+      if (t > max.getTime()) max = new Date(s.createdAt);
+    }
+    dayList = buildDayList(dayKeyInTz(min, timeZone), dayKeyInTz(max, timeZone), timeZone);
+  } else {
+    dayList = buildDayList(dayKeyInTz(new Date(), timeZone), dayKeyInTz(new Date(), timeZone), timeZone);
   }
-  const dayIndex = new Map(days.map((d, i) => [d.key, i]));
+
+  const dayIndex = new Map(dayList.map((d, i) => [d.key, i]));
+  const days = dayList.map((d) => ({
+    key: d.key,
+    label: d.date.toLocaleDateString("en-PK", { weekday: "short" }),
+    revenue: 0,
+    count: 0,
+  }));
+
   const expenseByDay = new Map<string, number>();
   for (const e of rangeExpenses) {
-    const key = e.date.toISOString().slice(0, 10);
+    const key = dayKeyInTz(e.date, timeZone);
     expenseByDay.set(key, (expenseByDay.get(key) ?? 0) + Number(e.amount));
   }
 
   const productMap = new Map<string, { name: string; qty: number; revenue: number }>();
   const paymentSplit: Record<string, number> = { CASH: 0, CARD: 0, BANK_TRANSFER: 0, CREDIT: 0 };
+  const profitByDay = new Map<string, number>();
   let newSold = 0;
   let usedSold = 0;
   let phoneSold = 0;
   let accessorySold = 0;
 
   for (const s of recentSales) {
-    const idx = dayIndex.get(s.createdAt.toISOString().slice(0, 10));
+    const idx = dayIndex.get(dayKeyInTz(s.createdAt, timeZone));
     if (idx !== undefined) {
       days[idx].revenue += Number(s.total);
       days[idx].count += 1;
@@ -254,24 +288,22 @@ export async function overview(permissions: readonly Permission[], timeZone: str
         if (it.unit.condition === "NEW") newSold += 1;
         else usedSold += 1;
       }
+      if (canViewCosts) {
+        const key = dayKeyInTz(s.createdAt, timeZone);
+        const profit = Number(it.total) - Number(it.unit?.costPrice ?? 0);
+        profitByDay.set(key, (profitByDay.get(key) ?? 0) + profit);
+      }
     }
   }
 
   const topProducts = [...productMap.values()].sort((a, b) => b.qty - a.qty).slice(0, 5);
 
-  let profitTrend: (number | null)[] | null = null;
-  if (canViewCosts) {
-    profitTrend = days.map((day) => {
-      let profit = 0;
-      for (const s of recentSales) {
-        if (s.createdAt.toISOString().slice(0, 10) !== day.key) continue;
-        for (const it of s.items) {
-          profit += Number(it.total) - Number(it.unit?.costPrice ?? 0);
-        }
-      }
-      return Math.round(profit - (expenseByDay.get(day.key) ?? 0));
-    });
-  }
+  const profitTrend: (number | null)[] | null = canViewCosts
+    ? days.map((day) => {
+        const dayProfit = profitByDay.get(day.key) ?? 0;
+        return Math.round(dayProfit - (expenseByDay.get(day.key) ?? 0));
+      })
+    : null;
 
   const recent = await prisma.transaction.findMany({
     orderBy: { createdAt: "desc" },
@@ -317,7 +349,7 @@ export async function overview(permissions: readonly Permission[], timeZone: str
     topSellers,
     soldByCategory: { PHONE: phoneSold, ACCESSORY: accessorySold },
     lowStock: lowStockProducts,
-    sales14d: days,
+    salesTrend: days,
     topProducts,
     paymentSplit,
     newUsedSold: { NEW: newSold, USED: usedSold },
@@ -332,4 +364,33 @@ export async function activityLog(limit: number) {
     take: limit,
     include: { user: { select: { name: true, username: true } } },
   });
+}
+
+export async function widgets(userId: string) {
+  return prisma.dashboardWidget.findMany({
+    where: { userId },
+    orderBy: { order: "asc" },
+    select: { id: true, key: true, layout: true, settings: true, order: true },
+  });
+}
+
+export async function saveWidgets(
+  userId: string,
+  list: { key: string; order: number; layout?: string; settings?: string }[],
+) {
+  await prisma.$transaction(async (tx) => {
+    await tx.dashboardWidget.deleteMany({ where: { userId } });
+    if (list.length > 0) {
+      await tx.dashboardWidget.createMany({
+        data: list.map((w) => ({
+          userId,
+          key: w.key,
+          order: w.order,
+          layout: w.layout ?? "",
+          settings: w.settings ?? "{}",
+        })),
+      });
+    }
+  });
+  return widgets(userId);
 }

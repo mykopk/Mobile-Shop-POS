@@ -3,6 +3,7 @@ import { asyncHandler } from "../../core/lib/asyncHandler";
 import { requireAuth, requirePermission } from "../../core/middleware/auth";
 import { PERMISSIONS } from "../../core/lib/permissions";
 import {
+  agingHandler,
   balancesHandler,
   expensesHandler,
   ledgerHandler,
@@ -25,6 +26,7 @@ router.get("/profit", requirePermission(PERMISSIONS.reportProfit), asyncHandler(
 router.get("/expenses", requirePermission(PERMISSIONS.reportView), asyncHandler(expensesHandler));
 router.get("/stock", requirePermission(PERMISSIONS.reportStock), asyncHandler(stockHandler));
 router.get("/payments", requirePermission(PERMISSIONS.reportView), asyncHandler(paymentsHandler));
+router.get("/aging", requirePermission(PERMISSIONS.reportView), asyncHandler(agingHandler));
 router.get("/balances", requirePermission(PERMISSIONS.reportView), asyncHandler(balancesHandler));
 router.get("/ledger/:contactId", requirePermission(PERMISSIONS.reportView), asyncHandler(ledgerHandler));
 

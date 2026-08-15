@@ -2,12 +2,13 @@ export type PrintFormatId = "58" | "80" | "a4";
 
 export type QrTarget = "none" | "whatsapp";
 
-export type PrintLayoutType = "document" | "inventory" | "expense";
+export type PrintLayoutType = "document" | "inventory" | "expense" | "contacts";
 
 export const PRINT_LAYOUT_TYPES: { value: PrintLayoutType; label: string }[] = [
   { value: "document", label: "Documents" },
   { value: "inventory", label: "Inventory" },
   { value: "expense", label: "Expenses" },
+  { value: "contacts", label: "Contacts" },
 ];
 
 export const INVENTORY_FORMAT_IDS: PrintFormatId[] = ["80", "a4"];
@@ -58,6 +59,7 @@ export const PRINT = {
   storageKey: "fig.print.options",
   invOptionsKey: "fig.print.invOptions",
   expenseSheetOptionsKey: "fig.print.expenseSheetOptions",
+  contactsOptionsKey: "fig.print.contactsOptions.v2",
   formatKey: "fig.print.format",
   qrTypeKey: "fig.print.qrType",
   bankAccountsTitle: "Bank Payment Details",
@@ -279,4 +281,69 @@ export const EXPENSE_PRINT_TEXT = {
   signature: "Authorized Signature",
   noData: "No expenses found.",
   noNote: "No note",
+} as const;
+
+export type ContactsPrintOptionKey =
+  | "header"
+  | "shopInfo"
+  | "phone"
+  | "email"
+  | "type"
+  | "city"
+  | "cnic"
+  | "address"
+  | "notes"
+  | "signature"
+  | "footer";
+
+export const CONTACTS_DEFAULT_OPTIONS: Record<ContactsPrintOptionKey, boolean> = {
+  header: true,
+  shopInfo: true,
+  phone: true,
+  email: false,
+  type: true,
+  city: true,
+  cnic: true,
+  address: false,
+  notes: false,
+  signature: false,
+  footer: true,
+};
+
+export type ContactsPrintOptions = Record<ContactsPrintOptionKey, boolean>;
+
+export const CONTACTS_OPTION_LABELS: { key: ContactsPrintOptionKey; label: string; hint: string }[] = [
+  { key: "header", label: "Shop name & title", hint: "Store name and “Contacts List” title" },
+  { key: "shopInfo", label: "Shop tagline", hint: "One-line description below the shop name" },
+  { key: "phone", label: "Phone", hint: "Phone number of each contact" },
+  { key: "email", label: "Email", hint: "Email address of each contact" },
+  { key: "type", label: "Type", hint: "Customer / vendor / walk-in" },
+  { key: "city", label: "City", hint: "City of each contact" },
+  { key: "cnic", label: "CNIC", hint: "CNIC number of each contact" },
+  { key: "address", label: "Address", hint: "Address of each contact" },
+  { key: "notes", label: "Notes", hint: "Notes of each contact" },
+  { key: "signature", label: "Signature line", hint: "Space for a signature" },
+  { key: "footer", label: "Footer & summary", hint: "Closing message and totals" },
+];
+
+export const CONTACTS_TEXT = {
+  title: "Contacts List",
+  generated: "Generated",
+  printedBy: "Printed by",
+  totalContacts: "Total contacts",
+  receivable: "Total receivable",
+  payable: "Total payable",
+  no: "No.",
+  name: "Name",
+  phone: "Phone",
+  email: "Email",
+  type: "Type",
+  city: "City",
+  cnic: "CNIC",
+  address: "Address",
+  notes: "Notes",
+  contact: "contact",
+  contacts: "contacts",
+  signature: "Authorized Signature",
+  noData: "No contacts found.",
 } as const;

@@ -59,6 +59,10 @@ export async function paymentsHandler(req: Request, res: Response) {
   res.json({ data: await report.paymentsReport(await rangeWithTz(req)) });
 }
 
+export async function agingHandler(req: Request, res: Response) {
+  res.json({ data: await report.agingReport({ tz: await getCompanyTimezone() }) });
+}
+
 export async function balancesHandler(req: Request, res: Response) {
   res.json({ data: await report.balances() });
 }
