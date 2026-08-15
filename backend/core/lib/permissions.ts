@@ -86,6 +86,11 @@ export const PERMISSIONS = {
   printSetDefault: "print.setDefault",
   userManage: "user.manage",
   auditView: "audit.view",
+
+  // Cash reconciliation (Z-report)
+  cashSessionView: "cashSession.view",
+  cashSessionOpen: "cashSession.open",
+  cashSessionClose: "cashSession.close",
 } as const;
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];

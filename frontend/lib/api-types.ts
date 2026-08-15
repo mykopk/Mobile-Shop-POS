@@ -1,5 +1,36 @@
 import type { Role } from "@/lib/constants/users";
 
+export type CashSession = {
+  id: string;
+  number: string;
+  openedAt: string;
+  openingFloat: string;
+  closedAt: string | null;
+  closingFloat: string | null;
+  countedFloat: string | null;
+  variance: string | null;
+  note: string | null;
+  status: "OPEN" | "CLOSED";
+  openedBy: { id: string; name: string };
+  closedBy: { id: string; name: string } | null;
+};
+
+export type ZReport = {
+  from: string;
+  to: string;
+  openingFloat: number;
+  cashIn: number;
+  cashOut: number;
+  expectedClosing: number;
+  saleCash: number;
+  saleReturnCash: number;
+  purchaseCash: number;
+  purchaseReturnCash: number;
+  vouchersIn: number;
+  vouchersOut: number;
+  expenses: number;
+};
+
 export type CategoryType = "PHONE" | "ACCESSORY";
 
 export type CompanyProfile = {

@@ -2,6 +2,7 @@ import { prisma } from "../../core/lib/prisma";
 import { ApiError } from "../../core/middleware/error";
 import { dayKeyInTz, dateAtZone, DEFAULT_TIMEZONE } from "../../core/lib/time";
 import { hasPermissionList, PERMISSIONS, type Permission } from "../../core/lib/permissions";
+import { computeZReport } from "../cash-session/service";
 
 export type Range = { from?: string; to?: string; tz?: string };
 
@@ -861,8 +862,7 @@ function ageDays(createdAt: Date, tz: string): number {
   return Math.max(0, Math.floor((todayKey - createdKey) / 86_400_000));
 }
 
-export async function agingReport(r: Range) {
-  const tz = r.tz ?? DEFAULT_TIMEZONE;
+export async function agingReport(r: Range) {  const tz = r.tz ?? DEFAULT_TIMEZONE;
   const [openSales, openPurchases] = await Promise.all([
     prisma.transaction.findMany({
       where: { type: "SALE", status: { in: ["PARTIAL", "PENDING"] } },
@@ -938,4 +938,36 @@ export async function agingReport(r: Range) {
   }
 
   return { receivables: build(openSales), payables: build(openPurchases) };
+}
+
+export async function zReport(r: Range) {
+  const tz = r.tz ?? DEFAULT_TIMEZONE;
+  const todayKey = dayKeyInTz(new Date(), tz);
+  const from = r.from ? dateAtZone(r.from, "00:00:00", tz) : dateAtZone(todayKey, "00:00:00", tz);
+  const to = r.to ? dateAtZone(r.to, "23:59:59", tz) : new Date();
+
+  const openingSession = await prisma.cashSession.findFirst({
+    where: { openedAt: { gte: from, lte: to } },
+    orderBy: { openedAt: "asc" },
+  });
+
+  const movement = await computeZReport(from, to);
+  const openingFloat = Number(openingSession?.openingFloat ?? 0);
+  const expectedClosing = openingFloat + movement.cashIn - movement.cashOut;
+
+  return {
+    from,
+    to,
+    openingFloat: round(openingFloat),
+    cashIn: movement.cashIn,
+    cashOut: movement.cashOut,
+    saleCash: movement.saleCash,
+    saleReturnCash: movement.saleReturnCash,
+    purchaseCash: movement.purchaseCash,
+    purchaseReturnCash: movement.purchaseReturnCash,
+    vouchersIn: movement.vouchersIn,
+    vouchersOut: movement.vouchersOut,
+    expenses: movement.expenses,
+    expectedClosing: round(expectedClosing),
+  };
 }

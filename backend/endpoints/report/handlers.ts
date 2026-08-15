@@ -72,3 +72,7 @@ export async function ledgerHandler(req: Request, res: Response) {
   const tz = await getCompanyTimezone();
   res.json({ data: await report.ledgerReport(parsed.contactId, { from: parsed.from, to: parsed.to, tz }) });
 }
+
+export async function zReportHandler(req: Request, res: Response) {
+  res.json({ data: await report.zReport(await rangeWithTz(req)) });
+}

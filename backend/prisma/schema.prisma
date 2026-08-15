@@ -134,6 +134,8 @@ model User {
   printLayouts     PrintLayout[]
   vouchers         Voucher[] @relation("VoucherCreated")
   voucherReversals Voucher[] @relation("VoucherReversed")
+  cashSessionsOpened CashSession[] @relation("CashSessionOpened")
+  cashSessionsClosed CashSession[] @relation("CashSessionClosed")
 
   @@map("users")
 }
@@ -545,4 +547,24 @@ model CompanyProfile {
   bankAccounts BankAccount[]
 
   @@map("company_profiles")
+}
+
+model CashSession {
+  id           String       @id @default(cuid())
+  number       String       @unique
+  openedById   String
+  openedBy     User         @relation("CashSessionOpened", fields: [openedById], references: [id])
+  openedAt     DateTime     @default(now())
+  openingFloat Decimal      @default(0)
+  closedById   String?
+  closedBy     User?        @relation("CashSessionClosed", fields: [closedById], references: [id])
+  closedAt     DateTime?
+  closingFloat Decimal?
+  countedFloat Decimal?
+  variance     Decimal?
+  note         String?
+  status       String       @default("OPEN")
+
+  @@index([status])
+  @@map("cash_sessions")
 }

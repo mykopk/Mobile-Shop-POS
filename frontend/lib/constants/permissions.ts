@@ -82,6 +82,9 @@ export const PERMISSIONS = {
   printSetDefault: "print.setDefault",
   userManage: "user.manage",
   auditView: "audit.view",
+  cashSessionView: "cashSession.view",
+  cashSessionOpen: "cashSession.open",
+  cashSessionClose: "cashSession.close",
 } as const;
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -203,6 +206,9 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
   "print.delete": "Delete print layouts",
   "print.setDefault": "Set default print layout",
   "user.manage": "Manage users",
+  "cashSession.view": "View cash sessions & Z-report",
+  "cashSession.open": "Open a cash session",
+  "cashSession.close": "Close a cash session",
   "audit.view": "View activity log",
 };
 

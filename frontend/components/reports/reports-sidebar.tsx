@@ -37,6 +37,8 @@ const REPORT_ICONS: Record<string, React.ReactNode> = {
   "/reports/ledger": <HistoryIcon className="h-4 w-4" />,
   "/reports/receivables": <UserIcon className="h-4 w-4" />,
   "/reports/payables": <UserIcon className="h-4 w-4" />,
+  "/reports/aging": <HistoryIcon className="h-4 w-4" />,
+  "/reports/z": <WalletIcon className="h-4 w-4" />,
 };
 
 export function ReportsSidebar() {

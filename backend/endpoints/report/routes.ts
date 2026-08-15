@@ -13,6 +13,7 @@ import {
   salesHandler,
   stockHandler,
   summaryHandler,
+  zReportHandler,
 } from "./handlers";
 
 const router = Router();
@@ -29,5 +30,6 @@ router.get("/payments", requirePermission(PERMISSIONS.reportView), asyncHandler(
 router.get("/aging", requirePermission(PERMISSIONS.reportView), asyncHandler(agingHandler));
 router.get("/balances", requirePermission(PERMISSIONS.reportView), asyncHandler(balancesHandler));
 router.get("/ledger/:contactId", requirePermission(PERMISSIONS.reportView), asyncHandler(ledgerHandler));
+router.get("/z", requirePermission(PERMISSIONS.cashSessionView), asyncHandler(zReportHandler));
 
 export default router;
