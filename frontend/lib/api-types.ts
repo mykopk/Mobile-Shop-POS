@@ -31,6 +31,27 @@ export type ZReport = {
   expenses: number;
 };
 
+export type PurchaseOrderItem = {
+  id: string;
+  quantity: number;
+  receivedQuantity: number;
+  costPrice: string;
+  product: { id: string; brand: { name: string } | null; model: string; storage: string | null; ram: string | null };
+};
+
+export type PurchaseOrder = {
+  id: string;
+  number: string;
+  status: "PENDING" | "PARTIAL" | "RECEIVED" | "CANCELLED";
+  total: string;
+  note: string | null;
+  receivedAt: string | null;
+  createdAt: string;
+  contact: { id: string; name: string; phone: string | null };
+  createdBy: { id: string; name: string };
+  items: PurchaseOrderItem[];
+};
+
 export type CategoryType = "PHONE" | "ACCESSORY";
 
 export type CompanyProfile = {

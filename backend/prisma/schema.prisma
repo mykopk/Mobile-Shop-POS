@@ -136,6 +136,7 @@ model User {
   voucherReversals Voucher[] @relation("VoucherReversed")
   cashSessionsOpened CashSession[] @relation("CashSessionOpened")
   cashSessionsClosed CashSession[] @relation("CashSessionClosed")
+  purchaseOrdersCreated PurchaseOrder[] @relation("PurchaseOrderCreated")
 
   @@map("users")
 }
@@ -162,6 +163,7 @@ model Contact {
   reservations  Reservation[]
   expenses      Expense[]
   vouchers      Voucher[]
+  purchaseOrders PurchaseOrder[]
 
   @@index([phone])
   @@index([cnic])
@@ -251,6 +253,7 @@ model Product {
   items        TransactionItem[]
   movements    StockMovement[]
   reservationItems ReservationItem[]
+  purchaseOrderItems PurchaseOrderItem[]
 
   @@index([brandId])
   @@index([model])
@@ -567,4 +570,35 @@ model CashSession {
 
   @@index([status])
   @@map("cash_sessions")
+}
+
+model PurchaseOrder {
+  id          String               @id @default(cuid())
+  number      String               @unique
+  contactId   String
+  contact     Contact              @relation(fields: [contactId], references: [id])
+  status      String               @default("PENDING") // PENDING | PARTIAL | RECEIVED | CANCELLED
+  total       Decimal              @default(0)
+  note        String?
+  createdById String
+  createdBy   User                 @relation("PurchaseOrderCreated", fields: [createdById], references: [id])
+  receivedAt  DateTime?
+  createdAt   DateTime             @default(now())
+  items       PurchaseOrderItem[]
+
+  @@index([status])
+  @@map("purchase_orders")
+}
+
+model PurchaseOrderItem {
+  id               String        @id @default(cuid())
+  orderId          String
+  order            PurchaseOrder @relation(fields: [orderId], references: [id])
+  productId        String
+  product          Product       @relation(fields: [productId], references: [id])
+  quantity         Int
+  receivedQuantity Int           @default(0)
+  costPrice        Decimal
+
+  @@map("purchase_order_items")
 }

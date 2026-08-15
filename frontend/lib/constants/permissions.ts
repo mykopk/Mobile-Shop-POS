@@ -86,6 +86,10 @@ export const PERMISSIONS = {
   cashSessionOpen: "cashSession.open",
   cashSessionClose: "cashSession.close",
   backup: "backup",
+  purchaseOrderView: "purchaseOrder.view",
+  purchaseOrderCreate: "purchaseOrder.create",
+  purchaseOrderReceive: "purchaseOrder.receive",
+  purchaseOrderCancel: "purchaseOrder.cancel",
 } as const;
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -212,6 +216,10 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
   "cashSession.open": "Open a cash session",
   "cashSession.close": "Close a cash session",
   "backup": "Export / restore database backup",
+  "purchaseOrder.view": "View purchase orders",
+  "purchaseOrder.create": "Create purchase orders",
+  "purchaseOrder.receive": "Receive purchase orders",
+  "purchaseOrder.cancel": "Cancel purchase orders",
   "audit.view": "View activity log",
 };
 

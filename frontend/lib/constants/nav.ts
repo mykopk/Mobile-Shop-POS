@@ -18,6 +18,7 @@ export const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
     title: "Stock",
     items: [
       { href: "/purchases", label: "Purchases", icon: "purchases" },
+      { href: "/purchase-orders", label: "Purchase Orders", icon: "purchases" },
       { href: "/purchase-returns", label: "Purchase Returns", icon: "returns" },
       { href: "/sale-returns", label: "Sale Returns", icon: "refund" },
       { href: "/inventory", label: "Inventory", icon: "inventory" },

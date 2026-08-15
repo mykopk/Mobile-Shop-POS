@@ -23,7 +23,7 @@ type PaymentInput = {
   bankAccountId?: string;
 };
 
-async function resolveNumber(requested: string | undefined, prefix: string) {
+export async function resolveNumber(requested: string | undefined, prefix: string) {
   if (requested) {
     const exists = await prisma.transaction.findUnique({ where: { number: requested } });
     if (!exists) return requested;

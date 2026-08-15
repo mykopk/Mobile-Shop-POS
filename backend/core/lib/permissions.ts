@@ -94,6 +94,12 @@ export const PERMISSIONS = {
 
   // Backup / restore
   backup: "backup",
+
+  // Purchase orders
+  purchaseOrderView: "purchaseOrder.view",
+  purchaseOrderCreate: "purchaseOrder.create",
+  purchaseOrderReceive: "purchaseOrder.receive",
+  purchaseOrderCancel: "purchaseOrder.cancel",
 } as const;
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
