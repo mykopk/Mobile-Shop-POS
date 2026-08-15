@@ -304,6 +304,25 @@ function PrintStudioContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    if (applyingLayoutRef.current) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const defaults = await apiRequest<Record<string, string>>("/settings/print-defaults");
+        if (cancelled) return;
+        const d = defaults?.[docType];
+        if (d === "a4") setFormat("a4");
+        else if (d === "thermal") setFormat("80");
+      } catch {
+        /* keep current */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [docType]);
+
   function applyLayout(layout: PrintLayout) {
     applyingLayoutRef.current = true;
     setActiveLayoutId(layout.id);

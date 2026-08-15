@@ -1,5 +1,9 @@
 import { z } from "zod";
 
+export const printDefaultsSchema = z.record(z.string(), z.enum(["thermal", "a4"]));
+
+export type PrintDefaultsInput = z.infer<typeof printDefaultsSchema>;
+
 const timezone = z
   .string()
   .trim()

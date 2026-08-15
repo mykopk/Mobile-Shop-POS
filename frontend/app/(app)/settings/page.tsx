@@ -33,6 +33,7 @@ import { UsersManager } from "@/components/users/users-manager";
 import { SettingsSidebar, SETTINGS_TABS, type TabId } from "@/components/settings/settings-sidebar";
 import { ActivityLog } from "@/components/audit/activity-log";
 import { BackupTab } from "@/components/settings/backup-tab";
+import { PrintSettingsTab } from "@/components/settings/print-settings-tab";
 import { useToast } from "@/components/ui/toast";
 
 type SoundPrefs = Record<SoundKind, boolean>;
@@ -865,6 +866,12 @@ export default function SettingsPage() {
           <div>
             <h3 className="mb-4 text-lg font-bold text-ink-900">Backup & restore</h3>
             <BackupTab />
+          </div>
+        )}
+        {tab === "print" && hasPermission(user, PERMISSIONS.printView) && (
+          <div>
+            <h3 className="mb-4 text-lg font-bold text-ink-900">Print & thermal</h3>
+            <PrintSettingsTab />
           </div>
         )}
       </main>
