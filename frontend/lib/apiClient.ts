@@ -1,4 +1,5 @@
 import { AUTH } from "@/lib/constants";
+import { enqueueQueuedRequest } from "@/lib/offline-queue";
 
 export class ApiClientError extends Error {
   constructor(
@@ -21,15 +22,25 @@ export async function apiRequest<T>(
   path: string,
   { method = "GET", body, signal }: RequestOptions = {},
 ): Promise<T> {
-  const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}${path}`, {
-    method,
-    credentials: "include",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: body === undefined ? undefined : JSON.stringify(body),
-    signal,
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}${path}`, {
+      method,
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: body === undefined ? undefined : JSON.stringify(body),
+      signal,
+    });
+  } catch (err) {
+    const isWrite = method !== "GET";
+    if (isWrite) {
+      enqueueQueuedRequest({ path, method: method as "POST" | "PUT" | "PATCH" | "DELETE", body });
+      throw new ApiClientError(0, "offline_queued", "You're offline — this change is saved and will sync when you're back online.");
+    }
+    throw err;
+  }
 
   if (!res.ok) {
     if (res.status === 401 && typeof window !== "undefined") {

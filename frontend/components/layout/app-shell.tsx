@@ -15,6 +15,8 @@ import { useApi } from "@/lib/use-api";
 import type { CompanyProfile } from "@/lib/api-types";
 import { subscribeUnsaved } from "@/lib/unsaved-guard";
 import { APP, NAV_ITEMS, UI } from "@/lib/constants";
+import { queueCount, isOnline } from "@/lib/offline-queue";
+import { flushOfflineQueue } from "@/lib/offline-sync";
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { user, logout } = useAuth();
@@ -23,6 +25,33 @@ export function AppShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const [unsaved, setUnsaved] = useState(false);
   const [pendingHref, setPendingHref] = useState<string | null>(null);
+  const [pending, setPending] = useState(queueCount());
+  const [online, setOnline] = useState(isOnline());
+
+  useEffect(() => {
+    function onOnline() {
+      setOnline(true);
+      void flushOfflineQueue().then(() => setPending(queueCount()));
+    }
+    function onOffline() {
+      setOnline(false);
+      setPending(queueCount());
+    }
+    window.addEventListener("online", onOnline);
+    window.addEventListener("offline", onOffline);
+    return () => {
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("offline", onOffline);
+    };
+  }, []);
+
+  useEffect(() => {
+    function onQueueUpdated() {
+      setPending(queueCount());
+    }
+    window.addEventListener("fig:offline-queue-updated", onQueueUpdated);
+    return () => window.removeEventListener("fig:offline-queue-updated", onQueueUpdated);
+  }, []);
 
   useEffect(() => subscribeUnsaved(setUnsaved), []);
 
@@ -114,6 +143,20 @@ export function AppShell({ children }: { children: ReactNode }) {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
+        {(!online || pending > 0) && (
+          <div className="flex shrink-0 items-center justify-center gap-2 bg-warning px-4 py-1.5 text-xs font-semibold text-white">
+            <span>{online ? `${pending} change(s) pending sync` : "You're offline — changes are saved locally and will sync when you reconnect"}</span>
+            {pending > 0 && online && (
+              <button
+                type="button"
+                onClick={() => void flushOfflineQueue().then(() => setPending(queueCount()))}
+                className="rounded-md bg-white/20 px-2 py-0.5 hover:bg-white/30"
+              >
+                Sync now
+              </button>
+            )}
+          </div>
+        )}
         <main className="flex-1 overflow-y-auto overscroll-none p-6 print:p-0">{children}</main>
       </div>
 
