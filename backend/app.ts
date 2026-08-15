@@ -25,6 +25,7 @@ import reportRouter from "./endpoints/report/routes";
 import userRouter from "./endpoints/user/routes";
 import auditRouter from "./endpoints/audit/routes";
 import cashSessionRouter from "./endpoints/cash-session/routes";
+import backupRouter from "./endpoints/backup/routes";
 
 export function createApp() {
   const app = express();
@@ -68,6 +69,7 @@ export function createApp() {
   app.use("/api/user", userRouter);
   app.use("/api/audit", auditRouter);
   app.use("/api/cash-session", cashSessionRouter);
+  app.use("/api/backup", backupRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

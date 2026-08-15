@@ -32,6 +32,7 @@ import { ImagePicker } from "@/components/products/image-picker";
 import { UsersManager } from "@/components/users/users-manager";
 import { SettingsSidebar, SETTINGS_TABS, type TabId } from "@/components/settings/settings-sidebar";
 import { ActivityLog } from "@/components/audit/activity-log";
+import { BackupTab } from "@/components/settings/backup-tab";
 import { useToast } from "@/components/ui/toast";
 
 type SoundPrefs = Record<SoundKind, boolean>;
@@ -860,6 +861,12 @@ export default function SettingsPage() {
         )}
 
         {tab === "audit" && hasPermission(user, PERMISSIONS.auditView) && <ActivityLog />}
+        {tab === "backup" && hasPermission(user, PERMISSIONS.backup) && (
+          <div>
+            <h3 className="mb-4 text-lg font-bold text-ink-900">Backup & restore</h3>
+            <BackupTab />
+          </div>
+        )}
       </main>
 
       <Dialog

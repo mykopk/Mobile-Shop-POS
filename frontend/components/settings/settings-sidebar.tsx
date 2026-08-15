@@ -21,7 +21,7 @@ import {
   WalletIcon,
 } from "@/components/icons";
 
-export type TabId = "shop" | "preferences" | "financial" | "bank" | "sounds" | "users" | "audit";
+export type TabId = "shop" | "preferences" | "financial" | "bank" | "sounds" | "users" | "audit" | "backup";
 
 export const SETTINGS_TABS: {
   id: TabId;
@@ -37,6 +37,7 @@ export const SETTINGS_TABS: {
   { id: "sounds", label: "Sounds", icon: <HeadphonesIcon className="h-4 w-4" /> },
   { id: "users", label: "Users & roles", icon: <UserIcon className="h-4 w-4" />, hint: "Manage staff" },
   { id: "audit", label: "Activity Log", icon: <HistoryIcon className="h-4 w-4" />, permission: PERMISSIONS.auditView },
+  { id: "backup", label: "Backup & restore", icon: <PrinterIcon className="h-4 w-4" />, permission: PERMISSIONS.backup },
 ];
 
 const TOOL_LINKS: { href: string; label: string; icon: React.ReactNode; permission?: Permission }[] = [

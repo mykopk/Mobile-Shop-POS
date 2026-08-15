@@ -91,6 +91,9 @@ export const PERMISSIONS = {
   cashSessionView: "cashSession.view",
   cashSessionOpen: "cashSession.open",
   cashSessionClose: "cashSession.close",
+
+  // Backup / restore
+  backup: "backup",
 } as const;
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -100,6 +103,7 @@ const ALL: readonly Permission[] = Object.values(PERMISSIONS);
 const ADMIN_ONLY: readonly Permission[] = [
   PERMISSIONS.userManage,
   PERMISSIONS.auditView,
+  PERMISSIONS.backup,
 ];
 
 export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
