@@ -5,8 +5,8 @@
   "description": "Standalone updater for Fig Mobile POS — runs even if the main app is broken.",
   "main": "main.js",
   "scripts": {
-    "dist": "electron-builder --win portable",
-    "pack": "electron-builder --win --dir"
+    "dist": "electron-builder --win portable --publish never",
+    "pack": "electron-builder --win --dir --publish never"
   },
   "devDependencies": {
     "electron": "^37.0.0",

@@ -11,10 +11,10 @@
   "scripts": {
     "start": "electron .",
     "dev": "electron . --dev",
-    "pack": "electron-builder --win --dir",
-    "dist": "electron-builder --win",
-    "pack:win": "electron-builder --win --dir",
-    "dist:win": "electron-builder --win",
+    "pack": "electron-builder --win --dir --publish never",
+    "dist": "electron-builder --win --publish never",
+    "pack:win": "electron-builder --win --dir --publish never",
+    "dist:win": "electron-builder --win --publish never",
     "rebuild": "electron-rebuild -f --only better-sqlite3 --module-dir ../backend",
     "rebuild:dev": "npm --prefix ../backend rebuild better-sqlite3"
   },
