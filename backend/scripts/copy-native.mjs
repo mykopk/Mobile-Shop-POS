@@ -19,4 +19,10 @@ for (const pkg of packages) {
     fs.cpSync(from, path.join(dest, pkg), { recursive: true });
   }
 }
-console.log("Copied native runtime deps into dist/node_modules");
+
+const sqliteDir = path.join(dest, "better-sqlite3");
+const hasBinary = fs.existsSync(path.join(sqliteDir, "build", "Release")) || fs.existsSync(path.join(sqliteDir, "prebuilds"));
+if (!hasBinary) {
+  throw new Error("better-sqlite3 has no compiled native binary in " + sqliteDir + " — run npm run rebuild first");
+}
+console.log("Copied native runtime deps into dist/node_modules (better-sqlite3 binary present)");

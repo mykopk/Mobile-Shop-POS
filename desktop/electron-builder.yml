@@ -20,6 +20,8 @@ files:
 extraResources:
   - from: ../backend/dist
     to: backend/dist
+    filter:
+      - "**/*"
   - from: ../frontend/.next/standalone
     to: frontend
   - from: ../frontend/.next/static
