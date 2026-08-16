@@ -10,6 +10,7 @@ files:
   - logging.js
   - report.js
   - loading.html
+  - error.html
   - runtime.json
   - package.json
   - fig-report-token.txt

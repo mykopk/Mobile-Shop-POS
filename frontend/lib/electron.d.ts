@@ -21,6 +21,10 @@ declare global {
         get: () => Promise<string[]>;
         open: () => Promise<boolean>;
       };
+      error?: {
+        get: () => Promise<string>;
+        copy: (text: string) => Promise<boolean>;
+      };
     };
   }
 }

@@ -1,6 +1,6 @@
 "use strict";
 
-const { app, BrowserWindow, dialog, ipcMain, shell } = require("electron");
+const { app, BrowserWindow, clipboard, dialog, ipcMain, shell } = require("electron");
 const { spawn } = require("node:child_process");
 const { randomBytes } = require("node:crypto");
 const fs = require("node:fs");
@@ -62,21 +62,34 @@ function sendReport(title, err) {
     .catch((e) => logging.write(`[report] failed (silent): ${e.message}`));
 }
 
+// Store the latest error so the error window can fetch it and let the user copy it.
+let lastErrorDetail = "";
+let lastErrorTitle = "Fig Mobile POS encountered an error";
+
+// Show a small window with the error, selectable text, and a Copy button — the
+// OS dialog's text is not copyable. A crash report is sent first (silently).
 function fatalDialog(title, err) {
   sendReport(title, err);
-  const lines = logging.tail(30).join("\n");
+  lastErrorTitle = title || "Fig Mobile POS encountered an error";
   const logPath = logging.getPath();
-  const detail =
+  lastErrorDetail =
     `${String(err && err.stack ? err.stack : err)}\n\n` +
-    `Log file: ${logPath}\n\n--- last ${30} log lines ---\n${lines}`;
+    `Log file: ${logPath}\n\n--- last ${50} log lines ---\n${logging.tail(50).join("\n")}`;
   try {
-    dialog.showMessageBoxSync({
-      type: "error",
-      title,
-      message: title,
-      detail,
-      buttons: ["OK"],
+    const win = new BrowserWindow({
+      width: 560,
+      height: 480,
+      resizable: true,
+      title: "Fig Mobile POS — Error",
+      backgroundColor: "#f6f5f2",
+      webPreferences: {
+        preload: path.join(__dirname, "preload.js"),
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+      },
     });
+    win.loadFile(path.join(__dirname, "error.html"), { query: { t: encodeURIComponent(lastErrorTitle) } });
   } catch {
     /* ignore */
   }
@@ -441,6 +454,17 @@ if (!app.requestSingleInstanceLock()) {
     const dir = path.dirname(logging.getPath() || "");
     if (dir) shell.openPath(dir);
     return true;
+  });
+
+  ipcMain.handle("error:get", () => lastErrorDetail);
+
+  ipcMain.handle("error:copy", (_event, text) => {
+    try {
+      clipboard.writeText(String(text || ""));
+      return true;
+    } catch {
+      return false;
+    }
   });
 
   ipcMain.handle("runtime:set", (_event, cfg) => {
