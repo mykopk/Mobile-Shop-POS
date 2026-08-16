@@ -13,4 +13,7 @@ contextBridge.exposeInMainWorld("fig", {
     get: () => ipcRenderer.invoke("logs:get"),
     open: () => ipcRenderer.invoke("logs:open"),
   },
+  loading: {
+    onStatus: (cb) => ipcRenderer.on("loading:status", (_event, text) => cb(text)),
+  },
 });

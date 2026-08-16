@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'unsafe-inline'" />
+    <title>Fig Mobile POS</title>
+    <style>
+      :root {
+        --brand: #0f766e;
+        --ink: #1f2937;
+        --muted: #6b7280;
+      }
+      * { box-sizing: border-box; }
+      html, body {
+        margin: 0;
+        height: 100%;
+        background: #f6f5f2;
+        color: var(--ink);
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      }
+      .wrap {
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 24px;
+        padding: 24px;
+        text-align: center;
+      }
+      .logo {
+        width: 72px;
+        height: 72px;
+        border-radius: 20px;
+        background: var(--brand);
+        color: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 30px;
+        font-weight: 800;
+        letter-spacing: -1px;
+      }
+      .spinner {
+        width: 34px;
+        height: 34px;
+        border-radius: 50%;
+        border: 4px solid #d7e2e0;
+        border-top-color: var(--brand);
+        animation: spin 0.9s linear infinite;
+      }
+      @keyframes spin { to { transform: rotate(360deg); } }
+      h1 { font-size: 20px; margin: 0; }
+      p { margin: 0; color: var(--muted); font-size: 14px; max-width: 320px; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="logo">Fig</div>
+      <div class="spinner"></div>
+      <h1>Fig Mobile POS</h1>
+      <p id="status">Starting…</p>
+    </div>
+    <script>
+      const el = document.getElementById("status");
+      window.fig.loading.onStatus((text) => {
+        el.textContent = text;
+      });
+    </script>
+  </body>
+</html>

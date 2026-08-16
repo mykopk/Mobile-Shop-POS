@@ -282,8 +282,32 @@ function track(child) {
 // ---------------------------------------------------------------------------
 // Window
 // ---------------------------------------------------------------------------
+// Loading screen shown immediately while DB setup + servers boot. It swaps to
+// the real app URL once everything is healthy, so first run never looks dead.
+function createLoadingWindow() {
+  const win = new BrowserWindow({
+    width: 420,
+    height: 320,
+    resizable: false,
+    minimizable: false,
+    maximizable: false,
+    frame: false,
+    title: "Fig Mobile POS",
+    backgroundColor: "#f6f5f2",
+    webPreferences: {
+      preload: path.join(__dirname, "preload.js"),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  });
+  win.loadFile(path.join(__dirname, "loading.html"));
+  return win;
+}
+
 function createWindow(url) {
-  mainWindow = new BrowserWindow({
+  if (!mainWindow) {
+    mainWindow = new BrowserWindow({
     width: 1280,
     height: 860,
     minWidth: 960,
@@ -314,6 +338,7 @@ function createWindow(url) {
   mainWindow.on("closed", () => {
     mainWindow = null;
   });
+  }
 }
 
 function waitForHealth(url, timeoutMs) {
@@ -380,40 +405,59 @@ if (!app.requestSingleInstanceLock()) {
     const cfg = loadRuntime();
     let url;
 
+    // Show the loading screen immediately so startup (esp. first run) doesn't
+    // look like a frozen/slow open.
+    const loadingWin = createLoadingWindow();
+    const setStatus = (text) => {
+      try {
+        if (!loadingWin.isDestroyed()) loadingWin.webContents.send("loading:status", text);
+      } catch {
+        /* window closed */
+      }
+    };
+
     if (DEV_ATTACH) {
       // Attach to already-running dev servers (frontend + backend) without
       // spawning anything: e.g. FIG_FRONTEND_URL=http://localhost:3000.
       url = process.env.FIG_FRONTEND_URL || "http://localhost:3000";
     } else if (cfg.mode === "hosted") {
       if (!/^https?:\/\//.test(cfg.hostedUrl)) {
-        console.error("Hosted mode is selected but the URL is missing/invalid. Open Settings in local mode to fix it.");
+        logging.error("Hosted mode is selected but the URL is missing/invalid.");
+        fatalDialog("Fig Mobile POS could not start", "Hosted mode is selected but the URL is missing/invalid. Open Settings in local mode to fix it.");
         app.exit(1);
         return;
       }
       url = cfg.hostedUrl;
     } else {
+      setStatus("Creating the database…");
       try {
         await ensureDatabase();
       } catch (err) {
         logging.error("Could not prepare the local database: " + (err && err.stack ? err.stack : err));
+        setStatus("Could not prepare the database.");
         fatalDialog("Could not prepare the local database", err);
         app.exit(1);
         return;
       }
+      setStatus("Starting servers…");
       track(spawnBackend());
       track(spawnFrontend());
       url = `http://localhost:${FRONTEND_PORT}`;
+      setStatus("Waiting for servers — this can take a moment on first run…");
       try {
         await waitForHealth(`${url}/api/health`, 120_000);
       } catch (err) {
         logging.error("Frontend/backend did not come up in time: " + (err && err.stack ? err.stack : err));
+        setStatus("Servers did not start in time.");
         fatalDialog("Fig Mobile POS could not start", err);
         app.exit(1);
         return;
       }
     }
 
+    // Open the real (framed) app window, then dismiss the loading screen.
     createWindow(url);
+    if (!loadingWin.isDestroyed()) loadingWin.close();
 
     app.on("activate", () => {
       if (BrowserWindow.getAllWindows().length === 0 && url) createWindow(url);
