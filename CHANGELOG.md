@@ -4,9 +4,13 @@ All notable changes are documented here. This file is auto-generated on every
 release by `scripts/changelog.sh` (run from the CI release workflow) — do not
 edit by hand.
 
-## v0.1.8
+## v0.1.9
 
 - Released on: 2026-08-16
+
+- fix: ship better-sqlite3 native module in the installer
+
+## v0.1.8
 
 - fix: first-run database setup in packaged app
 
