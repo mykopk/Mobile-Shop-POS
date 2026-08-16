@@ -43,6 +43,18 @@ cd frontend  && npm ci && npm run build && cd ..
 cd desktop   && npm ci && npm run rebuild && npm run dist:win
 ```
 
+**Or use the helper script** (`scripts/build-test.ps1`) — installs, builds, runs
+the test suites, and can package everything in one command:
+
+```powershell
+.\scripts\build-test.ps1            # install + build + test
+.\scripts\build-test.ps1 -Pack      # also create release\win-unpacked to test
+```
+
+**Recommended release loop:** build + test locally (`build-test.ps1 -Pack`), run
+`desktop\release\win-unpacked\Fig Mobile POS.exe` to verify, and only then
+trigger the **Release** workflow on GitHub.
+
 `npm run dist:win` produces:
 - `desktop/release/Fig Mobile POS-Setup-<version>.exe` — the installer
 - `desktop/release/win-unpacked/` — a runnable folder (no install)

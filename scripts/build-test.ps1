@@ -1,0 +1,68 @@
+# build-test.ps1 — install, build, test, and optionally package the Windows app.
+#
+# Usage:
+#   .\scripts\build-test.ps1                 # install + build + test
+#   .\scripts\build-test.ps1 -Pack           # also create release\win-unpacked
+#   .\scripts\build-test.ps1 -SkipInstall    # reuse existing node_modules
+#   .\scripts\build-test.ps1 -SkipTests      # skip the test suites (faster)
+param(
+  [switch]$Pack,
+  [switch]$SkipInstall,
+  [switch]$SkipTests
+)
+$ErrorActionPreference = "Stop"
+$Root = Split-Path -Parent $PSScriptRoot
+
+function Step([string]$msg) {
+  Write-Host ""
+  Write-Host "=== $msg ===" -ForegroundColor Cyan
+}
+
+function RunIn([string]$dir, [string]$cmd) {
+  Push-Location (Join-Path $Root $dir)
+  try {
+    Invoke-Expression $cmd
+    if ($LASTEXITCODE -ne 0) { throw "Command failed in $dir: $cmd (exit $LASTEXITCODE)" }
+  }
+  finally { Pop-Location }
+}
+
+if (-not $SkipInstall) {
+  Step "Installing backend dependencies"
+  RunIn "backend" "npm ci"
+  RunIn "backend" "npx prisma generate"
+
+  Step "Installing frontend dependencies"
+  RunIn "frontend" "npm ci"
+
+  Step "Installing desktop dependencies"
+  RunIn "desktop" "npm ci"
+}
+
+Step "Rebuilding native modules for Electron (better-sqlite3)"
+RunIn "desktop" "npm run rebuild"
+
+Step "Building frontend"
+RunIn "frontend" "npm run build"
+
+if (-not $SkipTests) {
+  Step "Backend tests"
+  RunIn "backend" "npm test"
+
+  Step "Frontend typecheck"
+  RunIn "frontend" "npx tsc --noEmit"
+
+  Step "Frontend tests"
+  RunIn "frontend" "npm test"
+}
+
+if ($Pack) {
+  Step "Packaging win-unpacked app"
+  RunIn "desktop" "npm run pack"
+  Write-Host "`nPackaged app ready: $Root\desktop\release\win-unpacked\Fig Mobile POS.exe" -ForegroundColor Green
+}
+
+Write-Host ""
+Write-Host "Done." -ForegroundColor Green
+Write-Host "  Run the app in a window:  cd desktop; npm start"
+Write-Host "  Test the packaged exe:    $Root\desktop\release\win-unpacked\Fig Mobile POS.exe"
