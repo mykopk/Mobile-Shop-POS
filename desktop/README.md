@@ -49,6 +49,7 @@ the test suites, and can package everything in one command:
 ```powershell
 .\scripts\build-test.ps1            # install + build + test
 .\scripts\build-test.ps1 -Pack      # also create release\win-unpacked to test
+.\scripts\build-test.ps1 -Dist      # also build the installer .exe (desktop\release\)
 ```
 
 **Recommended release loop:** build + test locally (`build-test.ps1 -Pack`), run

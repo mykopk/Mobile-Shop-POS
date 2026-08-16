@@ -3,10 +3,12 @@
 # Usage:
 #   .\scripts\build-test.ps1                 # install + build + test
 #   .\scripts\build-test.ps1 -Pack           # also create release\win-unpacked
+#   .\scripts\build-test.ps1 -Dist           # also build the installer .exe (dist)
 #   .\scripts\build-test.ps1 -SkipInstall    # reuse existing node_modules
 #   .\scripts\build-test.ps1 -SkipTests      # skip the test suites (faster)
 param(
   [switch]$Pack,
+  [switch]$Dist,
   [switch]$SkipInstall,
   [switch]$SkipTests
 )
@@ -60,6 +62,16 @@ if ($Pack) {
   Step "Packaging win-unpacked app"
   RunIn "desktop" "npm run pack"
   Write-Host "`nPackaged app ready: $Root\desktop\release\win-unpacked\Fig Mobile POS.exe" -ForegroundColor Green
+}
+
+if ($Dist) {
+  Step "Building installer (.exe)"
+  RunIn "desktop" "npm run dist:win"
+  Write-Host ""
+  Write-Host "Installer created:" -ForegroundColor Green
+  Get-ChildItem "$Root\desktop\release\*.exe" | ForEach-Object {
+    Write-Host "  $($_.FullName)" -ForegroundColor Green
+  }
 }
 
 Write-Host ""
