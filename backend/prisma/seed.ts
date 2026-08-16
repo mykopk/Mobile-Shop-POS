@@ -2,6 +2,9 @@ import bcrypt from "bcryptjs";
 import { env } from "../core/config/env";
 import { prisma } from "../core/lib/prisma";
 import { formatSku, nextSkuNumber } from "../core/lib/sku";
+import { DEFAULT_CATEGORIES } from "../endpoints/category/seed";
+import { DEFAULT_BRANDS } from "../endpoints/brand/seed";
+import { DEFAULT_COLORS } from "../endpoints/color/seed";
 import type { ContactType, Role } from "../generated/prisma/enums";
 
 const RESET = process.argv.includes("--reset");
@@ -65,113 +68,6 @@ const DEMO_CONTACTS = [
     phone: "03312345678",
     notes: "Walk-in",
   },
-];
-
-const DEMO_CATEGORIES: {
-  id: string;
-  name: string;
-  type: "PHONE" | "ACCESSORY";
-  sortOrder: number;
-}[] = [
-  { id: "cat-phone-new", name: "New Phone", type: "PHONE", sortOrder: 1 },
-  { id: "cat-phone-used", name: "Used Phone", type: "PHONE", sortOrder: 2 },
-  { id: "cat-accessory", name: "Accessory", type: "ACCESSORY", sortOrder: 3 },
-];
-
-const DEMO_BRANDS: {
-  id: string;
-  name: string;
-  sortOrder: number;
-}[] = [
-  { id: "brand-apple", name: "Apple", sortOrder: 1 },
-  { id: "brand-samsung", name: "Samsung", sortOrder: 2 },
-  { id: "brand-oneplus", name: "OnePlus", sortOrder: 3 },
-  { id: "brand-infinix", name: "Infinix", sortOrder: 4 },
-  { id: "brand-xiaomi", name: "Xiaomi", sortOrder: 5 },
-  { id: "brand-oppo", name: "Oppo", sortOrder: 6 },
-  { id: "brand-vivo", name: "Vivo", sortOrder: 7 },
-  { id: "brand-generic", name: "Generic", sortOrder: 8 },
-  { id: "brand-other", name: "Other", sortOrder: 9 },
-];
-
-const DEMO_COLORS = [
-  "Black",
-  "Midnight",
-  "Midnight Black",
-  "Phantom Black",
-  "Aura Black",
-  "Space Grey",
-  "Graphite",
-  "Grey",
-  "Silver",
-  "Starlight",
-  "White",
-  "Pearl White",
-  "Cream",
-  "Beige",
-  "Sand",
-  "Gold",
-  "Rose Gold",
-  "Rose Pink",
-  "Pink",
-  "Soft Pink",
-  "Coral",
-  "Red",
-  "Product Red",
-  "Burgundy",
-  "Maroon",
-  "Orange",
-  "Sunset Orange",
-  "Yellow",
-  "Lime",
-  "Green",
-  "Mint",
-  "Mint Green",
-  "Sage Green",
-  "Alpine Green",
-  "Emerald",
-  "Teal",
-  "Aqua",
-  "Blue",
-  "Deep Blue",
-  "Pacific Blue",
-  "Sierra Blue",
-  "Ocean Blue",
-  "Ice Blue",
-  "Denim",
-  "Navy",
-  "Sky Blue",
-  "Ultramarine",
-  "Purple",
-  "Deep Purple",
-  "Lavender",
-  "Violet",
-  "Lilac",
-  "Grape",
-  "Titanium",
-  "Natural Titanium",
-  "Blue Titanium",
-  "White Titanium",
-  "Black Titanium",
-  "Desert Titanium",
-  "Titanium Grey",
-  "Brown",
-  "Tan",
-  "Walnut",
-  "Silver Blue",
-  "Aura Glow",
-  "Aura White",
-  "Aura Pink",
-  "Glacier",
-  "Sandstone",
-  "Matte Black",
-  "Matte White",
-  "Carbon",
-  "Awesome Black",
-  "Force Black",
-  "Galactic Silver",
-  "Multi",
-  "Other",
 ];
 
 const DEMO_PRODUCTS: {
@@ -400,7 +296,7 @@ async function main() {
     });
   }
 
-  for (const cat of DEMO_CATEGORIES) {
+  for (const cat of DEFAULT_CATEGORIES) {
     await prisma.category.upsert({
       where: { id: cat.id },
       update: { name: cat.name, type: cat.type, sortOrder: cat.sortOrder, active: true },
@@ -414,7 +310,7 @@ async function main() {
     });
   }
 
-  for (const brand of DEMO_BRANDS) {
+  for (const brand of DEFAULT_BRANDS) {
     await prisma.brand.upsert({
       where: { id: brand.id },
       update: { name: brand.name, sortOrder: brand.sortOrder, active: true },
@@ -428,7 +324,7 @@ async function main() {
   }
 
   let colorSortOrder = 0;
-  for (const name of DEMO_COLORS) {
+  for (const name of DEFAULT_COLORS) {
     const id = `color-${name.toLowerCase().replace(/\s+/g, "-")}`;
     await prisma.color.upsert({
       where: { id },

@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
 import { useAuth } from "@/lib/auth-context";
 import { useApi } from "@/lib/use-api";
+import { useSetupStatus } from "@/lib/use-setup";
 import type { CompanyProfile } from "@/lib/api-types";
 import { AUTH, APP, PIN_LENGTH } from "@/lib/constants";
 
@@ -17,6 +18,7 @@ const MAX_REMEMBERED = 5;
 export default function LoginPage() {
   const { user, status, login } = useAuth();
   const { data: profile } = useApi<CompanyProfile>("/settings/company");
+  const { needsSetup, loading: setupLoading } = useSetupStatus();
   const { toast } = useToast();
   const router = useRouter();
   const [username, setUsername] = useState("");
@@ -34,8 +36,10 @@ export default function LoginPage() {
   useEffect(() => {
     if (status === "ready" && user) {
       router.replace("/dashboard");
+    } else if (status === "ready" && setupLoading === false && needsSetup) {
+      router.replace("/onboarding");
     }
-  }, [status, user, router]);
+  }, [status, user, needsSetup, setupLoading, router]);
 
   useEffect(() => {
     const raw = localStorage.getItem(AUTH.rememberedUsersKey);

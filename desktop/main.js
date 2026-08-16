@@ -244,7 +244,6 @@ async function ensureDatabase(onStatus) {
       `Database setup files missing in the app bundle. Expected ${setup} and ${schema}.`,
     );
   }
-  await seedAdminUser(db, onStatus);
 }
 
 // Copy bundled data files (e.g. print-layouts.json) into the user-data dir so
@@ -257,36 +256,6 @@ function ensureBackendData() {
     const dest = path.join(dataDir, "print-layouts.json");
     if (!fs.existsSync(dest)) fs.copyFileSync(bundled, dest);
   }
-}
-
-// Fresh installs start with an EMPTY database and a single admin user with a
-// generated PIN (never a trivial one). Credentials are written to the OS
-// user-data dir and printed to the console.
-async function seedAdminUser(db, onStatus) {
-  onStatus && onStatus("Creating administrator account…");
-  const pin = randomPin();
-  const env = {
-    DATABASE_URL: `file:${db}`,
-    SEED_PIN_ADMIN: pin,
-    SEED_ADMIN_NAME: process.env.FIG_ADMIN_NAME || "Administrator",
-  };
-  const bundled = path.join(BACKEND_DIR, "dist", "seed-admin.cjs");
-  if (fs.existsSync(bundled)) {
-    await runNode([bundled], { cwd: BACKEND_DIR, env });
-  } else {
-    const tsx = path.join(BACKEND_DIR, "node_modules", "tsx", "dist", "cli.mjs");
-    await runNode([tsx, "prisma/seed-admin.ts"], { cwd: BACKEND_DIR, env });
-  }
-  const credsFile = path.join(userDataDir(), "fig-first-run.txt");
-  fs.writeFileSync(
-    credsFile,
-    `Fig Mobile POS — administrator login\nUsername: ADMIN\nPIN: ${pin}\n\nChange this in Settings > Users.\n`,
-  );
-  console.log(`Admin user created. Credentials saved to ${credsFile}`);
-}
-
-function randomPin() {
-  return String(Math.floor(1000 + Math.random() * 9000));
 }
 
 function spawnBackend() {

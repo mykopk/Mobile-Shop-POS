@@ -10,10 +10,10 @@ Electron shell around the existing Next.js frontend + Express/Prisma backend.
 - **Hosted mode:** the app just opens a hosted website URL. Switch at runtime
   from **Settings → Desktop app**.
 
-On a **fresh install** the app creates an **empty database** and one admin user
-(username `ADMIN`) with a generated PIN — the PIN is written to a file in the
-user-data dir (`fig-first-run.txt`) and printed to the console. Log in with it
-and change it in Settings > Users. No shop data is shipped inside the installer.
+On a **fresh install** the app creates an **empty database** and opens the
+**onboarding** screen. You create your store details and administrator account
+(choose your own username + 4-digit PIN) there, then sign in. No shop data is
+shipped inside the installer and no account is auto-created.
 
 ## Runtime switching
 
@@ -82,6 +82,6 @@ Local helpers:
   so `/api` reaches the local backend in local mode.
 - The backend runs as a **child process** using Electron's bundled Node
   (`ELECTRON_RUN_AS_NODE=1`), so it never depends on a system Node install.
-- First run creates a fresh database (`prisma db push`) and seeds one admin user
-  with a generated PIN (written to the user-data dir).
+- First run creates a fresh database (`prisma db push`) and shows the onboarding
+  screen to create the store + administrator account.
 - JWT secret is generated once and persisted in the user-data dir.

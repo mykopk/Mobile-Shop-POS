@@ -3,6 +3,9 @@ import { prisma } from "./core/lib/prisma";
 import { createApp } from "./app";
 import { seedPrintLayouts } from "./endpoints/print-layout/seed";
 import { seedCities } from "./endpoints/city/seed";
+import { seedBrands } from "./endpoints/brand/seed";
+import { seedCategories } from "./endpoints/category/seed";
+import { seedColors } from "./endpoints/color/seed";
 import { scheduleBackups } from "./core/lib/backup";
 import { checkWeakPins } from "./core/lib/security";
 
@@ -20,6 +23,16 @@ async function bootstrap() {
     console.log(`Seeded ${seededCities.length} new city/cities`);
   } catch (err) {
     console.warn("Cities were not seeded:", err instanceof Error ? err.message : err);
+  }
+  try {
+    const seededCategories = await seedCategories();
+    const seededBrands = await seedBrands();
+    const seededColors = await seedColors();
+    console.log(
+      `Seeded ${seededCategories.length} new category/categories, ${seededBrands.length} new brand(s), ${seededColors.length} new color(s)`,
+    );
+  } catch (err) {
+    console.warn("Catalog defaults were not seeded:", err instanceof Error ? err.message : err);
   }
   const server = app.listen(env.PORT, env.HOST, () => {
     console.log(

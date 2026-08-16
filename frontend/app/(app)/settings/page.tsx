@@ -7,7 +7,7 @@ import { useAuth } from "@/lib/auth-context";
 import { useApi } from "@/lib/use-api";
 import { hasPermission } from "@/lib/roles";
 import { PERMISSIONS } from "@/lib/constants/permissions";
-import { SOUND, APP, CURRENCIES, currencyOf, DEFAULT_TIMEZONE, type SoundKind } from "@/lib/constants";
+import { SOUND, APP, CURRENCIES, currencyOf, DEFAULT_TIMEZONE, TIMEZONES, type SoundKind } from "@/lib/constants";
 import { PIN_LENGTH } from "@/lib/constants/users";
 import { setSoundPrefs } from "@/lib/sound";
 import { setUnsaved } from "@/lib/unsaved-guard";
@@ -72,17 +72,6 @@ function isValidIban(v: string) {
 
 type ProfileField = "phone" | "email" | "website" | "taxRate" | "cardFee";
 type AccountField = "accountNo" | "iban";
-
-const TIMEZONES = [
-  { value: "Asia/Karachi", label: "Karachi (PKT, UTC+5)" },
-  { value: "Asia/Dubai", label: "Dubai (UTC+4)" },
-  { value: "Asia/Kabul", label: "Kabul (UTC+4:30)" },
-  { value: "Asia/Riyadh", label: "Riyadh (UTC+3)" },
-  { value: "Asia/Dhaka", label: "Dhaka (UTC+6)" },
-  { value: "Asia/Colombo", label: "Colombo (UTC+5:30)" },
-  { value: "Asia/Kolkata", label: "Kolkata (UTC+5:30)" },
-  { value: "UTC", label: "UTC" },
-];
 
 type GroupProps = { children: React.ReactNode };
 

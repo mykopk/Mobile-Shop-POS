@@ -21,7 +21,7 @@ Buy new or used phones, sell them to anyone (walk-in, customer, or vendor), trac
 
 - **Backend**: Node.js + Express (REST API) + TypeScript + Prisma + PostgreSQL (SQLite in dev)
 - **Frontend**: Next.js (App Router) + TypeScript + Tailwind CSS + shadcn/ui
-- **Auth**: simple login with **preregistered users only** (email + password → JWT)
+- **Auth**: simple login with **preregistered users only** (username + 4-digit PIN → JWT). On a fresh install an **onboarding** screen creates the store profile and the first administrator account before the first sign-in.
 - **Charts**: Recharts · **Validation**: Zod
 
 ## Docs

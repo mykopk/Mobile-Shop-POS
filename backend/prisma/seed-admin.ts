@@ -2,8 +2,9 @@ import bcrypt from "bcryptjs";
 import { prisma } from "../core/lib/prisma";
 import { env } from "../core/config/env";
 
-// Creates only the admin user on a fresh install (used by the desktop app's
-// first-run). Requires SEED_PIN_ADMIN (or SEED_PIN_ARSLAN). No demo data.
+// Manual helper to create only an admin user (no demo data) on a fresh install.
+// Requires SEED_PIN_ADMIN (or SEED_PIN_ARSLAN). The desktop app's first run now
+// uses the onboarding flow (/api/setup) instead of this script.
 async function main() {
   const pin = process.env.SEED_PIN_ADMIN ?? process.env.SEED_PIN_ARSLAN;
   if (!pin) {

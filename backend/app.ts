@@ -23,6 +23,7 @@ import voucherRouter from "./endpoints/voucher/routes";
 import expenseRouter from "./endpoints/expense/routes";
 import reportRouter from "./endpoints/report/routes";
 import userRouter from "./endpoints/user/routes";
+import setupRouter from "./endpoints/setup/routes";
 import auditRouter from "./endpoints/audit/routes";
 import cashSessionRouter from "./endpoints/cash-session/routes";
 import backupRouter from "./endpoints/backup/routes";
@@ -69,6 +70,7 @@ export function createApp() {
   app.use("/api/expense", expenseRouter);
   app.use("/api/report", reportRouter);
   app.use("/api/user", userRouter);
+  app.use("/api/setup", setupRouter);
   app.use("/api/audit", auditRouter);
   app.use("/api/cash-session", cashSessionRouter);
   app.use("/api/backup", backupRouter);
