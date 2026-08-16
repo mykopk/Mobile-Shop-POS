@@ -4,9 +4,13 @@ All notable changes are documented here. This file is auto-generated on every
 release by `scripts/changelog.sh` (run from the CI release workflow) — do not
 edit by hand.
 
-## v0.1.11
+## v0.1.12
 
 - Released on: 2026-08-17
+
+- fix: standalone frontend + backend bundle in packaged app
+
+## v0.1.11
 
 - feat: granular startup status
 
