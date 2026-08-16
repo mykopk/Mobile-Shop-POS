@@ -12,6 +12,7 @@ const report = require("./report");
 const ROOT = path.resolve(__dirname, "..");
 const BACKEND_DIR = path.join(ROOT, "backend");
 const FRONTEND_DIR = path.join(ROOT, "frontend");
+const NATIVE_DIR = path.join(BACKEND_DIR, "dist", "native");
 
 const DEV_ATTACH = process.argv.includes("--dev");
 const BACKEND_PORT = Number(process.env.FIG_BACKEND_PORT || 4701);
@@ -164,7 +165,7 @@ function runNode(args, { cwd, env = {} }) {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, args, {
       cwd,
-      env: { ...process.env, ELECTRON_RUN_AS_NODE: "1", ...env },
+      env: { ...process.env, ELECTRON_RUN_AS_NODE: "1", NODE_PATH: NATIVE_DIR, ...env },
       stdio: ["ignore", "pipe", "pipe"],
     });
     logging.childStream(child, "setup");
@@ -235,6 +236,7 @@ function spawnBackend() {
   const baseEnv = {
     ...process.env,
     ELECTRON_RUN_AS_NODE: "1",
+    NODE_PATH: NATIVE_DIR,
     PORT: String(BACKEND_PORT),
     HOST: "localhost",
     NODE_ENV: "production",
