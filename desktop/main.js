@@ -188,12 +188,16 @@ async function ensureDatabase() {
   const schema = path.join(BACKEND_DIR, "dist", "schema.sql");
   if (fs.existsSync(setup) && fs.existsSync(schema)) {
     await runNode([setup, db, schema], { cwd: BACKEND_DIR });
-  } else {
+  } else if (!app.isPackaged) {
     const prismaCli = path.join(BACKEND_DIR, "node_modules", "prisma", "build", "index.js");
     await runNode([prismaCli, "db", "push", "--skip-generate"], {
       cwd: BACKEND_DIR,
       env: { DATABASE_URL: `file:${db}` },
     });
+  } else {
+    throw new Error(
+      `Database setup files missing in the app bundle. Expected ${setup} and ${schema}.`,
+    );
   }
   await seedAdminUser(db);
 }

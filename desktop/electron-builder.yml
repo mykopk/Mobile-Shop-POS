@@ -19,7 +19,7 @@ files:
 # module bundled inside backend/dist/node_modules).
 extraResources:
   - from: ../backend/dist
-    to: backend
+    to: backend/dist
   - from: ../frontend/.next/standalone
     to: frontend
   - from: ../frontend/.next/static
