@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { apiRequest } from "@/lib/apiClient";
+import { API_BASE } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 
@@ -22,7 +23,7 @@ export function BackupTab() {
   async function doExport() {
     setBusy("export");
     try {
-      const url = `${process.env.NEXT_PUBLIC_API_URL}/backup`;
+      const url = `${API_BASE}/backup`;
       const res = await fetch(url, { credentials: "include" });
       if (!res.ok) {
         toast(`Backup failed (${res.status})`, "error");
@@ -42,7 +43,7 @@ export function BackupTab() {
   async function doRestore(file: File) {
     setBusy("restore");
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/backup/restore`, {
+      const res = await fetch(`${API_BASE}/backup/restore`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/octet-stream" },

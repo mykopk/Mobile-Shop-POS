@@ -1,6 +1,7 @@
+import { API_BASE } from "@/lib/constants";
 import { readQueue, removeQueuedRequest } from "./offline-queue";
 
-const BASE = process.env.NEXT_PUBLIC_API_URL;
+const BASE = API_BASE;
 
 async function replayOne(record: { path: string; method: string; body?: unknown }) {
   const res = await fetch(`${BASE}${record.path}`, {

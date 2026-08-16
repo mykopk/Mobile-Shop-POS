@@ -10,3 +10,8 @@ export const APP = {
 export const DEFAULT_LOCALE = "en-PK";
 
 export const DEFAULT_TIMEZONE = "Asia/Karachi";
+
+// Same-origin /api proxy (the Next server forwards it to the backend). Falls
+// back to /api so the app works even when NEXT_PUBLIC_API_URL isn't set at
+// build time (CI/packaged builds don't ship the gitignored .env.local).
+export const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "/api";

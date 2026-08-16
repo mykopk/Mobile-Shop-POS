@@ -1,4 +1,4 @@
-import { AUTH } from "@/lib/constants";
+import { API_BASE, AUTH } from "@/lib/constants";
 import { enqueueQueuedRequest } from "@/lib/offline-queue";
 
 export class ApiClientError extends Error {
@@ -24,7 +24,7 @@ export async function apiRequest<T>(
 ): Promise<T> {
   let res: Response;
   try {
-    res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}${path}`, {
+    res = await fetch(`${API_BASE}${path}`, {
       method,
       credentials: "include",
       headers: {
