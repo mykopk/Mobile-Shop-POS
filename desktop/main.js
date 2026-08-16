@@ -179,7 +179,7 @@ function runNode(args, { cwd, env = {} }) {
   });
 }
 
-async function ensureDatabase() {
+async function ensureDatabase(onStatus) {
   const db = dbPath();
   if (fs.existsSync(db)) return;
 
@@ -188,6 +188,7 @@ async function ensureDatabase() {
   const setup = path.join(BACKEND_DIR, "dist", "setup.cjs");
   const schema = path.join(BACKEND_DIR, "dist", "schema.sql");
   if (fs.existsSync(setup) && fs.existsSync(schema)) {
+    onStatus && onStatus("Creating database tables…");
     await runNode([setup, db, schema], { cwd: BACKEND_DIR });
   } else if (!app.isPackaged) {
     const prismaCli = path.join(BACKEND_DIR, "node_modules", "prisma", "build", "index.js");
@@ -200,13 +201,14 @@ async function ensureDatabase() {
       `Database setup files missing in the app bundle. Expected ${setup} and ${schema}.`,
     );
   }
-  await seedAdminUser(db);
+  await seedAdminUser(db, onStatus);
 }
 
 // Fresh installs start with an EMPTY database and a single admin user with a
 // generated PIN (never a trivial one). Credentials are written to the OS
 // user-data dir and printed to the console.
-async function seedAdminUser(db) {
+async function seedAdminUser(db, onStatus) {
+  onStatus && onStatus("Creating administrator account…");
   const pin = randomPin();
   const env = {
     DATABASE_URL: `file:${db}`,
@@ -512,9 +514,9 @@ if (!app.requestSingleInstanceLock()) {
       }
       url = cfg.hostedUrl;
     } else {
-      setStatus("Creating the database…");
+      setStatus("Preparing app data folder…");
       try {
-        await ensureDatabase();
+        await ensureDatabase(setStatus);
       } catch (err) {
         logging.error("Could not prepare the local database: " + (err && err.stack ? err.stack : err));
         setStatus("Could not prepare the database.");
@@ -522,11 +524,12 @@ if (!app.requestSingleInstanceLock()) {
         app.exit(1);
         return;
       }
-      setStatus("Starting servers…");
+      setStatus("Starting backend server…");
       track(spawnBackend());
+      setStatus("Starting app server…");
       track(spawnFrontend());
       url = `http://localhost:${FRONTEND_PORT}`;
-      setStatus("Waiting for servers — this can take a moment on first run…");
+      setStatus("Waiting for server — this can take a few seconds on first run…");
       try {
         await waitForHealth(`${url}/api/health`, 120_000);
       } catch (err) {
