@@ -5,7 +5,9 @@
   "description": "Fig Mobile POS — offline-capable backend API (Express + Prisma + SQLite)",
   "scripts": {
     "dev": "tsx watch server.ts",
-    "start": "tsx server.ts",
+    "start": "node dist/server.cjs",
+    "build": "node scripts/build-backend.mjs",
+    "copy-native": "node scripts/copy-native.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -37,6 +39,7 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^26.2.0",
     "@types/supertest": "^7.2.1",
+    "esbuild": "^0.28.2",
     "supertest": "^7.2.2",
     "typescript": "^7.0.2",
     "vitest": "^4.1.10"

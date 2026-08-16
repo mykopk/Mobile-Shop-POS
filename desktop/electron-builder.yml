@@ -10,33 +10,17 @@ files:
   - runtime.json
   - package.json
 
-# Bundle the built backend + frontend so the desktop app is self-contained.
-# Run `npm run build` in backend/ and frontend/ first, and rebuild native deps
-# (`npm run rebuild`) so better-sqlite3 matches Electron's Node ABI.
+# Bundle only the FINAL builds (no source, no node_modules except the native
+# module bundled inside backend/dist/node_modules).
 extraResources:
-  - from: ../backend
+  - from: ../backend/dist
     to: backend
-    filter:
-      - server.ts
-      - app.ts
-      - core/**/*
-      - endpoints/**/*
-      - generated/**/*
-      - prisma/**/*
-      - prisma.config.ts
-      - package.json
-  - from: ../backend/node_modules
-    to: backend/node_modules
-  - from: ../frontend
+  - from: ../frontend/.next/standalone
     to: frontend
-    filter:
-      - .next/**/*
-      - public/**/*
-      - package.json
-      - next.config.*
-      - .env.local
-  - from: ../frontend/node_modules
-    to: frontend/node_modules
+  - from: ../frontend/.next/static
+    to: frontend/.next/static
+  - from: ../frontend/public
+    to: frontend/public
 
 npmRebuild: true
 

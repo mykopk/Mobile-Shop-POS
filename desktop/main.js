@@ -90,11 +90,17 @@ async function ensureDatabase() {
 
   fs.mkdirSync(path.dirname(db), { recursive: true });
   console.log(`First run — creating fresh database at ${db}`);
-  const prismaCli = path.join(BACKEND_DIR, "node_modules", "prisma", "build", "index.js");
-  await runNode([prismaCli, "db", "push", "--skip-generate"], {
-    cwd: BACKEND_DIR,
-    env: { DATABASE_URL: `file:${db}` },
-  });
+  const setup = path.join(BACKEND_DIR, "dist", "setup.cjs");
+  const schema = path.join(BACKEND_DIR, "dist", "schema.sql");
+  if (fs.existsSync(setup) && fs.existsSync(schema)) {
+    await runNode([setup, db, schema], { cwd: BACKEND_DIR });
+  } else {
+    const prismaCli = path.join(BACKEND_DIR, "node_modules", "prisma", "build", "index.js");
+    await runNode([prismaCli, "db", "push", "--skip-generate"], {
+      cwd: BACKEND_DIR,
+      env: { DATABASE_URL: `file:${db}` },
+    });
+  }
   await seedAdminUser(db);
 }
 
@@ -102,16 +108,19 @@ async function ensureDatabase() {
 // generated PIN (never a trivial one). Credentials are written to the OS
 // user-data dir and printed to the console.
 async function seedAdminUser(db) {
-  const tsx = path.join(BACKEND_DIR, "node_modules", "tsx", "dist", "cli.mjs");
   const pin = randomPin();
-  await runNode([tsx, "prisma/seed-admin.ts"], {
-    cwd: BACKEND_DIR,
-    env: {
-      DATABASE_URL: `file:${db}`,
-      SEED_PIN_ADMIN: pin,
-      SEED_ADMIN_NAME: process.env.FIG_ADMIN_NAME || "Administrator",
-    },
-  });
+  const env = {
+    DATABASE_URL: `file:${db}`,
+    SEED_PIN_ADMIN: pin,
+    SEED_ADMIN_NAME: process.env.FIG_ADMIN_NAME || "Administrator",
+  };
+  const bundled = path.join(BACKEND_DIR, "dist", "seed-admin.cjs");
+  if (fs.existsSync(bundled)) {
+    await runNode([bundled], { cwd: BACKEND_DIR, env });
+  } else {
+    const tsx = path.join(BACKEND_DIR, "node_modules", "tsx", "dist", "cli.mjs");
+    await runNode([tsx, "prisma/seed-admin.ts"], { cwd: BACKEND_DIR, env });
+  }
   const credsFile = path.join(userDataDir(), "fig-first-run.txt");
   fs.writeFileSync(
     credsFile,
@@ -121,33 +130,64 @@ async function seedAdminUser(db) {
 }
 
 function randomPin() {
-  return String(Math.floor(100000 + Math.random() * 900000)).slice(0, 6);
+  return String(Math.floor(1000 + Math.random() * 9000));
 }
 
 function spawnBackend() {
+  const baseEnv = {
+    ...process.env,
+    ELECTRON_RUN_AS_NODE: "1",
+    PORT: String(BACKEND_PORT),
+    HOST: "localhost",
+    NODE_ENV: "production",
+    DATABASE_URL: `file:${dbPath()}`,
+    JWT_SECRET: getSecret(),
+    CORS_ORIGIN: `http://localhost:${FRONTEND_PORT}`,
+    AUTO_BACKUP_ON_START: process.env.FIG_AUTO_BACKUP || "true",
+    BACKUP_INTERVAL_HOURS: process.env.FIG_BACKUP_INTERVAL_HOURS || "24",
+    BACKUP_RETENTION: process.env.FIG_BACKUP_RETENTION || "14",
+    FIG_DESKTOP: "1",
+  };
+
+  // Prefer the compiled backend bundle; fall back to tsx for development.
+  const bundled = path.join(BACKEND_DIR, "dist", "server.cjs");
+  if (fs.existsSync(bundled)) {
+    const child = spawn(process.execPath, [bundled], { cwd: BACKEND_DIR, env: baseEnv, stdio: "inherit" });
+    return child;
+  }
+
   const tsx = path.join(BACKEND_DIR, "node_modules", "tsx", "dist", "cli.mjs");
   const child = spawn(process.execPath, [tsx, "server.ts"], {
     cwd: BACKEND_DIR,
-    env: {
-      ...process.env,
-      ELECTRON_RUN_AS_NODE: "1",
-      PORT: String(BACKEND_PORT),
-      HOST: "localhost",
-      NODE_ENV: "production",
-      DATABASE_URL: `file:${dbPath()}`,
-      JWT_SECRET: getSecret(),
-      CORS_ORIGIN: `http://localhost:${FRONTEND_PORT}`,
-      AUTO_BACKUP_ON_START: process.env.FIG_AUTO_BACKUP || "true",
-      BACKUP_INTERVAL_HOURS: process.env.FIG_BACKUP_INTERVAL_HOURS || "24",
-      BACKUP_RETENTION: process.env.FIG_BACKUP_RETENTION || "14",
-      FIG_DESKTOP: "1",
-    },
+    env: baseEnv,
     stdio: "inherit",
   });
   return child;
 }
 
 function spawnFrontend() {
+  // Prefer the Next.js "standalone" server. In the packaged app it lives at
+  // <resources>/frontend/server.js; in the repo it is .next/standalone/server.js.
+  const standalone = fs.existsSync(path.join(FRONTEND_DIR, "server.js"))
+    ? path.join(FRONTEND_DIR, "server.js")
+    : path.join(FRONTEND_DIR, ".next", "standalone", "server.js");
+  if (fs.existsSync(standalone)) {
+    prepareStandalone(path.dirname(standalone));
+    const child = spawn(process.execPath, [standalone], {
+      cwd: path.dirname(standalone),
+      env: {
+        ...process.env,
+        ELECTRON_RUN_AS_NODE: "1",
+        PORT: String(FRONTEND_PORT),
+        HOSTNAME: "localhost",
+        BACKEND_URL: `http://localhost:${BACKEND_PORT}`,
+      },
+      stdio: "inherit",
+    });
+    return child;
+  }
+
+  // Fallback for development (no standalone build): next dev / next start.
   const nextBin = path.join(FRONTEND_DIR, "node_modules", "next", "dist", "bin", "next");
   const hasProdBuild = fs.existsSync(path.join(FRONTEND_DIR, ".next", "BUILD_ID"));
   const cmd = hasProdBuild ? "start" : "dev";
@@ -162,6 +202,23 @@ function spawnFrontend() {
     stdio: "inherit",
   });
   return child;
+}
+
+// The standalone output needs its static assets and public files alongside it.
+// In the packaged app those are already placed there, so this is a no-op.
+function prepareStandalone(standDir) {
+  const staticDest = path.join(standDir, ".next", "static");
+  const staticSrc = path.join(FRONTEND_DIR, ".next", "static");
+  if (fs.existsSync(staticSrc) && !fs.existsSync(staticDest)) {
+    fs.mkdirSync(path.dirname(staticDest), { recursive: true });
+    fs.cpSync(staticSrc, staticDest, { recursive: true });
+  }
+  const publicDest = path.join(standDir, "public");
+  const publicSrc = path.join(FRONTEND_DIR, "public");
+  if (fs.existsSync(publicSrc) && !fs.existsSync(publicDest)) {
+    fs.mkdirSync(path.dirname(publicDest), { recursive: true });
+    fs.cpSync(publicSrc, publicDest, { recursive: true });
+  }
 }
 
 function track(child) {

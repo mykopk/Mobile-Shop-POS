@@ -74,6 +74,11 @@ jobs:
         working-directory: desktop
         run: npm run rebuild
 
+      # Bundle the backend (esbuild) + copy the rebuilt native module into dist.
+      - name: Build backend
+        working-directory: backend
+        run: npm run build && npm run copy-native
+
       - name: Package installer
         working-directory: desktop
         run: npm run dist:win
