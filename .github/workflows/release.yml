@@ -11,23 +11,21 @@ on:
 permissions:
   contents: write
 
+# This workflow ONLY bumps the version, regenerates CHANGELOG.md, commits and
+# pushes a tag. The tag push triggers .github/workflows/build-desktop.yml which
+# builds the Windows installer and creates the GitHub Release. This keeps a
+# single build pipeline and a single source of release notes.
 jobs:
   release:
-    runs-on: windows-2022
-    defaults:
-      run:
-        shell: bash
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-          cache-dependency-path: |
-            backend/package-lock.json
-            frontend/package-lock.json
-            desktop/package-lock.json
 
       - name: Configure git
         run: |
@@ -46,47 +44,13 @@ jobs:
           ./scripts/version.sh "$VERSION"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
+      - name: Generate changelog
+        run: ./scripts/changelog.sh "${{ steps.version.outputs.version }}"
+
       - name: Commit + tag
         run: |
-          git add backend/package.json frontend/package.json desktop/package.json
+          rm -f .release-notes.md
+          git add backend/package.json frontend/package.json desktop/package.json CHANGELOG.md
           git commit -m "v${{ steps.version.outputs.version }}"
           git tag "v${{ steps.version.outputs.version }}"
           git push origin main --tags
-
-      - name: Install backend deps
-        working-directory: backend
-        run: npm ci && npx prisma generate
-
-      - name: Install frontend deps
-        working-directory: frontend
-        run: npm ci
-
-      - name: Install desktop deps
-        working-directory: desktop
-        run: npm ci
-
-      - name: Build frontend
-        working-directory: frontend
-        run: npm run build
-
-      # Rebuild the backend's native module (better-sqlite3) for Windows + Electron.
-      - name: Rebuild native modules
-        working-directory: desktop
-        run: npm run rebuild
-
-      # Bundle the backend (esbuild) + copy the rebuilt native module into dist.
-      - name: Build backend
-        working-directory: backend
-        run: npm run build && npm run copy-native
-
-      - name: Package installer
-        working-directory: desktop
-        run: npm run dist:win
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{ steps.version.outputs.version }}
-          name: v${{ steps.version.outputs.version }}
-          files: desktop/release/*.exe
-          generate_release_notes: true

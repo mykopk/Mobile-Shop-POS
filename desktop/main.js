@@ -1,11 +1,12 @@
 "use strict";
 
-const { app, BrowserWindow, ipcMain, shell } = require("electron");
+const { app, BrowserWindow, dialog, ipcMain, shell } = require("electron");
 const { spawn } = require("node:child_process");
 const { randomBytes } = require("node:crypto");
 const fs = require("node:fs");
 const http = require("node:http");
 const path = require("node:path");
+const logging = require("./logging");
 
 const ROOT = path.resolve(__dirname, "..");
 const BACKEND_DIR = path.join(ROOT, "backend");
@@ -19,6 +20,46 @@ const DEFAULT_RUNTIME = { mode: "local", hostedUrl: "" };
 
 const children = new Set();
 let mainWindow = null;
+
+// ---------------------------------------------------------------------------
+// Logging + crash surfacing. Everything is written to a log file in the
+// user-data dir so a packaged app can always explain *why* it failed even
+// though there is no terminal on Windows.
+// ---------------------------------------------------------------------------
+try {
+  logging.init(app.getPath("userData"));
+} catch {
+  /* userData not ready yet */
+}
+
+function fatalDialog(title, err) {
+  const lines = logging.tail(30).join("\n");
+  const logPath = logging.getPath();
+  const detail =
+    `${String(err && err.stack ? err.stack : err)}\n\n` +
+    `Log file: ${logPath}\n\n--- last ${30} log lines ---\n${lines}`;
+  try {
+    dialog.showMessageBoxSync({
+      type: "error",
+      title,
+      message: title,
+      detail,
+      buttons: ["OK"],
+    });
+  } catch {
+    /* ignore */
+  }
+}
+
+process.on("uncaughtException", (err) => {
+  logging.error("Uncaught exception: " + (err && err.stack ? err.stack : err));
+  fatalDialog("Fig Mobile POS crashed", err);
+  app.exit(1);
+});
+
+process.on("unhandledRejection", (reason) => {
+  logging.error("Unhandled rejection: " + (reason && reason.stack ? reason.stack : reason));
+});
 
 // ---------------------------------------------------------------------------
 // Runtime config (local server vs hosted URL), stored in the user data dir so
@@ -75,9 +116,13 @@ function runNode(args, { cwd, env = {} }) {
     const child = spawn(process.execPath, args, {
       cwd,
       env: { ...process.env, ELECTRON_RUN_AS_NODE: "1", ...env },
-      stdio: "inherit",
+      stdio: ["ignore", "pipe", "pipe"],
     });
-    child.on("error", reject);
+    logging.childStream(child, "setup");
+    child.on("error", (err) => {
+      logging.error(`child spawn error: ${err.message}`);
+      reject(err);
+    });
     child.on("exit", (code) =>
       code === 0 ? resolve() : reject(new Error(`child exited with code ${code}`)),
     );
@@ -152,7 +197,8 @@ function spawnBackend() {
   // Prefer the compiled backend bundle; fall back to tsx for development.
   const bundled = path.join(BACKEND_DIR, "dist", "server.cjs");
   if (fs.existsSync(bundled)) {
-    const child = spawn(process.execPath, [bundled], { cwd: BACKEND_DIR, env: baseEnv, stdio: "inherit" });
+    const child = spawn(process.execPath, [bundled], { cwd: BACKEND_DIR, env: baseEnv, stdio: ["ignore", "pipe", "pipe"] });
+    logging.childStream(child, "backend");
     return child;
   }
 
@@ -160,8 +206,9 @@ function spawnBackend() {
   const child = spawn(process.execPath, [tsx, "server.ts"], {
     cwd: BACKEND_DIR,
     env: baseEnv,
-    stdio: "inherit",
+    stdio: ["ignore", "pipe", "pipe"],
   });
+  logging.childStream(child, "backend");
   return child;
 }
 
@@ -182,8 +229,9 @@ function spawnFrontend() {
         HOSTNAME: "localhost",
         BACKEND_URL: `http://localhost:${BACKEND_PORT}`,
       },
-      stdio: "inherit",
+      stdio: ["ignore", "pipe", "pipe"],
     });
+    logging.childStream(child, "frontend");
     return child;
   }
 
@@ -199,8 +247,9 @@ function spawnFrontend() {
       PORT: String(FRONTEND_PORT),
       BACKEND_URL: `http://localhost:${BACKEND_PORT}`,
     },
-    stdio: "inherit",
+    stdio: ["ignore", "pipe", "pipe"],
   });
+  logging.childStream(child, "frontend");
   return child;
 }
 
@@ -223,7 +272,11 @@ function prepareStandalone(standDir) {
 
 function track(child) {
   children.add(child);
-  child.on("exit", () => children.delete(child));
+  child.on("exit", (code) => {
+    children.delete(child);
+    if (code && code !== 0) logging.error(`child exited unexpectedly with code ${code}`);
+  });
+  child.on("error", (err) => logging.error(`child error: ${err.message}`));
 }
 
 // ---------------------------------------------------------------------------
@@ -304,6 +357,14 @@ if (!app.requestSingleInstanceLock()) {
 
   ipcMain.handle("runtime:get", () => loadRuntime());
 
+  ipcMain.handle("logs:get", () => logging.tail(500));
+
+  ipcMain.handle("logs:open", () => {
+    const dir = path.dirname(logging.getPath() || "");
+    if (dir) shell.openPath(dir);
+    return true;
+  });
+
   ipcMain.handle("runtime:set", (_event, cfg) => {
     const next = {
       mode: cfg && cfg.mode === "hosted" ? "hosted" : "local",
@@ -334,7 +395,8 @@ if (!app.requestSingleInstanceLock()) {
       try {
         await ensureDatabase();
       } catch (err) {
-        console.error("Could not prepare the local database:", err);
+        logging.error("Could not prepare the local database: " + (err && err.stack ? err.stack : err));
+        fatalDialog("Could not prepare the local database", err);
         app.exit(1);
         return;
       }
@@ -344,7 +406,8 @@ if (!app.requestSingleInstanceLock()) {
       try {
         await waitForHealth(`${url}/api/health`, 120_000);
       } catch (err) {
-        console.error("Frontend/backend did not come up in time:", err);
+        logging.error("Frontend/backend did not come up in time: " + (err && err.stack ? err.stack : err));
+        fatalDialog("Fig Mobile POS could not start", err);
         app.exit(1);
         return;
       }

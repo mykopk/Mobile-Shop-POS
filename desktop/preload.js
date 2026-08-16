@@ -9,4 +9,8 @@ contextBridge.exposeInMainWorld("fig", {
     get: () => ipcRenderer.invoke("runtime:get"),
     set: (cfg) => ipcRenderer.invoke("runtime:set", cfg),
   },
+  logs: {
+    get: () => ipcRenderer.invoke("logs:get"),
+    open: () => ipcRenderer.invoke("logs:open"),
+  },
 });

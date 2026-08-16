@@ -64,9 +64,13 @@ jobs:
           path: desktop/release/*.exe
           if-no-files-found: error
 
+      - name: Generate changelog release notes
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: ./scripts/changelog.sh "${GITHUB_REF#refs/tags/v}"
+
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           files: desktop/release/*.exe
-          generate_release_notes: true
+          body_path: .release-notes.md
