@@ -43,6 +43,12 @@ jobs:
         working-directory: frontend
         run: npm run build
 
+      # Prepare a self-contained frontend bundle (renames node_modules -> deps so
+      # electron-builder doesn't prune 'next'). Must run after npm run build.
+      - name: Prepare frontend bundle
+        working-directory: frontend
+        run: node scripts/prepare-standalone.mjs
+
       # Rebuild the backend's native module (better-sqlite3) for Windows + Electron.
       - name: Rebuild native modules
         working-directory: desktop

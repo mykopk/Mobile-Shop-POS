@@ -282,6 +282,7 @@ function spawnFrontend() {
       env: {
         ...process.env,
         ELECTRON_RUN_AS_NODE: "1",
+        NODE_PATH: path.join(FRONTEND_DIR, "deps"),
         PORT: String(FRONTEND_PORT),
         HOSTNAME: "localhost",
         BACKEND_URL: `http://localhost:${BACKEND_PORT}`,
@@ -301,6 +302,7 @@ function spawnFrontend() {
     env: {
       ...process.env,
       ELECTRON_RUN_AS_NODE: "1",
+      NODE_PATH: path.join(FRONTEND_DIR, "deps"),
       PORT: String(FRONTEND_PORT),
       BACKEND_URL: `http://localhost:${BACKEND_PORT}`,
     },

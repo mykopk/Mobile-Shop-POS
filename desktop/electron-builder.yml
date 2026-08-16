@@ -22,7 +22,7 @@ extraResources:
     to: backend/dist
     filter:
       - "**/*"
-  - from: ../frontend/.next/standalone
+  - from: ../frontend/standalone-dist
     to: frontend
   - from: ../frontend/.next/static
     to: frontend/.next/static

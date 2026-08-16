@@ -18,7 +18,10 @@ const dist = path.join(backend, "dist");
 fs.rmSync(dist, { recursive: true, force: true });
 fs.mkdirSync(dist, { recursive: true });
 
-const define = { "import.meta.url": '"file:///opt/fig/app.cjs"' };
+// esbuild bundles some deps (Prisma) that read import.meta.url. Since the
+// bundle is only ever built for the Windows installer, point it at a Windows-
+// valid file URL so fileURLToPath() doesn't throw ERR_INVALID_FILE_URL_PATH.
+const define = { "import.meta.url": '"file:///C:/fig/app.cjs"' };
 const base = {
   bundle: true,
   platform: "node",
