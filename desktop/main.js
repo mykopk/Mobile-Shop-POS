@@ -7,6 +7,7 @@ const fs = require("node:fs");
 const http = require("node:http");
 const path = require("node:path");
 const logging = require("./logging");
+const report = require("./report");
 
 const ROOT = path.resolve(__dirname, "..");
 const BACKEND_DIR = path.join(ROOT, "backend");
@@ -16,7 +17,7 @@ const DEV_ATTACH = process.argv.includes("--dev");
 const BACKEND_PORT = Number(process.env.FIG_BACKEND_PORT || 4701);
 const FRONTEND_PORT = Number(process.env.FIG_FRONTEND_PORT || 3100);
 
-const DEFAULT_RUNTIME = { mode: "local", hostedUrl: "" };
+const DEFAULT_RUNTIME = { mode: "local", hostedUrl: "", report: { enabled: false, token: "", repo: "" } };
 
 const children = new Set();
 let mainWindow = null;
@@ -32,7 +33,39 @@ try {
   /* userData not ready yet */
 }
 
+function systemInfo() {
+  return [
+    `App version: ${app.getVersion()}`,
+    `Electron: ${process.versions.electron || "?"}`,
+    `Node: ${process.versions.node}`,
+    `Platform: ${process.platform} ${process.arch}`,
+    `OS: ${process.getSystemVersion ? process.getSystemVersion() : process.platform}`,
+  ].join("\n");
+}
+
+function buildReport(err) {
+  const body =
+    `${systemInfo()}\n\n` +
+    `## Error\n\n\`\`\`\n${err && err.stack ? err.stack : err}\n\`\`\`\n\n` +
+    `## Last log lines\n\n\`\`\`\n${logging.tail(150).join("\n")}\n\`\`\`\n`;
+  return body;
+}
+
+// Send a crash report to GitHub Issues. Opt-in via Settings; the token is never
+// hardcoded. Fire-and-forget so it never blocks shutdown.
+function sendReport(title, err) {
+  const cfg = loadRuntime();
+  if (!cfg.report || !cfg.report.enabled) return;
+  report
+    .submit({ cfg: cfg.report, title: `[Crash] ${title}`, body: buildReport(err) })
+    .then((res) => {
+      logging.write(res.sent ? `Crash report sent: ${res.url}` : `Crash report not sent: ${res.reason}`);
+    })
+    .catch((e) => logging.error(`Crash report failed: ${e.message}`));
+}
+
 function fatalDialog(title, err) {
+  sendReport(title, err);
   const lines = logging.tail(30).join("\n");
   const logPath = logging.getPath();
   const detail =
@@ -75,7 +108,12 @@ function runtimeFile() {
 
 function loadRuntime() {
   try {
-    return { ...DEFAULT_RUNTIME, ...JSON.parse(fs.readFileSync(runtimeFile(), "utf8")) };
+    const data = JSON.parse(fs.readFileSync(runtimeFile(), "utf8"));
+    return {
+      ...DEFAULT_RUNTIME,
+      ...data,
+      report: { ...DEFAULT_RUNTIME.report, ...(data.report || {}) },
+    };
   } catch {
     return { ...DEFAULT_RUNTIME };
   }
@@ -381,6 +419,23 @@ if (!app.requestSingleInstanceLock()) {
   });
 
   ipcMain.handle("runtime:get", () => loadRuntime());
+
+  ipcMain.handle("report:get", () => {
+    const r = loadRuntime().report || {};
+    return { enabled: Boolean(r.enabled), repo: r.repo || "", hasToken: Boolean(r.token) };
+  });
+
+  ipcMain.handle("report:set", (_event, cfg) => {
+    const rt = loadRuntime();
+    const next = rt.report || {};
+    const clean = {
+      enabled: Boolean(cfg && cfg.enabled),
+      repo: cfg && cfg.repo ? String(cfg.repo).trim() : "",
+      token: cfg && cfg.token ? String(cfg.token).trim() : next.token || "",
+    };
+    saveRuntime({ ...rt, report: clean });
+    return { enabled: clean.enabled, repo: clean.repo, hasToken: Boolean(clean.token) };
+  });
 
   ipcMain.handle("logs:get", () => logging.tail(500));
 

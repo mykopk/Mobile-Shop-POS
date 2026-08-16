@@ -2,11 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Dropdown } from "@/components/ui/dropdown";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
 
 type RuntimeConfig = { mode: "local" | "hosted"; hostedUrl: string };
+type ReportConfig = { enabled: boolean; repo: string; hasToken: boolean };
 
 export function DesktopAppTab() {
   const { toast } = useToast();
@@ -14,6 +16,9 @@ export function DesktopAppTab() {
   const [config, setConfig] = useState<RuntimeConfig | null>(null);
   const [saving, setSaving] = useState(false);
   const [logs, setLogs] = useState<string[] | null>(null);
+  const [report, setReport] = useState<ReportConfig | null>(null);
+  const [reportToken, setReportToken] = useState("");
+  const [savingReport, setSavingReport] = useState(false);
 
   useEffect(() => {
     if (!isElectron) return;
@@ -21,6 +26,10 @@ export function DesktopAppTab() {
       ?.get()
       .then(setConfig)
       .catch(() => setConfig(null));
+    void window.fig?.report
+      ?.get()
+      .then(setReport)
+      .catch(() => setReport(null));
   }, [isElectron]);
 
   if (!isElectron) {
@@ -83,6 +92,71 @@ export function DesktopAppTab() {
       <Button onClick={() => void save()} loading={saving} disabled={!config}>
         Save &amp; restart app
       </Button>
+
+      <div className="rounded-3xl bg-white p-4">
+        <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-ink-500">Crash reporting</p>
+        {report ? (
+          <div className="space-y-3">
+            <Checkbox
+              checked={report.enabled}
+              onChange={(v) => setReport((r) => (r ? { ...r, enabled: v } : r))}
+              label="Send crash reports to GitHub Issues"
+              description="When the app fails to start or crashes, it opens a GitHub Issue with the error, system info and the last log lines."
+            />
+            <div>
+              <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-ink-500">Repository</p>
+              <Input
+                value={report.repo}
+                onChange={(e) => setReport((r) => (r ? { ...r, repo: e.target.value } : r))}
+                placeholder="owner/repo"
+              />
+            </div>
+            <div>
+              <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-ink-500">
+                GitHub token {report.hasToken && <span className="text-ink-400">(saved)</span>}
+              </p>
+              <Input
+                type="password"
+                value={reportToken}
+                onChange={(e) => setReportToken(e.target.value)}
+                placeholder={report.hasToken ? "•••••••• (leave blank to keep current)" : "paste a token with issues:write"}
+              />
+            </div>
+            <Button
+              variant="grey"
+              size="sm"
+              loading={savingReport}
+              onClick={async () => {
+                setSavingReport(true);
+                try {
+                  await window.fig?.report?.set({
+                    enabled: report.enabled,
+                    repo: report.repo,
+                    token: reportToken,
+                  });
+                  setReportToken("");
+                  const updated = await window.fig?.report?.get();
+                  if (updated) setReport(updated);
+                  toast("Crash reporting updated", "success");
+                } catch {
+                  toast("Could not save crash reporting settings", "error");
+                } finally {
+                  setSavingReport(false);
+                }
+              }}
+            >
+              Save crash reporting
+            </Button>
+            <p className="rounded-2xl bg-ink-50 px-3.5 py-2.5 text-xs text-ink-500">
+              Use a low-privilege token limited to this repo. Reports appear as Issues on GitHub.
+            </p>
+          </div>
+        ) : (
+          <p className="rounded-2xl bg-ink-50 px-4 py-3 text-sm text-ink-500">
+            Crash reporting is only available in the desktop app.
+          </p>
+        )}
+      </div>
 
       <div className="rounded-3xl bg-white p-4">
         <div className="mb-2 flex items-center justify-between">
