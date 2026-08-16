@@ -4,9 +4,13 @@ All notable changes are documented here. This file is auto-generated on every
 release by `scripts/changelog.sh` (run from the CI release workflow) — do not
 edit by hand.
 
-## v0.1.10
+## v0.1.11
 
 - Released on: 2026-08-17
+
+- feat: granular startup status
+
+## v0.1.10
 
 - fix: load better-sqlite3 from a plain native/ folder via NODE_PATH
 
