@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import type { BadgeVariant } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/toast";
 import { TRANSACTION_TYPE_LABELS } from "@/lib/constants";
+import { DirectPrint, type DirectDocType } from "@/components/print/direct-print";
 
 const STATUS_VARIANT: Record<string, BadgeVariant> = {
   PAID: "success",
@@ -65,7 +66,6 @@ export function TransactionDetailModal({
   }
 
   const isReturn = detail?.type === "PURCHASE_RETURN" || detail?.type === "SALE_RETURN";
-  const printHref = detail ? `/print?type=${detail.type}&id=${detail.id}` : "#";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-900/40 p-4">
@@ -190,9 +190,11 @@ export function TransactionDetailModal({
             </Button>
           )}
           {detail && (
-            <a href={printHref} target="_blank" rel="noreferrer">
-              <Button variant="secondary">Print</Button>
-            </a>
+            <DirectPrint type={detail.type as DirectDocType} id={detail.id} render={(open, busy) => (
+              <Button variant="secondary" onClick={open} disabled={busy}>
+                {busy ? "Preparing…" : "Print"}
+              </Button>
+            )} />
           )}
           <Button variant="grey" onClick={onClose}>
             Close

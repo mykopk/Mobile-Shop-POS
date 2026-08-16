@@ -15,31 +15,33 @@ const DEMO_USERS: {
   username: string;
   name: string;
   email: string;
-  pin: string;
   role: Role;
 }[] = [
   {
     username: "ARSLAN",
     name: "Arslan Wahab",
     email: "admin@fig.com",
-    pin: "1111",
     role: "ADMIN",
   },
   {
     username: "SAIMA",
     name: "Saima Riaz",
     email: "manager@fig.com",
-    pin: "2222",
     role: "MANAGER",
   },
   {
     username: "ALI",
     name: "Ali Hassan",
     email: "cashier@fig.com",
-    pin: "3333",
     role: "CASHIER",
   },
 ];
+
+// PINs come from the environment (SEED_PIN_<USERNAME>, e.g. SEED_PIN_ARSLAN).
+// If unset, a random PIN is generated and printed so nothing ships with 1111/2222.
+function randomPin(): string {
+  return String(Math.floor(100000 + Math.random() * 900000)).slice(0, 6);
+}
 
 const DEMO_CONTACTS = [
   {
@@ -350,13 +352,15 @@ async function main() {
   }
 
   for (const demo of DEMO_USERS) {
-    const pinHash = await bcrypt.hash(demo.pin, env.BCRYPT_ROUNDS);
+    const envPin = process.env[`SEED_PIN_${demo.username}`];
+    const pin = envPin ?? randomPin();
+    const pinHash = await bcrypt.hash(pin, env.BCRYPT_ROUNDS);
     await prisma.user.upsert({
       where: { username: demo.username },
+      // Existing users keep their current PIN — never reset it on re-seed.
       update: {
         name: demo.name,
         email: demo.email,
-        pinHash,
         role: demo.role,
         active: true,
       },
@@ -368,6 +372,9 @@ async function main() {
         role: demo.role,
       },
     });
+    if (!envPin) {
+      console.log(`Seeded ${demo.username} with generated PIN: ${pin}`);
+    }
   }
 
   for (const c of DEMO_CONTACTS) {

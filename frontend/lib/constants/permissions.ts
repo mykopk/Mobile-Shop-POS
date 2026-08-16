@@ -65,6 +65,10 @@ export const PERMISSIONS = {
   reportStock: "report.stock",
   dashboardView: "dashboard.view",
 
+  // Money / balances (cash, bank, card settlement, transfers)
+  moneyView: "money.view",
+  moneyWrite: "money.write",
+
   // Reservations
   reservationView: "reservation.view",
   reservationCreate: "reservation.create",
@@ -122,6 +126,7 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     PERMISSIONS.bankView,
     PERMISSIONS.reportView,
     PERMISSIONS.dashboardView,
+    PERMISSIONS.moneyView,
     PERMISSIONS.reservationView,
     PERMISSIONS.reservationCreate,
     PERMISSIONS.settingsView,
@@ -195,6 +200,10 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
   "report.profit": "View profit & costs",
   "report.stock": "View stock valuation",
   "dashboard.view": "View dashboard",
+
+  // Money & balances
+  "money.view": "View money balances (cash, bank, card)",
+  "money.write": "Settle card / transfer / adjust money",
 
   // Reservations
   "reservation.view": "View reservations",
@@ -305,6 +314,8 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
       PERMISSIONS.reportProfit,
       PERMISSIONS.reportStock,
       PERMISSIONS.dashboardView,
+      PERMISSIONS.moneyView,
+      PERMISSIONS.moneyWrite,
     ],
   },
   {

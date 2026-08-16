@@ -3,6 +3,8 @@ import { prisma } from "./core/lib/prisma";
 import { createApp } from "./app";
 import { seedPrintLayouts } from "./endpoints/print-layout/seed";
 import { seedCities } from "./endpoints/city/seed";
+import { scheduleBackups } from "./core/lib/backup";
+import { checkWeakPins } from "./core/lib/security";
 
 const app = createApp();
 
@@ -24,6 +26,9 @@ async function bootstrap() {
       `Fig Mobile POS API listening on http://${env.HOST}:${env.PORT}`,
     );
   });
+
+  scheduleBackups();
+  void checkWeakPins();
 
   function shutdown(signal: string) {
     console.log(`${signal} received, shutting down...`);

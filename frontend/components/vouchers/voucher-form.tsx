@@ -18,6 +18,7 @@ import { DownloadIcon, UploadIcon } from "@/components/icons";
 
 const METHOD_OPTIONS = [
   { value: "CASH" as const, label: "Cash" },
+  { value: "CARD" as const, label: "Card (settle into bank/cash)" },
   { value: "BANK_TRANSFER" as const, label: "Bank transfer" },
 ];
 
@@ -129,7 +130,7 @@ export function VoucherForm({
   const { toast } = useToast();
   const [vType, setVType] = useState<"RECEIVING" | "PAYMENT">(editing?.type ?? "RECEIVING");
   const [amount, setAmount] = useState(editing?.amount ?? "");
-  const [method, setMethod] = useState<"CASH" | "BANK_TRANSFER">(editing?.method ?? "CASH");
+  const [method, setMethod] = useState<"CASH" | "BANK_TRANSFER" | "CARD">(editing?.method ?? "CASH");
   const [bankId, setBankId] = useState(editing?.bankAccount?.id ?? "");
   const [contactId, setContactId] = useState(editing?.contact?.id ?? contacts?.[0]?.id ?? "");
   const [narration, setNarration] = useState(editing?.narration ?? "");
@@ -142,7 +143,7 @@ export function VoucherForm({
 
   const dirty = useDirtyForm({ vType, amount, method, bankId, contactId, narration, date });
 
-  function update(partial: Partial<{ vType: "RECEIVING" | "PAYMENT"; amount: string; method: "CASH" | "BANK_TRANSFER"; bankId: string; contactId: string; narration: string; date: string }>) {
+  function update(partial: Partial<{ vType: "RECEIVING" | "PAYMENT"; amount: string; method: "CASH" | "BANK_TRANSFER" | "CARD"; bankId: string; contactId: string; narration: string; date: string }>) {
     const next = { vType, amount, method, bankId, contactId, narration, date, ...partial };
     if (partial.vType !== undefined) setVType(partial.vType);
     if (partial.amount !== undefined) setAmount(partial.amount);
@@ -180,7 +181,7 @@ export function VoucherForm({
         type: vType,
         amount: value,
         method,
-        bankAccountId: method === "BANK_TRANSFER" ? bankId : undefined,
+        bankAccountId: method === "BANK_TRANSFER" || method === "CARD" ? (bankId || undefined) : undefined,
         contactId,
         narration: narration || undefined,
         date,
@@ -253,8 +254,17 @@ export function VoucherForm({
             />
           </Field>
 
-          {method === "BANK_TRANSFER" && (
-            <Field label={vType === "RECEIVING" ? "Received into bank" : "Paid from bank"}>
+          {(method === "BANK_TRANSFER" || method === "CARD") && (
+            <Field
+              label={
+                method === "CARD"
+                  ? "Card money arrives into"
+                  : vType === "RECEIVING"
+                    ? "Received into bank"
+                    : "Paid from bank"
+              }
+              hint={method === "CARD" ? "(leave empty for cash)" : undefined}
+            >
               {banks && banks.length > 0 ? (
                 <Dropdown
                   value={bankId}
@@ -268,11 +278,13 @@ export function VoucherForm({
                     ),
                   }))}
                   onChange={(value) => update({ bankId: value })}
-                  placeholder="Select bank…"
+                  placeholder={method === "CARD" ? "Select bank (optional)…" : "Select bank…"}
                 />
               ) : (
                 <p className="rounded-2xl bg-ink-100 px-3.5 py-2 text-xs text-ink-500">
-                  No registered bank accounts — add them in Settings.
+                  {method === "CARD"
+                    ? "No registered bank accounts — card money will go to cash. Add banks in Settings."
+                    : "No registered bank accounts — add them in Settings."}
                 </p>
               )}
             </Field>
@@ -323,7 +335,7 @@ function VoucherPreview({
   amount: string;
   contact: Contact | undefined;
   bank: BankAccount | undefined;
-  method: "CASH" | "BANK_TRANSFER";
+  method: "CASH" | "BANK_TRANSFER" | "CARD";
   narration: string;
   date: string;
 }) {
@@ -368,7 +380,7 @@ function VoucherPreview({
           <span className="text-ink-400">Method</span>
           <span className="font-semibold text-ink-900">
             {VOUCHER_METHOD_LABELS[method]}
-            {bank && method === "BANK_TRANSFER" ? ` · ${bank.bankName}` : ""}
+            {bank && (method === "BANK_TRANSFER" || method === "CARD") ? ` · ${bank.bankName}` : ""}
           </span>
         </div>
         <div className="flex justify-between gap-3">

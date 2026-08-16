@@ -22,6 +22,7 @@ import { useSaveShortcut } from "@/lib/use-save-shortcut";
 import { PlusIcon, PosIcon, PrinterIcon, RefundIcon, ReservationIcon, XIcon } from "@/components/icons";
 import { SearchInput } from "@/components/ui/search-input";
 import { TypePill } from "@/components/ui/type-pill";
+import { DirectPrint } from "@/components/print/direct-print";
 
 type SearchResult = {
   id: string;
@@ -689,10 +690,12 @@ export default function PosPage() {
           <p className="mt-4 text-center text-xs text-ink-400">Thank you for shopping with us!</p>
         </div>
         <div className="mt-4 flex justify-center gap-2">
-          <Button variant="secondary" onClick={() => window.print()}>
-            <PrinterIcon className="h-4 w-4" />
-            Print receipt
-          </Button>
+          <DirectPrint type="SALE" id={receipt.id} render={(open, busy) => (
+            <Button variant="secondary" onClick={open} disabled={busy}>
+              <PrinterIcon className="h-4 w-4" />
+              {busy ? "Preparing…" : "Print receipt"}
+            </Button>
+          )} />
           <Button onClick={reset}>
             <PlusIcon className="h-4 w-4" />
             New sale

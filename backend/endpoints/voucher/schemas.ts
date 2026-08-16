@@ -3,7 +3,7 @@ import { z } from "zod";
 export const voucherSchema = z.object({
   type: z.enum(["RECEIVING", "PAYMENT"]),
   amount: z.coerce.number().positive("Amount must be more than 0"),
-  method: z.enum(["CASH", "BANK_TRANSFER"]).default("CASH"),
+  method: z.enum(["CASH", "BANK_TRANSFER", "CARD"]).default("CASH"),
   bankAccountId: z.string().trim().optional().nullable().or(z.literal("")),
   contactId: z.string().trim().min(1, "Pick a contact"),
   narration: z.string().trim().optional().nullable().or(z.literal("")),

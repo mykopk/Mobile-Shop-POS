@@ -20,5 +20,6 @@ export const VOUCHER_STATUS_FILTERS: { value: "ALL" | Voucher["status"]; label: 
 
 export const VOUCHER_METHOD_LABELS: Record<Voucher["method"], string> = {
   CASH: PAYMENT_METHOD_LABELS.CASH,
+  CARD: PAYMENT_METHOD_LABELS.CARD,
   BANK_TRANSFER: PAYMENT_METHOD_LABELS.BANK_TRANSFER,
 };

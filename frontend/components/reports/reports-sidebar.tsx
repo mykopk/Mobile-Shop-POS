@@ -29,6 +29,7 @@ const REPORT_ICONS: Record<string, React.ReactNode> = {
   "/reports/expenses": <WalletIcon className="h-4 w-4" />,
   "/reports/stock": <InventoryIcon className="h-4 w-4" />,
   "/reports/cash": <RefundIcon className="h-4 w-4" />,
+  "/reports/money": <WalletIcon className="h-4 w-4" />,
   "/reports/sales-list": <TrendingUpIcon className="h-4 w-4" />,
   "/reports/purchase-list": <PurchasesIcon className="h-4 w-4" />,
   "/reports/sale-returns": <RefundIcon className="h-4 w-4" />,

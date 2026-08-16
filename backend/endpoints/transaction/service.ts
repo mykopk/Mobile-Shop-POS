@@ -4,6 +4,7 @@ import { writeAudit } from "../../core/lib/audit";
 import { nextNumber } from "../../core/lib/numbering";
 import { dateAtZone, DEFAULT_TIMEZONE } from "../../core/lib/time";
 import { getCompanyFinancials } from "../../core/lib/company";
+import { moneyIn, moneyOut, reverseMoney } from "../../core/lib/ledger";
 import type { TransactionType, UnitSource } from "../../generated/prisma/enums";
 import type { Prisma } from "../../generated/prisma/client";
 import type {
@@ -40,6 +41,7 @@ async function applyPayments(
   contactId: string,
   payments: PaymentInput[],
   balanceSign: 1 | -1 = 1,
+  moneySign: 1 | -1 = 1,
 ) {
   let paid = 0;
   for (const p of payments) {
@@ -69,6 +71,19 @@ async function applyPayments(
         where: { contactId },
         data: { balance: { increment: p.amount * balanceSign } },
       });
+    } else if (p.method === "CASH") {
+      if (moneySign === 1) {
+        await moneyIn(db, { account: "cash", amount: p.amount, sourceType: "SALE", note: "Sale (cash)" });
+      } else {
+        await moneyOut(db, { account: "cash", amount: p.amount, sourceType: "PURCHASE", note: "Purchase (cash)" });
+      }
+    } else if (p.method === "BANK_TRANSFER") {
+      const bankAccountId = p.bankAccountId ?? undefined;
+      if (moneySign === 1) {
+        await moneyIn(db, { account: "bank", amount: p.amount, bankAccountId, sourceType: "SALE", note: "Sale (bank)" });
+      } else {
+        await moneyOut(db, { account: "bank", amount: p.amount, bankAccountId, sourceType: "PURCHASE", note: "Purchase (bank)" });
+      }
     }
   }
   return paid;
@@ -414,7 +429,7 @@ export async function createPurchase(input: CreatePurchaseInput, userId: string)
       }
     }
 
-    await applyPayments(tx, created.id, contact.id, input.payments, -1);
+    await applyPayments(tx, created.id, contact.id, input.payments, -1, -1);
     return created;
   });
 
@@ -556,6 +571,10 @@ export async function createSaleReturn(input: SaleReturnInput, userId: string) {
           where: { contactId: sale.contactId },
           data: { balance: { decrement: p.amount } },
         });
+      } else if (p.method === "CASH") {
+        await moneyOut(tx, { account: "cash", amount: p.amount, sourceType: "SALE_RETURN", sourceId: created.id, note: "Sale return refund" });
+      } else if (p.method === "BANK_TRANSFER") {
+        await moneyOut(tx, { account: "bank", amount: p.amount, bankAccountId: p.bankAccountId ?? undefined, sourceType: "SALE_RETURN", sourceId: created.id, note: "Sale return refund" });
       }
     }
     return created;
@@ -677,6 +696,10 @@ export async function createPurchaseReturn(input: PurchaseReturnInput, userId: s
           create: { contactId: purchase.contactId, limit: 0, balance: p.amount },
           update: { balance: { increment: p.amount } },
         });
+      } else if (p.method === "CASH") {
+        await moneyIn(tx, { account: "cash", amount: p.amount, sourceType: "PURCHASE_RETURN", sourceId: created.id, note: "Purchase return received" });
+      } else if (p.method === "BANK_TRANSFER") {
+        await moneyIn(tx, { account: "bank", amount: p.amount, bankAccountId: p.bankAccountId ?? undefined, sourceType: "PURCHASE_RETURN", sourceId: created.id, note: "Purchase return received" });
       }
     }
 
@@ -755,6 +778,8 @@ export async function voidReturn(id: string, userId: string) {
         });
       }
     }
+
+    await reverseMoney(tx, txn.type, id);
 
     await tx.transaction.delete({ where: { id } });
   });

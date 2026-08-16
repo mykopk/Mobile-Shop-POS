@@ -69,6 +69,10 @@ export const PERMISSIONS = {
   reportStock: "report.stock",
   dashboardView: "dashboard.view",
 
+  // Money / balances (cash, bank, card settlement, transfers)
+  moneyView: "money.view",
+  moneyWrite: "money.write",
+
   // Reservations
   reservationView: "reservation.view",
   reservationCreate: "reservation.create",
@@ -133,6 +137,7 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     PERMISSIONS.bankView,
     PERMISSIONS.reportView,
     PERMISSIONS.dashboardView,
+    PERMISSIONS.moneyView,
     PERMISSIONS.reservationView,
     PERMISSIONS.reservationCreate,
     PERMISSIONS.settingsView,

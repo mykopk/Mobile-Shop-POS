@@ -3,6 +3,7 @@ import { ApiError } from "../../core/middleware/error";
 import { writeAudit } from "../../core/lib/audit";
 import { nextNumber } from "../../core/lib/numbering";
 import { dateAtZone, DEFAULT_TIMEZONE } from "../../core/lib/time";
+import { moneyOut, reverseMoney } from "../../core/lib/ledger";
 import type { ExpenseInput, ExpenseUpdateInput } from "./schemas";
 
 const EXPENSE_PREFIX = "EXP";
@@ -57,17 +58,29 @@ export async function createExpense(input: ExpenseInput, userId: string) {
     if (existing) return existing;
   }
 
-  const expense = await prisma.expense.create({
-    data: {
-      number: await nextExpenseNumber(),
-      category: input.category,
+  const expense = await prisma.$transaction(async (tx) => {
+    const created = await tx.expense.create({
+      data: {
+        number: await nextExpenseNumber(),
+        category: input.category,
+        amount: input.amount,
+        note: input.note || null,
+        contactId: input.contactId || null,
+        date: input.date ? new Date(input.date) : new Date(),
+        ...(input.clientRef ? { clientRef: input.clientRef } : {}),
+      },
+      include,
+    });
+    await moneyOut(tx, {
+      account: "cash",
       amount: input.amount,
-      note: input.note || null,
-      contactId: input.contactId || null,
-      date: input.date ? new Date(input.date) : new Date(),
-      ...(input.clientRef ? { clientRef: input.clientRef } : {}),
-    },
-    include,
+      sourceType: "EXPENSE",
+      sourceId: created.id,
+      note: input.note || `${input.category} expense`,
+      date: created.date,
+      userId,
+    });
+    return created;
   });
   await writeAudit({
     userId,
@@ -86,16 +99,29 @@ export async function updateExpense(id: string, input: ExpenseUpdateInput, userI
   const nextContactId = input.contactId !== undefined ? input.contactId || null : existing.contactId;
   await assertContact(nextContactId);
 
-  const expense = await prisma.expense.update({
-    where: { id },
-    data: {
-      ...(input.category !== undefined ? { category: input.category } : {}),
-      ...(input.amount !== undefined ? { amount: input.amount } : {}),
-      ...(input.note !== undefined ? { note: input.note || null } : {}),
-      ...(input.contactId !== undefined ? { contactId: input.contactId || null } : {}),
-      ...(input.date !== undefined && input.date ? { date: new Date(input.date) } : {}),
-    },
-    include,
+  const expense = await prisma.$transaction(async (tx) => {
+    await reverseMoney(tx, "EXPENSE", id);
+    const updated = await tx.expense.update({
+      where: { id },
+      data: {
+        ...(input.category !== undefined ? { category: input.category } : {}),
+        ...(input.amount !== undefined ? { amount: input.amount } : {}),
+        ...(input.note !== undefined ? { note: input.note || null } : {}),
+        ...(input.contactId !== undefined ? { contactId: input.contactId || null } : {}),
+        ...(input.date !== undefined && input.date ? { date: new Date(input.date) } : {}),
+      },
+      include,
+    });
+    await moneyOut(tx, {
+      account: "cash",
+      amount: Number(updated.amount),
+      sourceType: "EXPENSE",
+      sourceId: updated.id,
+      note: updated.note || `${updated.category} expense`,
+      date: updated.date,
+      userId,
+    });
+    return updated;
   });
   await writeAudit({
     userId,
@@ -111,7 +137,10 @@ export async function deleteExpense(id: string, userId: string) {
   const existing = await prisma.expense.findUnique({ where: { id } });
   if (!existing) throw new ApiError(404, "expense.not_found", "Expense not found");
 
-  await prisma.expense.delete({ where: { id } });
+  await prisma.$transaction(async (tx) => {
+    await reverseMoney(tx, "EXPENSE", id);
+    await tx.expense.delete({ where: { id } });
+  });
   await writeAudit({
     userId,
     action: "EXPENSE.DELETE",

@@ -1,5 +1,5 @@
 import type { NavIconKey } from "@/components/icons";
-import type { Permission } from "@/lib/constants/permissions";
+import { PERMISSIONS, type Permission } from "@/lib/constants/permissions";
 
 export type NavItem = { href: string; label: string; icon: NavIconKey; permission?: Permission };
 
@@ -11,6 +11,7 @@ export const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
       { href: "/pos", label: "Sale Invoice", icon: "pos" },
       { href: "/reservations", label: "Reservations", icon: "reservation" },
       { href: "/vouchers", label: "Vouchers", icon: "voucher" },
+      { href: "/reports/money", label: "Money & Bank", icon: "money", permission: PERMISSIONS.moneyView },
       { href: "/expenses", label: "Expenses", icon: "expenses" },
     ],
   },

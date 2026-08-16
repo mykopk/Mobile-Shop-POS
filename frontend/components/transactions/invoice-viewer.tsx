@@ -13,6 +13,7 @@ import {
   type BankAccount,
 } from "@/components/print/documents";
 import { PRINT_DEFAULT_OPTIONS } from "@/lib/constants";
+import { DirectPrint, type DirectDocType } from "@/components/print/direct-print";
 
 export type ViewerDocType = "SALE" | "PURCHASE" | "SALE_RETURN" | "PURCHASE_RETURN" | "VOUCHER" | "EXPENSE";
 
@@ -105,8 +106,6 @@ export function InvoiceViewer({
     };
   }, [type, id, toast]);
 
-  const printHref = `/print?type=${type}&id=${id}`;
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-900/40 p-4">
       <div className="flex h-[90vh] w-full max-w-4xl flex-col rounded-2xl bg-white">
@@ -118,12 +117,12 @@ export function InvoiceViewer({
                 {voiding ? "Voiding…" : "Void return"}
               </Button>
             )}
-            <a href={printHref} target="_blank" rel="noreferrer">
-              <Button variant="secondary" size="sm">
+            <DirectPrint type={type as DirectDocType} id={id} render={(open, busy) => (
+              <Button variant="secondary" size="sm" onClick={open} disabled={busy}>
                 <PrinterIcon className="h-4 w-4" />
-                Print
+                {busy ? "Preparing…" : "Print"}
               </Button>
-            </a>
+            )} />
             <button
               type="button"
               onClick={onClose}

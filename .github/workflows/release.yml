@@ -1,0 +1,87 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release (semver like 1.2.3). Leave empty to auto-bump the patch."
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+            desktop/package-lock.json
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Bump version
+        id: version
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            CURRENT=$(node -p "require('./desktop/package.json').version")
+            VERSION=$(node -e "const [m,j,p]=process.argv[1].split('.').map(Number); console.log(m+'.'+j+'.'+(p+1))" "$CURRENT")
+          fi
+          ./scripts/version.sh "$VERSION"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Commit + tag
+        run: |
+          git add backend/package.json frontend/package.json desktop/package.json
+          git commit -m "v${{ steps.version.outputs.version }}"
+          git tag "v${{ steps.version.outputs.version }}"
+          git push origin main --tags
+
+      - name: Install backend deps
+        working-directory: backend
+        run: npm ci && npx prisma generate
+
+      - name: Install frontend deps
+        working-directory: frontend
+        run: npm ci
+
+      - name: Install desktop deps
+        working-directory: desktop
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+
+      # Rebuild the backend's native module (better-sqlite3) for Windows + Electron.
+      - name: Rebuild native modules
+        working-directory: desktop
+        run: npm run rebuild
+
+      - name: Package installer
+        working-directory: desktop
+        run: npm run dist:win
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: v${{ steps.version.outputs.version }}
+          files: desktop/release/*.exe
+          generate_release_notes: true

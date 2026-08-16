@@ -18,7 +18,7 @@ export const Input = forwardRef<
   return (
     <input
       ref={ref}
-      className={`h-9 w-full rounded-2xl px-3.5 text-sm text-ink-900 transition focus:outline-none focus:ring-2 focus:ring-brand-500/60 ${VARIANTS[variant]} ${className}`}
+      className={`mx-1 h-9 w-[calc(100%-0.5rem)] rounded-2xl px-3.5 text-sm text-ink-900 transition focus:outline-none focus:ring-2 focus:ring-brand-500/60 ${VARIANTS[variant]} ${className}`}
       {...rest}
     />
   );
@@ -32,7 +32,7 @@ export const Textarea = forwardRef<
     <textarea
       ref={ref}
       rows={rows}
-      className={`w-full resize-none rounded-2xl px-3.5 py-2 text-sm text-ink-900 transition focus:outline-none focus:ring-2 focus:ring-brand-500/60 ${VARIANTS[variant]} ${className}`}
+      className={`mx-1 w-[calc(100%-0.5rem)] resize-none rounded-2xl px-3.5 py-2 text-sm text-ink-900 transition focus:outline-none focus:ring-2 focus:ring-brand-500/60 ${VARIANTS[variant]} ${className}`}
       {...rest}
     />
   );

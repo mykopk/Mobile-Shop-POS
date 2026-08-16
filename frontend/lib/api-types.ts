@@ -323,12 +323,49 @@ export type BankAccount = {
   active: boolean;
 };
 
+export type MoneyBankBalance = {
+  id: string;
+  name: string;
+  bankName: string;
+  accountNo: string;
+  balance: number;
+};
+
+export type MoneyOverview = {
+  cashBalance: number;
+  banks: MoneyBankBalance[];
+  totalBankBalance: number;
+  pendingCard: number;
+  receivables: number;
+  payables: number;
+  summary: {
+    cash: number;
+    bank: number;
+    cardPending: number;
+    credit: number;
+  };
+};
+
+export type MoneyMovement = {
+  id: string;
+  date: string;
+  kind: "IN" | "OUT" | "TRANSFER";
+  amount: string;
+  account: "cash" | "bank";
+  bankAccount: { id: string; name: string; bankName: string } | null;
+  sourceType: string;
+  sourceId: string | null;
+  note: string | null;
+  createdBy: { id: string; name: string } | null;
+  createdAt: string;
+};
+
 export type Voucher = {
   id: string;
   type: "RECEIVING" | "PAYMENT";
   number: string;
   amount: string;
-  method: "CASH" | "BANK_TRANSFER";
+  method: "CASH" | "BANK_TRANSFER" | "CARD";
   bankAccount: { id: string; name: string; bankName: string; accountNo: string } | null;
   contact: { id: string; name: string; phone: string | null } | null;
   narration: string | null;

@@ -34,6 +34,7 @@ import { SettingsSidebar, SETTINGS_TABS, type TabId } from "@/components/setting
 import { ActivityLog } from "@/components/audit/activity-log";
 import { BackupTab } from "@/components/settings/backup-tab";
 import { PrintSettingsTab } from "@/components/settings/print-settings-tab";
+import { DesktopAppTab } from "@/components/settings/desktop-app-tab";
 import { useToast } from "@/components/ui/toast";
 
 type SoundPrefs = Record<SoundKind, boolean>;
@@ -872,6 +873,12 @@ export default function SettingsPage() {
           <div>
             <h3 className="mb-4 text-lg font-bold text-ink-900">Print & thermal</h3>
             <PrintSettingsTab />
+          </div>
+        )}
+        {tab === "desktop" && (
+          <div>
+            <h3 className="mb-4 text-lg font-bold text-ink-900">Desktop app</h3>
+            <DesktopAppTab />
           </div>
         )}
       </main>

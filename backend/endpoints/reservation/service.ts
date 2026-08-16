@@ -2,6 +2,7 @@ import { prisma } from "../../core/lib/prisma";
 import { ApiError } from "../../core/middleware/error";
 import { writeAudit } from "../../core/lib/audit";
 import { nextNumber } from "../../core/lib/numbering";
+import { moneyIn, moneyOut } from "../../core/lib/ledger";
 import type { HoldType, Prisma, ReservationStatus } from "../../generated/prisma/client";
 import type { CreateReservationInput } from "./schemas";
 
@@ -99,7 +100,7 @@ export async function createReservation(input: CreateReservationInput, userId: s
       }
     }
 
-    return tx.reservation.create({
+    const created = await tx.reservation.create({
       data: {
         type: input.type,
         number,
@@ -115,6 +116,17 @@ export async function createReservation(input: CreateReservationInput, userId: s
       },
       include: includeReservation,
     });
+    if (input.advance > 0) {
+      await moneyIn(tx, {
+        account: "cash",
+        amount: input.advance,
+        sourceType: "RESERVATION",
+        sourceId: created.id,
+        note: `Advance on ${created.number}`,
+        userId,
+      });
+    }
+    return created;
   });
 
   await writeAudit({
@@ -220,6 +232,14 @@ export async function cancelReservation(id: string, userId: string, refunded: bo
           where: { id },
           data: { status: "CANCELLED", refundStatus: "PAID", refundedAt: new Date() },
         });
+        await moneyOut(tx, {
+          account: "cash",
+          amount: advance,
+          sourceType: "RESERVATION",
+          sourceId: reservation.id,
+          note: `Refund advance on ${reservation.number}`,
+          userId,
+        });
       } else {
         await tx.creditAccount.upsert({
           where: { contactId: reservation.contactId },
@@ -271,6 +291,14 @@ export async function markRefundPaid(id: string, userId: string) {
     await tx.reservation.update({
       where: { id },
       data: { refundStatus: "PAID", refundedAt: new Date() },
+    });
+    await moneyOut(tx, {
+      account: "cash",
+      amount: advance,
+      sourceType: "RESERVATION",
+      sourceId: reservation.id,
+      note: `Advance refund paid on ${reservation.number}`,
+      userId,
     });
   });
 

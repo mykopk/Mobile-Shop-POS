@@ -38,11 +38,15 @@
 - [x] **Print layouts**: premade layouts (58mm/80mm/A4 receipts, inventory lists, expense sheets) defined in `backend/data/print-layouts.json`, seeded into the DB on server start, served via `/api/print-layout` (system layouts) with a `POST /api/print-layout/import` JSON upload endpoint
 - [x] **Print formats**: per-document thermal/A4 defaults + optional WebUSB ESC/POS direct thermal print
 - [x] **Backup / restore** in Settings (admin-only)
+- [x] **Automatic backups**: `npm run backup` script + optional on-start/scheduled backups with retention (`AUTO_BACKUP_ON_START`, `BACKUP_INTERVAL_HOURS`, `BACKUP_RETENTION`)
+- [x] **Seed PIN security**: seed reads PINs from `SEED_PIN_*` env or generates random ones (never 1111/2222/3333) and never overwrites an existing user's PIN; startup weak-PIN check warns if any user still uses a trivial PIN
+- [x] **CI**: GitHub Actions runs backend tests + typecheck and frontend tests + typecheck + `next build`
+- [x] **Frontend tests**: vitest + unit tests for money/date/roles/permission logic
 - [x] **Offline POS queue** (local write queue flushed on reconnect)
 - [x] **Purchase orders** (order → partial/complete receive into stock)
 - [ ] Search perf (indexes, debounce, pagination)
 - [ ] Bulk import/export catalog (partial: CSV import/export exists)
-- [ ] Package as **dual-mode desktop app** — static frontend shell (Electron); backend bundled locally or pointed at a hosted URL, switched at runtime
+- [x] **Windows desktop app + auto-releases** — Electron shell (`desktop/`): runs the local backend+frontend (or opens a hosted URL), switchable at runtime from Settings. Installer built on a Windows runner (`.github/workflows/build-desktop.yml`, `.github/workflows/release.yml` — one-click "Release now" bumps version, builds, and publishes the `.exe` to a GitHub Release); native `better-sqlite3` rebuilt for Windows+Electron
 
 ## Phase 5 — Later
 - [ ] Offline queue for POS

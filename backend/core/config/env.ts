@@ -14,6 +14,14 @@ const envSchema = z.object({
   CORS_ORIGIN: z.string().optional(),
   LOGIN_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
   LOGIN_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(5),
+
+  // Automatic backups (saved to ./backups)
+  AUTO_BACKUP_ON_START: z
+    .string()
+    .optional()
+    .transform((s) => s === "true"),
+  BACKUP_INTERVAL_HOURS: z.coerce.number().int().positive().default(24),
+  BACKUP_RETENTION: z.coerce.number().int().positive().default(14),
 }).refine((v) => v.NODE_ENV !== "production" || Boolean(v.CORS_ORIGIN), {
   message: "CORS_ORIGIN is required when NODE_ENV=production",
   path: ["CORS_ORIGIN"],

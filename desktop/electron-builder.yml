@@ -1,0 +1,53 @@
+appId: com.fig.pos
+productName: Fig Mobile POS
+directories:
+  output: release
+  buildResources: build
+
+files:
+  - main.js
+  - preload.js
+  - runtime.json
+  - package.json
+
+# Bundle the built backend + frontend so the desktop app is self-contained.
+# Run `npm run build` in backend/ and frontend/ first, and rebuild native deps
+# (`npm run rebuild`) so better-sqlite3 matches Electron's Node ABI.
+extraResources:
+  - from: ../backend
+    to: backend
+    filter:
+      - server.ts
+      - app.ts
+      - core/**/*
+      - endpoints/**/*
+      - generated/**/*
+      - prisma/**/*
+      - prisma.config.ts
+      - package.json
+  - from: ../backend/node_modules
+    to: backend/node_modules
+  - from: ../frontend
+    to: frontend
+    filter:
+      - .next/**/*
+      - public/**/*
+      - package.json
+      - next.config.*
+      - .env.local
+  - from: ../frontend/node_modules
+    to: frontend/node_modules
+
+npmRebuild: true
+
+# Windows is the only target platform.
+win:
+  target:
+    - nsis
+  icon: build/icon.ico
+  artifactName: ${productName}-Setup-${version}.${ext}
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  perMachine: false

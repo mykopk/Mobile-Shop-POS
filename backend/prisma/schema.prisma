@@ -137,6 +137,7 @@ model User {
   cashSessionsOpened CashSession[] @relation("CashSessionOpened")
   cashSessionsClosed CashSession[] @relation("CashSessionClosed")
   purchaseOrdersCreated PurchaseOrder[] @relation("PurchaseOrderCreated")
+  moneyMovements MoneyMovement[]
 
   @@map("users")
 }
@@ -420,9 +421,11 @@ model BankAccount {
   iban       String?
   isDefault  Boolean         @default(false)
   active     Boolean         @default(true)
+  balance    Decimal         @default(0)
   createdAt  DateTime        @default(now())
   payments   Payment[]
   vouchers   Voucher[]
+  moneyMovements MoneyMovement[]
 
   @@index([companyId])
   @@map("bank_accounts")
@@ -601,4 +604,37 @@ model PurchaseOrderItem {
   costPrice        Decimal
 
   @@map("purchase_order_items")
+}
+
+// ============ MONEY LEDGER ============
+
+// Cash in hand (single company account, balance maintained by core/lib/money.ts).
+model CashAccount {
+  id      String  @id @default("main")
+  name    String  @default("Cash in hand")
+  balance Decimal @default(0)
+
+  @@map("cash_accounts")
+}
+
+// Every change to cash or a bank account is recorded here so we can report
+// how much money sits in cash vs each bank account and show a movement history.
+model MoneyMovement {
+  id            String        @id @default(cuid())
+  date          DateTime      @default(now())
+  kind          String        // IN | OUT | TRANSFER
+  amount        Decimal
+  account       String        // "cash" | "bank"
+  bankAccountId String?
+  bankAccount   BankAccount?  @relation(fields: [bankAccountId], references: [id])
+  sourceType    String        // SALE | PURCHASE | EXPENSE | VOUCHER | RESERVATION | SALE_RETURN | PURCHASE_RETURN | CARD_SETTLEMENT | TRANSFER | ADJUSTMENT
+  sourceId      String?
+  note          String?
+  createdById   String?
+  createdBy     User?         @relation(fields: [createdById], references: [id])
+  createdAt     DateTime      @default(now())
+
+  @@index([account, date])
+  @@index([sourceType, sourceId])
+  @@map("money_movements")
 }

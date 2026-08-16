@@ -3,6 +3,8 @@ import { ApiError } from "../../core/middleware/error";
 import { writeAudit } from "../../core/lib/audit";
 import { nextNumber } from "../../core/lib/numbering";
 import { COMPANY_ID } from "../../core/lib/company";
+import { moneyIn, moneyOut, reverseMoney } from "../../core/lib/ledger";
+import type { Prisma } from "../../generated/prisma/client";
 import type { VoucherInput, VoucherUpdateInput, VoucherType } from "./schemas";
 
 const PREFIX: Record<VoucherType, string> = {
@@ -16,6 +18,8 @@ const include = {
   user: { select: { id: true, name: true } },
   reversedBy: { select: { id: true, name: true } },
 };
+
+type Db = Prisma.TransactionClient | typeof prisma;
 
 async function nextVoucherNumber(type: VoucherType) {
   const prefix = PREFIX[type];
@@ -50,12 +54,49 @@ function deltaFor(type: VoucherType, amount: number, sign: 1 | -1) {
   return amount * base * sign;
 }
 
-async function applyBalance(contactId: string, delta: number) {
-  await prisma.creditAccount.upsert({
+async function applyBalance(db: Db, contactId: string, delta: number) {
+  await db.creditAccount.upsert({
     where: { contactId },
     create: { contactId, limit: 0, balance: delta },
     update: { balance: { increment: delta } },
   });
+}
+
+// A CARD-method voucher records card money settling into a bank account (or cash).
+function moneySourceType(method: string) {
+  return method === "CARD" ? "CARD_SETTLEMENT" : "VOUCHER";
+}
+
+async function applyVoucherMoney(
+  db: Db,
+  v: {
+    id: string;
+    type: VoucherType;
+    method: string;
+    amount: number;
+    bankAccountId?: string | null;
+    date: Date;
+    narration?: string | null;
+    userId: string;
+  },
+) {
+  const isIn = v.type === "RECEIVING";
+  const bankAccountId =
+    v.method === "BANK_TRANSFER" || (v.method === "CARD" && v.bankAccountId)
+      ? v.bankAccountId ?? undefined
+      : undefined;
+  const opts = {
+    account: (bankAccountId ? "bank" : "cash") as "bank" | "cash",
+    amount: v.amount,
+    bankAccountId,
+    sourceType: moneySourceType(v.method),
+    sourceId: v.id,
+    note: v.narration || undefined,
+    date: v.date,
+    userId: v.userId,
+  };
+  if (isIn) await moneyIn(db, opts);
+  else await moneyOut(db, opts);
 }
 
 export async function listVouchers(filters: { type?: string; status?: string }) {
@@ -85,22 +126,35 @@ export async function createVoucher(input: VoucherInput, userId: string) {
   }
 
   const number = await nextVoucherNumber(input.type);
-  const voucher = await prisma.voucher.create({
-    data: {
-      type: input.type,
-      number,
-      amount: input.amount,
-      method: input.method,
-      bankAccountId: input.bankAccountId || null,
-      contactId: input.contactId,
-      ...(input.clientRef ? { clientRef: input.clientRef } : {}),
-      narration: input.narration || null,
-      date: input.date ? new Date(input.date) : new Date(),
+  const voucher = await prisma.$transaction(async (tx) => {
+    const created = await tx.voucher.create({
+      data: {
+        type: input.type,
+        number,
+        amount: input.amount,
+        method: input.method,
+        bankAccountId: input.bankAccountId || null,
+        contactId: input.contactId,
+        ...(input.clientRef ? { clientRef: input.clientRef } : {}),
+        narration: input.narration || null,
+        date: input.date ? new Date(input.date) : new Date(),
+        userId,
+      },
+      include,
+    });
+    await applyBalance(tx, input.contactId, deltaFor(input.type, input.amount, 1));
+    await applyVoucherMoney(tx, {
+      id: created.id,
+      type: created.type,
+      method: created.method,
+      amount: Number(created.amount),
+      bankAccountId: created.bankAccountId,
+      date: created.date,
+      narration: created.narration,
       userId,
-    },
-    include,
+    });
+    return created;
   });
-  await applyBalance(input.contactId, deltaFor(input.type, input.amount, 1));
   await writeAudit({
     userId,
     action: "VOUCHER.CREATE",
@@ -125,21 +179,35 @@ export async function updateVoucher(id: string, input: VoucherUpdateInput, userI
   const nextType = input.type ?? existing.type;
   const nextAmount = input.amount ?? Number(existing.amount);
 
-  await applyBalance(existing.contactId!, deltaFor(existing.type, Number(existing.amount), -1));
-  await applyBalance(nextContactId!, deltaFor(nextType, nextAmount, 1));
+  const voucher = await prisma.$transaction(async (tx) => {
+    await applyBalance(tx, existing.contactId!, deltaFor(existing.type, Number(existing.amount), -1));
+    await applyBalance(tx, nextContactId!, deltaFor(nextType, nextAmount, 1));
+    await reverseMoney(tx, moneySourceType(existing.method), id);
 
-  const voucher = await prisma.voucher.update({
-    where: { id },
-    data: {
-      ...(input.type !== undefined ? { type: input.type } : {}),
-      ...(input.amount !== undefined ? { amount: input.amount } : {}),
-      ...(input.method !== undefined ? { method: input.method } : {}),
-      ...(input.bankAccountId !== undefined ? { bankAccountId: input.bankAccountId || null } : {}),
-      ...(input.contactId !== undefined ? { contactId: input.contactId } : {}),
-      ...(input.narration !== undefined ? { narration: input.narration || null } : {}),
-      ...(input.date !== undefined && input.date ? { date: new Date(input.date) } : {}),
-    },
-    include,
+    const updated = await tx.voucher.update({
+      where: { id },
+      data: {
+        ...(input.type !== undefined ? { type: input.type } : {}),
+        ...(input.amount !== undefined ? { amount: input.amount } : {}),
+        ...(input.method !== undefined ? { method: input.method } : {}),
+        ...(input.bankAccountId !== undefined ? { bankAccountId: input.bankAccountId || null } : {}),
+        ...(input.contactId !== undefined ? { contactId: input.contactId } : {}),
+        ...(input.narration !== undefined ? { narration: input.narration || null } : {}),
+        ...(input.date !== undefined && input.date ? { date: new Date(input.date) } : {}),
+      },
+      include,
+    });
+    await applyVoucherMoney(tx, {
+      id: updated.id,
+      type: updated.type,
+      method: updated.method,
+      amount: Number(updated.amount),
+      bankAccountId: updated.bankAccountId,
+      date: updated.date,
+      narration: updated.narration,
+      userId,
+    });
+    return updated;
   });
   await writeAudit({
     userId,
@@ -158,12 +226,25 @@ export async function restoreVoucher(id: string, userId: string) {
     throw new ApiError(409, "voucher.not_reversed", "This voucher is not reversed");
   }
 
-  const voucher = await prisma.voucher.update({
-    where: { id },
-    data: { status: "ACTIVE", reversedById: null, reversedAt: null, reversalNote: null },
-    include,
+  const voucher = await prisma.$transaction(async (tx) => {
+    const restored = await tx.voucher.update({
+      where: { id },
+      data: { status: "ACTIVE", reversedById: null, reversedAt: null, reversalNote: null },
+      include,
+    });
+    await applyBalance(tx, existing.contactId!, deltaFor(existing.type, Number(existing.amount), 1));
+    await applyVoucherMoney(tx, {
+      id: restored.id,
+      type: restored.type,
+      method: restored.method,
+      amount: Number(restored.amount),
+      bankAccountId: restored.bankAccountId,
+      date: restored.date,
+      narration: restored.narration,
+      userId,
+    });
+    return restored;
   });
-  await applyBalance(existing.contactId!, deltaFor(existing.type, Number(existing.amount), 1));
   await writeAudit({
     userId,
     action: "VOUCHER.RESTORE",
@@ -181,12 +262,16 @@ export async function reverseVoucher(id: string, note: string | null | undefined
     throw new ApiError(409, "voucher.already_reversed", "This voucher is already reversed");
   }
 
-  const voucher = await prisma.voucher.update({
-    where: { id },
-    data: { status: "REVERSED", reversedById: userId, reversedAt: new Date(), reversalNote: note || null },
-    include,
+  const voucher = await prisma.$transaction(async (tx) => {
+    const reversed = await tx.voucher.update({
+      where: { id },
+      data: { status: "REVERSED", reversedById: userId, reversedAt: new Date(), reversalNote: note || null },
+      include,
+    });
+    await applyBalance(tx, existing.contactId!, deltaFor(existing.type, Number(existing.amount), -1));
+    await reverseMoney(tx, moneySourceType(existing.method), id);
+    return reversed;
   });
-  await applyBalance(existing.contactId!, deltaFor(existing.type, Number(existing.amount), -1));
   await writeAudit({
     userId,
     action: "VOUCHER.REVERSE",

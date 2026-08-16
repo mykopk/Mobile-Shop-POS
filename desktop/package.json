@@ -1,0 +1,23 @@
+{
+  "name": "fig-pos-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Fig Mobile POS — Electron desktop app (Windows)",
+  "author": "Fig Mobile POS",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "pack": "electron-builder --win --dir",
+    "dist": "electron-builder --win",
+    "pack:win": "electron-builder --win --dir",
+    "dist:win": "electron-builder --win",
+    "rebuild": "electron-rebuild -f --only better-sqlite3 --module-dir ../backend",
+    "rebuild:dev": "npm --prefix ../backend rebuild better-sqlite3"
+  },
+  "devDependencies": {
+    "electron": "^37.0.0",
+    "electron-builder": "^26.0.0",
+    "electron-rebuild": "^3.2.9"
+  }
+}

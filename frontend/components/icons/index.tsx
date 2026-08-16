@@ -891,6 +891,7 @@ export const NAV_ICONS = {
   pos: PosIcon,
   reservation: ReservationIcon,
   voucher: VoucherIcon,
+  money: WalletIcon,
   expenses: WalletIcon,
   purchases: PurchasesIcon,
   returns: ReturnsIcon,
