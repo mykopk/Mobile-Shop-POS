@@ -4,9 +4,13 @@ All notable changes are documented here. This file is auto-generated on every
 release by `scripts/changelog.sh` (run from the CI release workflow) — do not
 edit by hand.
 
-## v0.1.4
+## v0.1.5
 
 - Released on: 2026-08-16
+
+- feat: inject crash-report token at build time from GitHub secret
+
+## v0.1.4
 
 - feat: send crash reports to GitHub Issues
 
