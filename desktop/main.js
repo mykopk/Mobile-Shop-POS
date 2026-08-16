@@ -204,6 +204,18 @@ async function ensureDatabase(onStatus) {
   await seedAdminUser(db, onStatus);
 }
 
+// Copy bundled data files (e.g. print-layouts.json) into the user-data dir so
+// the backend can find them when it runs from there.
+function ensureBackendData() {
+  const dataDir = path.join(userDataDir(), "data");
+  fs.mkdirSync(dataDir, { recursive: true });
+  const bundled = path.join(BACKEND_DIR, "data", "print-layouts.json");
+  if (fs.existsSync(bundled)) {
+    const dest = path.join(dataDir, "print-layouts.json");
+    if (!fs.existsSync(dest)) fs.copyFileSync(bundled, dest);
+  }
+}
+
 // Fresh installs start with an EMPTY database and a single admin user with a
 // generated PIN (never a trivial one). Credentials are written to the OS
 // user-data dir and printed to the console.
@@ -254,7 +266,9 @@ function spawnBackend() {
   // Prefer the compiled backend bundle; fall back to tsx for development.
   const bundled = path.join(BACKEND_DIR, "dist", "server.cjs");
   if (fs.existsSync(bundled)) {
-    const child = spawn(process.execPath, [bundled], { cwd: BACKEND_DIR, env: baseEnv, stdio: ["ignore", "pipe", "pipe"] });
+    // Run the backend from the user-data dir so backups and any data files it
+    // writes persist outside Program Files (which is wiped on app updates).
+    const child = spawn(process.execPath, [bundled], { cwd: userDataDir(), env: baseEnv, stdio: ["ignore", "pipe", "pipe"] });
     logging.childStream(child, "backend");
     return child;
   }
@@ -529,6 +543,7 @@ if (!app.requestSingleInstanceLock()) {
         return;
       }
       setStatus("Starting backend server…");
+      ensureBackendData();
       track(spawnBackend());
       setStatus("Starting app server…");
       track(spawnFrontend());

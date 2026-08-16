@@ -41,6 +41,8 @@ jobs:
 
       - name: Build frontend
         working-directory: frontend
+        env:
+          BACKEND_URL: http://localhost:4701
         run: npm run build
 
       # Prepare a self-contained frontend bundle (renames node_modules -> deps so

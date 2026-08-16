@@ -28,6 +28,8 @@ extraResources:
     to: frontend/.next/static
   - from: ../frontend/public
     to: frontend/public
+  - from: ../backend/data/print-layouts.json
+    to: backend/data/print-layouts.json
 
 npmRebuild: true
 
