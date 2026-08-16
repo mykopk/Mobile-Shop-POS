@@ -5,9 +5,8 @@
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build",
-    "start": "next start",
-    "lint": "next lint",
-    "test": "vitest run"
+    "test": "vitest run",
+    "build:production": "node scripts/prepare-production.mjs"
   },
   "dependencies": {
     "@fontsource/montserrat": "^5.3.0",

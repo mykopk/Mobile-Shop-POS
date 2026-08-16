@@ -15,21 +15,17 @@ files:
   - package.json
   - fig-report-token.txt
 
-# Bundle only the FINAL builds (no source, no node_modules except the native
-# module bundled inside backend/dist/node_modules).
+# Bundle the production builds (no source, no node_modules except the native
+# module bundled inside production/backend/native).
 extraResources:
-  - from: ../backend/dist
-    to: backend/dist
+  - from: ../production/backend
+    to: production/backend
     filter:
       - "**/*"
-  - from: ../frontend/standalone-dist
-    to: frontend
-  - from: ../frontend/.next/static
-    to: frontend/.next/static
-  - from: ../frontend/public
-    to: frontend/public
-  - from: ../backend/data/print-layouts.json
-    to: backend/data/print-layouts.json
+  - from: ../production/frontend
+    to: production/frontend
+    filter:
+      - "**/*"
 
 npmRebuild: true
 
@@ -40,7 +36,7 @@ publish:
   owner: mykopk
   repo: Mobile-Shop-POS
 
-# Windows is the only target platform.
+# Windows + macOS are both supported targets.
 win:
   target:
     - nsis
@@ -51,3 +47,14 @@ nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
   perMachine: false
+
+mac:
+  target:
+    - dmg
+    - zip
+  icon: build/icon.icns
+  category: public.app-category.business
+  artifactName: ${productName}-${version}-mac.${ext}
+
+dmg:
+  title: ${productName} ${version}

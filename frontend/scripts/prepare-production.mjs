@@ -1,0 +1,43 @@
+// Prepares a self-contained, production-ready frontend bundle into
+// <repo>/production/frontend from the Next.js standalone output:
+//   server.js         — the standalone Next server
+//   deps/             — node_modules renamed so electron-builder keeps it
+//   .next/static/     — static assets (JS/CSS chunks)
+//   public/           — public files
+//
+// Run `npm run build` (in frontend/) first, with BACKEND_URL pointing at the
+// backend the app spawns (http://localhost:4701).
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const dir = path.dirname(fileURLToPath(import.meta.url));
+const frontend = path.resolve(dir, "..");
+const root = path.resolve(frontend, "..");
+const src = path.join(frontend, ".next", "standalone");
+const out = path.join(root, "production", "frontend");
+
+if (!fs.existsSync(src)) {
+  throw new Error(`Standalone output missing at ${src} — run 'npm run build' first`);
+}
+
+fs.rmSync(out, { recursive: true, force: true });
+fs.cpSync(src, out, { recursive: true });
+
+const nm = path.join(out, "node_modules");
+const deps = path.join(out, "deps");
+if (fs.existsSync(nm)) {
+  fs.renameSync(nm, deps);
+}
+
+// Bring static + public into the bundle so it is fully self-contained.
+const staticSrc = path.join(frontend, ".next", "static");
+if (fs.existsSync(staticSrc)) {
+  fs.cpSync(staticSrc, path.join(out, ".next", "static"), { recursive: true });
+}
+const publicSrc = path.join(frontend, "public");
+if (fs.existsSync(publicSrc)) {
+  fs.cpSync(publicSrc, path.join(out, "public"), { recursive: true });
+}
+
+console.log("Production frontend built at " + out);

@@ -12,27 +12,17 @@ import { checkWeakPins } from "./core/lib/security";
 const app = createApp();
 
 async function bootstrap() {
-  try {
-    const seeded = await seedPrintLayouts();
-    console.log(`Seeded ${seeded.length} premade print layout(s)`);
-  } catch (err) {
-    console.warn("Premade print layouts were not seeded:", err instanceof Error ? err.message : err);
-  }
-  try {
-    const seededCities = await seedCities();
-    console.log(`Seeded ${seededCities.length} new city/cities`);
-  } catch (err) {
-    console.warn("Cities were not seeded:", err instanceof Error ? err.message : err);
-  }
-  try {
-    const seededCategories = await seedCategories();
-    const seededBrands = await seedBrands();
-    const seededColors = await seedColors();
-    console.log(
-      `Seeded ${seededCategories.length} new category/categories, ${seededBrands.length} new brand(s), ${seededColors.length} new color(s)`,
-    );
-  } catch (err) {
-    console.warn("Catalog defaults were not seeded:", err instanceof Error ? err.message : err);
+  const adminCount = await prisma.user.count({ where: { role: "ADMIN", active: true } });
+  if (adminCount === 0) {
+    try {
+      await seedPrintLayouts();
+      await seedCities();
+      await seedCategories();
+      await seedBrands();
+      await seedColors();
+    } catch (err) {
+      console.warn("Catalog defaults could not be seeded:", err instanceof Error ? err.message : err);
+    }
   }
   const server = app.listen(env.PORT, env.HOST, () => {
     console.log(

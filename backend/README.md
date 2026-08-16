@@ -8,11 +8,10 @@ Node.js + Express (REST API) + TypeScript + Prisma + SQLite.
 npm install
 cp .env.example .env        # or reuse the existing backend/.env
 npx prisma migrate deploy   # apply schema migrations
-npm run prisma:seed         # preregistered users + demo data
 npm run dev                 # tsx watch — live reload
 ```
 
-Endpoints are served under `/api` (see `app.ts`). The dev server normally runs on `http://127.0.0.1:4100` (set `PORT` in `.env`).
+Endpoints are served under `/api` (see `app.ts`). The dev server normally runs on `http://127.0.0.1:4100` (set `PORT` in `.env`). On a fresh database (no admin user yet) the server seeds catalog defaults and the onboarding flow (`/api/setup`) creates the store + first admin.
 
 ## Commands
 
@@ -26,7 +25,6 @@ Endpoints are served under `/api` (see `app.ts`). The dev server normally runs o
 | `npm run prisma:generate` | Regenerate the Prisma client             |
 | `npm run prisma:migrate`  | `prisma migrate dev` (create + apply)     |
 | `npm run prisma:deploy`   | `prisma migrate deploy` (apply pending)   |
-| `npm run prisma:seed`     | Seed users + demo data                   |
 | `npm run prisma:studio`   | Prisma Studio                         |
 
 Tests run against a throwaway `data/test.db` (created by `prisma db push` in `tests/global-setup.ts`) — they never touch `data/fig.db`.

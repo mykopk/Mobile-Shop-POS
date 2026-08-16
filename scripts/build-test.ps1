@@ -41,11 +41,11 @@ if (-not $SkipInstall) {
   RunIn "desktop" "npm ci"
 }
 
-Step "Building backend bundle (esbuild)"
-RunIn "backend" "npm run build"
-
 Step "Building frontend"
 RunIn "frontend" "npm run build"
+
+Step "Preparing production frontend bundle"
+RunIn "frontend" "npm run build:production"
 
 if (-not $SkipTests) {
   Step "Backend tests"
@@ -61,8 +61,8 @@ if (-not $SkipTests) {
 Step "Rebuilding native modules for Electron (better-sqlite3)"
 RunIn "desktop" "npm run rebuild"
 
-Step "Copying native module into backend bundle"
-RunIn "backend" "npm run copy-native"
+Step "Building production backend bundle (esbuild + native + schema)"
+RunIn "backend" "npm run build:production"
 
 if ($Pack) {
   Step "Packaging win-unpacked app"

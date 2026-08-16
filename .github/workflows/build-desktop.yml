@@ -50,21 +50,23 @@ jobs:
           BACKEND_URL: http://localhost:4701
         run: npm run build
 
-      # Prepare a self-contained frontend bundle (renames node_modules -> deps so
-      # electron-builder doesn't prune 'next'). Must run after npm run build.
-      - name: Prepare frontend bundle
+      # Prepare the self-contained production frontend bundle (renames
+      # node_modules -> deps so electron-builder doesn't prune 'next'). Must run
+      # after npm run build.
+      - name: Prepare production frontend bundle
         working-directory: frontend
-        run: node scripts/prepare-standalone.mjs
+        run: npm run build:production
 
       # Rebuild the backend's native module (better-sqlite3) for Windows + Electron.
       - name: Rebuild native modules
         working-directory: desktop
         run: npm run rebuild
 
-      # Bundle the backend (esbuild) + copy the rebuilt native module into dist.
-      - name: Build backend
+      # Bundle the self-contained production backend (esbuild + native module +
+      # schema.sql + setup.cjs) into production/backend.
+      - name: Build production backend
         working-directory: backend
-        run: npm run build && npm run copy-native
+        run: npm run build:production
 
       # Bake the crash-report token (from a GitHub secret) into the installer.
       # The token file is gitignored and never committed.

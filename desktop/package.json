@@ -2,7 +2,7 @@
   "name": "fig-pos-desktop",
   "version": "0.1.14",
   "private": true,
-  "description": "Fig Mobile POS — Electron desktop app (Windows)",
+  "description": "Fig Mobile POS — Electron desktop app (Windows + macOS)",
   "author": "Fig Mobile POS",
   "main": "main.js",
   "dependencies": {
@@ -11,12 +11,15 @@
   "scripts": {
     "start": "electron .",
     "dev": "electron . --dev",
-    "pack": "electron-builder --win --dir --publish never",
-    "dist": "electron-builder --win --publish never",
+    "pack": "electron-builder --dir --publish never",
+    "dist": "electron-builder --publish never",
     "pack:win": "electron-builder --win --dir --publish never",
     "dist:win": "electron-builder --win --publish never",
+    "pack:mac": "electron-builder --mac --dir --publish never",
+    "dist:mac": "electron-builder --mac --publish never",
     "rebuild": "electron-rebuild -f --only better-sqlite3 --module-dir ../backend",
-    "rebuild:dev": "npm --prefix ../backend rebuild better-sqlite3"
+    "rebuild:dev": "npm --prefix ../backend rebuild better-sqlite3",
+    "build:production": "npm --prefix ../backend run build:production && npm --prefix ../frontend run build:production"
   },
   "devDependencies": {
     "electron": "^37.0.0",

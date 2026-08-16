@@ -3,9 +3,12 @@ node_modules/
 
 # builds
 .next/
+.next-tmp/
 dist/
 build/
 release/
+standalone-dist/
+production/
 
 # backups
 backups/

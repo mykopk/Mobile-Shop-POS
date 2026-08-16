@@ -11,9 +11,36 @@ const report = require("./report");
 const { autoUpdater } = require("electron-updater");
 
 const ROOT = path.resolve(__dirname, "..");
-const BACKEND_DIR = path.join(ROOT, "backend");
-const FRONTEND_DIR = path.join(ROOT, "frontend");
-const NATIVE_DIR = path.join(BACKEND_DIR, "dist", "native");
+const PROD_DIR = path.join(ROOT, "production");
+const PROD_BACKEND = path.join(PROD_DIR, "backend");
+const PROD_FRONTEND = path.join(PROD_DIR, "frontend");
+const SRC_BACKEND = path.join(ROOT, "backend");
+const SRC_FRONTEND = path.join(ROOT, "frontend");
+
+// Production bundles live in <repo>/production (or <resources>/production in a
+// packaged app). Fall back to the source tree for development.
+function backendDir() {
+  return fs.existsSync(path.join(PROD_BACKEND, "server.cjs"))
+    ? PROD_BACKEND
+    : SRC_BACKEND;
+}
+function frontendDir() {
+  return fs.existsSync(path.join(PROD_FRONTEND, "server.js"))
+    ? PROD_FRONTEND
+    : SRC_FRONTEND;
+}
+// The bundled server.cjs, setup.cjs and schema.sql share one folder — the prod
+// bundle root in a packaged build, or the backend source tree in development.
+function bundleDir() {
+  return backendDir() === PROD_BACKEND
+    ? PROD_BACKEND
+    : SRC_BACKEND;
+}
+// Native better-sqlite3 sits next to the bundle (prod: native/, source: none —
+// dev resolves it from backend/node_modules).
+function nativeDir() {
+  return path.join(bundleDir(), "native");
+}
 
 const DEV_ATTACH = process.argv.includes("--dev");
 const BACKEND_PORT = Number(process.env.FIG_BACKEND_PORT || 4701);
@@ -193,10 +220,10 @@ function getSecret() {
   return s;
 }
 
+// The database always lives in the OS user-data dir — the same in dev and in a
+// packaged build — so behaviour (and data) is identical either way.
 function dbPath() {
-  return app.isPackaged
-    ? path.join(userDataDir(), "data", "fig.db")
-    : path.join(BACKEND_DIR, "data", "fig.db");
+  return path.join(userDataDir(), "data", "fig.db");
 }
 
 // ---------------------------------------------------------------------------
@@ -208,7 +235,7 @@ function runNode(args, { cwd, env = {} }) {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, args, {
       cwd,
-      env: { ...process.env, ELECTRON_RUN_AS_NODE: "1", NODE_PATH: NATIVE_DIR, ...env },
+      env: { ...process.env, ELECTRON_RUN_AS_NODE: "1", NODE_PATH: nativeDir(), ...env },
       stdio: ["ignore", "pipe", "pipe"],
     });
     logging.childStream(child, "setup");
@@ -228,15 +255,15 @@ async function ensureDatabase(onStatus) {
 
   fs.mkdirSync(path.dirname(db), { recursive: true });
   console.log(`First run — creating fresh database at ${db}`);
-  const setup = path.join(BACKEND_DIR, "dist", "setup.cjs");
-  const schema = path.join(BACKEND_DIR, "dist", "schema.sql");
+  const setup = path.join(bundleDir(), "setup.cjs");
+  const schema = path.join(bundleDir(), "schema.sql");
   if (fs.existsSync(setup) && fs.existsSync(schema)) {
     onStatus && onStatus("Creating database tables…");
-    await runNode([setup, db, schema], { cwd: BACKEND_DIR });
+    await runNode([setup, db, schema], { cwd: bundleDir() });
   } else if (!app.isPackaged) {
-    const prismaCli = path.join(BACKEND_DIR, "node_modules", "prisma", "build", "index.js");
+    const prismaCli = path.join(SRC_BACKEND, "node_modules", "prisma", "build", "index.js");
     await runNode([prismaCli, "db", "push", "--skip-generate"], {
-      cwd: BACKEND_DIR,
+      cwd: SRC_BACKEND,
       env: { DATABASE_URL: `file:${db}` },
     });
   } else {
@@ -251,7 +278,7 @@ async function ensureDatabase(onStatus) {
 function ensureBackendData() {
   const dataDir = path.join(userDataDir(), "data");
   fs.mkdirSync(dataDir, { recursive: true });
-  const bundled = path.join(BACKEND_DIR, "data", "print-layouts.json");
+  const bundled = path.join(bundleDir(), "data", "print-layouts.json");
   if (fs.existsSync(bundled)) {
     const dest = path.join(dataDir, "print-layouts.json");
     if (!fs.existsSync(dest)) fs.copyFileSync(bundled, dest);
@@ -262,7 +289,7 @@ function spawnBackend() {
   const baseEnv = {
     ...process.env,
     ELECTRON_RUN_AS_NODE: "1",
-    NODE_PATH: NATIVE_DIR,
+    NODE_PATH: nativeDir(),
     PORT: String(BACKEND_PORT),
     HOST: "localhost",
     NODE_ENV: "production",
@@ -276,7 +303,7 @@ function spawnBackend() {
   };
 
   // Prefer the compiled backend bundle; fall back to tsx for development.
-  const bundled = path.join(BACKEND_DIR, "dist", "server.cjs");
+  const bundled = path.join(bundleDir(), "server.cjs");
   if (fs.existsSync(bundled)) {
     // Run the backend from the user-data dir so backups and any data files it
     // writes persist outside Program Files (which is wiped on app updates).
@@ -285,9 +312,9 @@ function spawnBackend() {
     return child;
   }
 
-  const tsx = path.join(BACKEND_DIR, "node_modules", "tsx", "dist", "cli.mjs");
+  const tsx = path.join(SRC_BACKEND, "node_modules", "tsx", "dist", "cli.mjs");
   const child = spawn(process.execPath, [tsx, "server.ts"], {
-    cwd: BACKEND_DIR,
+    cwd: SRC_BACKEND,
     env: baseEnv,
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -296,11 +323,10 @@ function spawnBackend() {
 }
 
 function spawnFrontend() {
-  // Prefer the Next.js "standalone" server. In the packaged app it lives at
-  // <resources>/frontend/server.js; in the repo it is .next/standalone/server.js.
-  const standalone = fs.existsSync(path.join(FRONTEND_DIR, "server.js"))
-    ? path.join(FRONTEND_DIR, "server.js")
-    : path.join(FRONTEND_DIR, ".next", "standalone", "server.js");
+  // Prefer the Next.js "standalone" server from the production bundle.
+  const standalone = fs.existsSync(path.join(frontendDir(), "server.js"))
+    ? path.join(frontendDir(), "server.js")
+    : path.join(frontendDir(), ".next", "standalone", "server.js");
   if (fs.existsSync(standalone)) {
     prepareStandalone(path.dirname(standalone));
     const child = spawn(process.execPath, [standalone], {
@@ -308,7 +334,7 @@ function spawnFrontend() {
       env: {
         ...process.env,
         ELECTRON_RUN_AS_NODE: "1",
-        NODE_PATH: path.join(FRONTEND_DIR, "deps"),
+        NODE_PATH: path.join(frontendDir(), "deps"),
         PORT: String(FRONTEND_PORT),
         HOSTNAME: "localhost",
         BACKEND_URL: `http://localhost:${BACKEND_PORT}`,
@@ -320,15 +346,15 @@ function spawnFrontend() {
   }
 
   // Fallback for development (no standalone build): next dev / next start.
-  const nextBin = path.join(FRONTEND_DIR, "node_modules", "next", "dist", "bin", "next");
-  const hasProdBuild = fs.existsSync(path.join(FRONTEND_DIR, ".next", "BUILD_ID"));
+  const nextBin = path.join(SRC_FRONTEND, "node_modules", "next", "dist", "bin", "next");
+  const hasProdBuild = fs.existsSync(path.join(SRC_FRONTEND, ".next", "BUILD_ID"));
   const cmd = hasProdBuild ? "start" : "dev";
   const child = spawn(process.execPath, [nextBin, cmd, "-p", String(FRONTEND_PORT), "-H", "localhost"], {
-    cwd: FRONTEND_DIR,
+    cwd: SRC_FRONTEND,
     env: {
       ...process.env,
       ELECTRON_RUN_AS_NODE: "1",
-      NODE_PATH: path.join(FRONTEND_DIR, "deps"),
+      NODE_PATH: path.join(SRC_FRONTEND, "deps"),
       PORT: String(FRONTEND_PORT),
       BACKEND_URL: `http://localhost:${BACKEND_PORT}`,
     },
@@ -339,16 +365,16 @@ function spawnFrontend() {
 }
 
 // The standalone output needs its static assets and public files alongside it.
-// In the packaged app those are already placed there, so this is a no-op.
+// The production bundle already contains them, so this is a no-op there.
 function prepareStandalone(standDir) {
   const staticDest = path.join(standDir, ".next", "static");
-  const staticSrc = path.join(FRONTEND_DIR, ".next", "static");
+  const staticSrc = path.join(frontendDir(), ".next", "static");
   if (fs.existsSync(staticSrc) && !fs.existsSync(staticDest)) {
     fs.mkdirSync(path.dirname(staticDest), { recursive: true });
     fs.cpSync(staticSrc, staticDest, { recursive: true });
   }
   const publicDest = path.join(standDir, "public");
-  const publicSrc = path.join(FRONTEND_DIR, "public");
+  const publicSrc = path.join(frontendDir(), "public");
   if (fs.existsSync(publicSrc) && !fs.existsSync(publicDest)) {
     fs.mkdirSync(path.dirname(publicDest), { recursive: true });
     fs.cpSync(publicSrc, publicDest, { recursive: true });

@@ -11,7 +11,7 @@ services:
     rootDir: backend
     plan: free
     buildCommand: npm ci && npx prisma generate
-    preDeployCommand: npx prisma migrate deploy && npm run prisma:seed -- --force
+    preDeployCommand: npx prisma migrate deploy
     startCommand: npm start
     healthCheckPath: /api/health
     autoDeploy: true
