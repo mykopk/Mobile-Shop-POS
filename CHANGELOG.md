@@ -4,9 +4,13 @@ All notable changes are documented here. This file is auto-generated on every
 release by `scripts/changelog.sh` (run from the CI release workflow) — do not
 edit by hand.
 
-## v0.1.2
+## v0.1.3
 
 - Released on: 2026-08-16
+
+- feat: loading screen during desktop startup
+
+## v0.1.2
 
 - feat: auto changelog + crash logging for desktop app
 
