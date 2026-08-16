@@ -159,6 +159,21 @@ export function DesktopAppTab() {
       </div>
 
       <div className="rounded-3xl bg-white p-4">
+        <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-ink-500">Update &amp; repair</p>
+        <p className="mb-3 text-sm text-ink-600">
+          Checks for a newer version and re-installs it. The standalone updater works even if this
+          app fails to open.
+        </p>
+        <Button variant="grey" onClick={() => void window.fig?.update?.launch()}>
+          Open updater
+        </Button>
+        <p className="mt-2 rounded-2xl bg-ink-50 px-3.5 py-2.5 text-xs text-ink-500">
+          If the app itself is broken, run <span className="font-mono">Fig-POS-Updater.exe</span>{" "}
+          directly — it downloads the latest installer and launches it.
+        </p>
+      </div>
+
+      <div className="rounded-3xl bg-white p-4">
         <div className="mb-2 flex items-center justify-between">
           <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">Diagnostics / logs</p>
           <div className="flex gap-2">

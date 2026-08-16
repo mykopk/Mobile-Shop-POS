@@ -21,6 +21,9 @@ declare global {
         get: () => Promise<string[]>;
         open: () => Promise<boolean>;
       };
+      update?: {
+        launch: () => Promise<{ launched: boolean }>;
+      };
       error?: {
         get: () => Promise<string>;
         copy: (text: string) => Promise<boolean>;

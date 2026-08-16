@@ -30,11 +30,16 @@ echo "Run: $RUN_ID"
 echo "Waiting for build to finish..."
 gh run watch "$RUN_ID" --exit-status
 
-echo "Downloading installer artifact..."
+echo "Downloading build artifacts..."
 rm -rf "$ROOT/.win-build"
 mkdir -p "$ROOT/.win-build"
 gh run download "$RUN_ID" -n fig-pos-setup -D "$ROOT/.win-build"
 
 echo
-echo "Installer ready:"
-ls -lh "$ROOT/.win-build/"*.exe
+echo "Artifacts ready:"
+ls -lh "$ROOT/.win-build/"
+
+echo
+echo "Testing options:"
+echo "  Installer : $ROOT/.win-build/*-Setup-*.exe  (double-click to install)"
+echo "  No install: $ROOT/.win-build/*-no-install.zip  (extract, then run 'Fig Mobile POS.exe')"

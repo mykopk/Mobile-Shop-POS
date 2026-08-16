@@ -8,6 +8,7 @@ const http = require("node:http");
 const path = require("node:path");
 const logging = require("./logging");
 const report = require("./report");
+const { autoUpdater } = require("electron-updater");
 
 const ROOT = path.resolve(__dirname, "..");
 const BACKEND_DIR = path.join(ROOT, "backend");
@@ -22,6 +23,48 @@ const DEFAULT_RUNTIME = { mode: "local", hostedUrl: "", report: { enabled: true,
 
 const children = new Set();
 let mainWindow = null;
+
+// ---------------------------------------------------------------------------
+// OTA self-update. Installed builds check GitHub Releases once at startup,
+// download any newer version in the background, and install on quit so the
+// user never has to re-download the installer.
+// ---------------------------------------------------------------------------
+function checkForUpdates() {
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.on("checking-for-update", () => logging.write("OTA: checking for updates…"));
+  autoUpdater.on("update-available", (info) =>
+    logging.write(`OTA: update available (${info.version}) — downloading…`)
+  );
+  autoUpdater.on("update-not-available", (info) =>
+    logging.write(`OTA: no update available (latest ${info.version}).`)
+  );
+  autoUpdater.on("update-downloaded", (info) => {
+    logging.write(`OTA: update ${info.version} downloaded — will install on quit.`);
+    try {
+      dialog.showMessageBox(mainWindow, {
+        type: "info",
+        buttons: ["Restart & update now", "Later"],
+        defaultId: 0,
+        cancelId: 1,
+        title: "Fig Mobile POS — Update ready",
+        message: `Version ${info.version} is ready to install.`,
+        detail: "Restart now to apply the update, or choose Later to install it the next time you quit the app.",
+      }).then(({ response }) => {
+        if (response === 0) {
+          autoUpdater.quitAndInstall();
+        }
+      }).catch(() => {});
+    } catch (e) {
+      logging.error("OTA: could not show update dialog: " + e.message);
+    }
+  });
+  autoUpdater.on("error", (err) => logging.error("OTA: " + (err && err.message ? err.message : err)));
+
+  autoUpdater.checkForUpdates().catch((err) =>
+    logging.write(`OTA: check failed (silent): ${err.message}`)
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Logging + crash surfacing. Everything is written to a log file in the
@@ -480,6 +523,23 @@ if (!app.requestSingleInstanceLock()) {
     return true;
   });
 
+  // Launch the standalone updater if it sits next to the app; otherwise open
+  // the GitHub releases page where Fig-POS-Updater.exe can be downloaded.
+  ipcMain.handle("update:launch", () => {
+    try {
+      const dir = path.dirname(process.execPath);
+      const updater = fs.readdirSync(dir).find((f) => /^Fig-POS-Updater-.*\.exe$/i.test(f));
+      if (updater) {
+        spawn(path.join(dir, updater), [], { detached: true, stdio: "ignore" }).unref();
+        return { launched: true };
+      }
+    } catch {
+      /* ignore */
+    }
+    shell.openExternal("https://github.com/mykopk/Mobile-Shop-POS/releases/latest");
+    return { launched: false };
+  });
+
   ipcMain.handle("error:get", () => lastErrorDetail);
 
   ipcMain.handle("error:copy", (_event, text) => {
@@ -563,6 +623,12 @@ if (!app.requestSingleInstanceLock()) {
     // Open the real (framed) app window, then dismiss the loading screen.
     createWindow(url);
     if (!loadingWin.isDestroyed()) loadingWin.close();
+
+    // OTA: silently check for a newer release and auto-install on quit.
+    // Only meaningful for installed builds — skip the unpacked/no-install test
+    // bundle (OTA needs the NSIS installer) and always skip dev/hosted mode.
+    const unpackedTest = process.execPath.includes("win-unpacked");
+    if (app.isPackaged && !DEV_ATTACH && !unpackedTest) checkForUpdates();
 
     app.on("activate", () => {
       if (BrowserWindow.getAllWindows().length === 0 && url) createWindow(url);

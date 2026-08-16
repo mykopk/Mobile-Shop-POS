@@ -5,6 +5,9 @@
   "description": "Fig Mobile POS — Electron desktop app (Windows)",
   "author": "Fig Mobile POS",
   "main": "main.js",
+  "dependencies": {
+    "electron-updater": "^6.6.2"
+  },
   "scripts": {
     "start": "electron .",
     "dev": "electron . --dev",

@@ -33,6 +33,13 @@ extraResources:
 
 npmRebuild: true
 
+# OTA updates via GitHub Releases. electron-builder generates latest.yml +
+# blockmap so installed apps can self-update without re-downloading.
+publish:
+  provider: github
+  owner: mykopk
+  repo: Mobile-Shop-POS
+
 # Windows is the only target platform.
 win:
   target:

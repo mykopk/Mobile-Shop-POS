@@ -17,6 +17,9 @@ contextBridge.exposeInMainWorld("fig", {
     get: () => ipcRenderer.invoke("logs:get"),
     open: () => ipcRenderer.invoke("logs:open"),
   },
+  update: {
+    launch: () => ipcRenderer.invoke("update:launch"),
+  },
   error: {
     get: () => ipcRenderer.invoke("error:get"),
     copy: (text) => ipcRenderer.invoke("error:copy", text),

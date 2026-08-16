@@ -1,0 +1,15 @@
+{
+  "name": "fig-pos-updater",
+  "version": "0.1.14",
+  "private": true,
+  "description": "Standalone updater for Fig Mobile POS — runs even if the main app is broken.",
+  "main": "main.js",
+  "scripts": {
+    "dist": "electron-builder --win portable",
+    "pack": "electron-builder --win --dir"
+  },
+  "devDependencies": {
+    "electron": "^37.0.0",
+    "electron-builder": "^26.0.0"
+  }
+}

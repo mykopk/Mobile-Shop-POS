@@ -26,6 +26,7 @@ jobs:
             backend/package-lock.json
             frontend/package-lock.json
             desktop/package-lock.json
+            desktop/updater/package-lock.json
 
       - name: Install backend deps
         working-directory: backend
@@ -37,6 +38,10 @@ jobs:
 
       - name: Install desktop deps
         working-directory: desktop
+        run: npm ci
+
+      - name: Install updater deps
+        working-directory: desktop/updater
         run: npm ci
 
       - name: Build frontend
@@ -72,11 +77,33 @@ jobs:
         working-directory: desktop
         run: npm run dist:win
 
+      # Unpacked build — lets you test on Windows with NO installation: extract
+      # the zip and run "Fig Mobile POS.exe" directly.
+      - name: Build unpacked (no-install) test build
+        working-directory: desktop
+        run: npm run pack:win
+
+      - name: Zip unpacked test build
+        working-directory: desktop
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          powershell Compress-Archive -Path release/win-unpacked/* -DestinationPath "release/Fig.Mobile.POS-${VERSION}-no-install.zip" -Force
+
+      # Build the standalone updater exe (portable, single file).
+      - name: Build updater
+        working-directory: desktop/updater
+        run: npm run dist
+
       - name: Upload installer
         uses: actions/upload-artifact@v4
         with:
           name: fig-pos-setup
-          path: desktop/release/*.exe
+          path: |
+            desktop/release/*.exe
+            desktop/release/latest.yml
+            desktop/release/*.exe.blockmap
+            desktop/release/*-no-install.zip
+            desktop/updater/release/Fig-POS-Updater-*.exe
           if-no-files-found: error
 
       - name: Generate changelog release notes
@@ -87,5 +114,9 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: desktop/release/*.exe
+          files: |
+            desktop/release/*.exe
+            desktop/release/latest.yml
+            desktop/release/*.exe.blockmap
+            desktop/updater/release/Fig-POS-Updater-*.exe
           body_path: .release-notes.md
