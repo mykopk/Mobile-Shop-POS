@@ -12,6 +12,7 @@ files:
   - loading.html
   - runtime.json
   - package.json
+  - fig-report-token.txt
 
 # Bundle only the FINAL builds (no source, no node_modules except the native
 # module bundled inside backend/dist/node_modules).

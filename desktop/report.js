@@ -1,9 +1,12 @@
 "use strict";
 
-// Sends crash / error reports to a GitHub repository as Issues. Requires a
-// low-privilege token with "issues:write" for the target repo. The token is
-// never hardcoded — it comes from the environment or the user's Settings and
-// lives in the local user-data dir.
+// Sends crash / error reports to a GitHub repository as Issues. The token is
+// NEVER hardcoded or committed — it comes from the environment, the user's
+// Settings, or a token file baked in at build time (see fig-report-token.txt,
+// which is gitignored).
+
+const fs = require("node:fs");
+const path = require("node:path");
 
 const DEFAULT_REPO = "mykopk/Mobile-Shop-POS";
 
@@ -13,8 +16,19 @@ function repoFor(cfg) {
   return process.env.FIG_GH_REPO || DEFAULT_REPO;
 }
 
+function tokenFile() {
+  const f = path.join(__dirname, "fig-report-token.txt");
+  try {
+    const s = fs.readFileSync(f, "utf8").trim();
+    return s || "";
+  } catch {
+    return "";
+  }
+}
+
 function tokenFor(cfg) {
-  return process.env.FIG_GH_TOKEN || (cfg && cfg.token ? String(cfg.token).trim() : "");
+  if (cfg && cfg.token && String(cfg.token).trim()) return String(cfg.token).trim();
+  return process.env.FIG_GH_TOKEN || tokenFile();
 }
 
 async function submit({ cfg, title, body }) {

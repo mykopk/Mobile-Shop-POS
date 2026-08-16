@@ -28,3 +28,4 @@ prisma/dev.db*
 .idea/
 .vscode/
 *.log
+desktop/fig-report-token.txt
