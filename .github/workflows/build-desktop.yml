@@ -87,7 +87,7 @@ jobs:
         working-directory: desktop
         run: |
           VERSION=$(node -p "require('./package.json').version")
-          powershell Compress-Archive -Path release/win-unpacked/* -DestinationPath "release/Fig.Mobile.POS-${VERSION}-no-install.zip" -Force
+          tar -a -c -f "release/Fig.Mobile.POS-${VERSION}-no-install.zip" -C release/win-unpacked .
 
       # Build the standalone updater exe (portable, single file).
       - name: Build updater
