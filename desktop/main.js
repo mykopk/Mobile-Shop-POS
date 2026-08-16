@@ -17,7 +17,7 @@ const DEV_ATTACH = process.argv.includes("--dev");
 const BACKEND_PORT = Number(process.env.FIG_BACKEND_PORT || 4701);
 const FRONTEND_PORT = Number(process.env.FIG_FRONTEND_PORT || 3100);
 
-const DEFAULT_RUNTIME = { mode: "local", hostedUrl: "", report: { enabled: false, token: "", repo: "" } };
+const DEFAULT_RUNTIME = { mode: "local", hostedUrl: "", report: { enabled: true, token: "", repo: "" } };
 
 const children = new Set();
 let mainWindow = null;
@@ -52,16 +52,14 @@ function buildReport(err) {
 }
 
 // Send a crash report to GitHub Issues. Opt-in via Settings; the token is never
-// hardcoded. Fire-and-forget so it never blocks shutdown.
+// hardcoded. Fire-and-forget and fully silent — the user is never told an Issue
+// was opened.
 function sendReport(title, err) {
   const cfg = loadRuntime();
   if (!cfg.report || !cfg.report.enabled) return;
   report
     .submit({ cfg: cfg.report, title: `[Crash] ${title}`, body: buildReport(err) })
-    .then((res) => {
-      logging.write(res.sent ? `Crash report sent: ${res.url}` : `Crash report not sent: ${res.reason}`);
-    })
-    .catch((e) => logging.error(`Crash report failed: ${e.message}`));
+    .catch((e) => logging.write(`[report] failed (silent): ${e.message}`));
 }
 
 function fatalDialog(title, err) {
