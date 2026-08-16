@@ -220,6 +220,7 @@ export default function LoginPage() {
           </p>
         </div>
         <p className="max-w-sm truncate text-xs text-ink-400" title={profile?.tagline ?? APP.tagline}>{profile?.tagline ?? APP.tagline}</p>
+        <p className="text-[10px] font-semibold text-brand-600">{APP.devMarker}</p>
       </footer>
     </main>
   );

@@ -5,6 +5,7 @@ export const APP = {
   footer: "New & used · IMEI tracked · Credit & analytics",
   storeSub: "Mobile Phone Shop",
   signInTitle: "Sign in to your store",
+  devMarker: "DEV-20260817",
 } as const;
 
 export const DEFAULT_LOCALE = "en-PK";
