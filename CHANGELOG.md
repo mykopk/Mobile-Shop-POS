@@ -4,9 +4,13 @@ All notable changes are documented here. This file is auto-generated on every
 release by `scripts/changelog.sh` (run from the CI release workflow) — do not
 edit by hand.
 
-## v0.1.6
+## v0.1.7
 
 - Released on: 2026-08-16
+
+- feat: copyable error window
+
+## v0.1.6
 
 - feat: silent background crash reporting
 
