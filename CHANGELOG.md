@@ -4,9 +4,13 @@ All notable changes are documented here. This file is auto-generated on every
 release by `scripts/changelog.sh` (run from the CI release workflow) — do not
 edit by hand.
 
-## v0.1.3
+## v0.1.4
 
 - Released on: 2026-08-16
+
+- feat: send crash reports to GitHub Issues
+
+## v0.1.3
 
 - fix: package logging.js + loading.html in the app
 - feat: loading screen during desktop startup
