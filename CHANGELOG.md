@@ -4,9 +4,13 @@ All notable changes are documented here. This file is auto-generated on every
 release by `scripts/changelog.sh` (run from the CI release workflow) — do not
 edit by hand.
 
-## v0.1.7
+## v0.1.8
 
 - Released on: 2026-08-16
+
+- fix: first-run database setup in packaged app
+
+## v0.1.7
 
 - feat: copyable error window
 
