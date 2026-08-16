@@ -1,6 +1,6 @@
 {
   "name": "fig-pos-desktop",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "private": true,
   "description": "Fig Mobile POS — Electron desktop app (Windows)",
   "author": "Fig Mobile POS",
