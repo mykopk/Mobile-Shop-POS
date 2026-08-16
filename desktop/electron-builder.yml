@@ -7,6 +7,8 @@ directories:
 files:
   - main.js
   - preload.js
+  - logging.js
+  - loading.html
   - runtime.json
   - package.json
 
