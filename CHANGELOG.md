@@ -4,9 +4,13 @@ All notable changes are documented here. This file is auto-generated on every
 release by `scripts/changelog.sh` (run from the CI release workflow) — do not
 edit by hand.
 
-## v0.1.9
+## v0.1.10
 
-- Released on: 2026-08-16
+- Released on: 2026-08-17
+
+- fix: load better-sqlite3 from a plain native/ folder via NODE_PATH
+
+## v0.1.9
 
 - fix: ship better-sqlite3 native module in the installer
 
