@@ -4,9 +4,13 @@ All notable changes are documented here. This file is auto-generated on every
 release by `scripts/changelog.sh` (run from the CI release workflow) — do not
 edit by hand.
 
-## v0.1.1
+## v0.1.2
 
 - Released on: 2026-08-16
+
+- feat: auto changelog + crash logging for desktop app
+
+## v0.1.1
 
 - No notable changes.
 
