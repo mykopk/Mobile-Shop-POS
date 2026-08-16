@@ -503,6 +503,8 @@ if (!app.requestSingleInstanceLock()) {
       }
     };
 
+    logging.write(`Version ${app.getVersion()} | Electron ${process.versions.electron} | Node ${process.versions.node}`);
+
     if (DEV_ATTACH) {
       // Attach to already-running dev servers (frontend + backend) without
       // spawning anything: e.g. FIG_FRONTEND_URL=http://localhost:3000.
