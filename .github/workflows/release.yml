@@ -119,13 +119,6 @@ jobs:
         working-directory: backend
         run: npm run build:production
 
-      # Bake the crash-report token (from a GitHub secret) into the installer.
-      # The token file is gitignored and never committed.
-      - name: Inject crash-report token
-        env:
-          FIG_GH_TOKEN: ${{ secrets.FIG_GH_TOKEN }}
-        run: printf '%s' "$FIG_GH_TOKEN" > desktop/fig-report-token.txt
-
       - name: Package installer
         working-directory: desktop
         run: npm run dist:win
