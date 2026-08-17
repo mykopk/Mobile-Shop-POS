@@ -51,11 +51,11 @@ export const EXPENSE_SORTS = [
 ] as const;
 
 export const EXPENSE_TEXT = {
-  subtitle: "Shop operating costs — rent, salary, bills and supplies",
+  subtitle: "Shop operating costs including rent, salary, bills and supplies",
   thisMonth: "This month",
   lastMonth: "Last month",
   thisYear: "This year",
-  noData: "No expenses yet — record rent, bills and other running costs here",
+  noData: "No expenses yet. Record rent, bills and other running costs here",
   noMatch: "No expenses match these filters",
   clearFilters: "Clear filters",
   searchPlaceholder: "Search notes, amount or category…",

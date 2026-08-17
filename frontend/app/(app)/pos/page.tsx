@@ -301,7 +301,7 @@ export default function PosPage() {
     const found = await runSearch(q);
     if (found.length === 0) return;
     if (found.length > 1) {
-      toast("Multiple products — tap one to add", "error");
+      toast("Multiple products. Tap one to add", "error");
       return;
     }
     const product = found[0];
@@ -313,7 +313,7 @@ export default function PosPage() {
       addLine(product);
       toast(`${product.brand} ${product.model} added`, "success");
     } else {
-      toast("Multiple units — tap the IMEI", "error");
+      toast("Multiple units. Tap the IMEI", "error");
     }
   }
 
@@ -1070,7 +1070,7 @@ export default function PosPage() {
               {cart.length === 0 && (
                 <tr>
                   <td colSpan={6} className="px-4 py-8 text-center text-sm text-ink-400">
-                    Cart is empty — search and add items.
+                    Cart is empty. Search and add items.
                   </td>
                 </tr>
               )}
@@ -1114,7 +1114,7 @@ export default function PosPage() {
                 />
               ) : (
                 <p className="rounded-2xl bg-ink-100 px-3.5 py-2 text-xs text-ink-500">
-                  No registered bank accounts — add them in Settings.
+                  No registered bank accounts. Add them in Settings.
                 </p>
               )}
             </div>
@@ -1178,7 +1178,7 @@ export default function PosPage() {
                         />
                       ) : (
                         <p className="flex-1 text-xs text-ink-500">
-                          No registered bank accounts — add them in Settings.
+                          No registered bank accounts. Add them in Settings.
                         </p>
                       )}
                       <button
@@ -1413,7 +1413,7 @@ export default function PosPage() {
 
       <Dialog
         open={conflicts !== null}
-        title="Reserved items — different customer"
+        title="Reserved items, different customer"
         message={
           <div className="space-y-3">
             <p>

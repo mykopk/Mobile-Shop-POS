@@ -5,10 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dropdown } from "@/components/ui/dropdown";
 import { Input } from "@/components/ui/input";
+import { UpdaterIcon } from "@/components/icons";
 import { useToast } from "@/components/ui/toast";
 
 type RuntimeConfig = { mode: "local" | "hosted"; hostedUrl: string };
-type ReportConfig = { enabled: boolean; repo: string; hasToken: boolean };
+type ReportConfig = { enabled: boolean; backendUrl: string; hasSecret: boolean };
 
 export function DesktopAppTab() {
   const { toast } = useToast();
@@ -17,8 +18,8 @@ export function DesktopAppTab() {
   const [saving, setSaving] = useState(false);
   const [logs, setLogs] = useState<string[] | null>(null);
   const [report, setReport] = useState<ReportConfig | null>(null);
-  const [reportToken, setReportToken] = useState("");
   const [savingReport, setSavingReport] = useState(false);
+  const [update, setUpdate] = useState<UpdateState | null>(null);
 
   useEffect(() => {
     if (!isElectron) return;
@@ -30,13 +31,19 @@ export function DesktopAppTab() {
       ?.get()
       .then(setReport)
       .catch(() => setReport(null));
+    void window.fig?.update
+      ?.status()
+      .then(setUpdate)
+      .catch(() => setUpdate(null));
+    const off = window.fig?.update?.onStatus?.(setUpdate);
+    return () => off?.();
   }, [isElectron]);
 
   if (!isElectron) {
     return (
       <p className="rounded-2xl bg-ink-50 px-4 py-3 text-sm text-ink-500">
-        This only applies to the desktop app. When running in a browser the app connects to the API
-        configured for the website.
+        This only applies to the desktop app. In a browser the app connects to the server configured for the
+        website.
       </p>
     );
   }
@@ -53,7 +60,7 @@ export function DesktopAppTab() {
         mode: config.mode,
         hostedUrl: config.mode === "hosted" ? config.hostedUrl.trim() : "",
       });
-      toast("Saved — restarting the app…", "success");
+      toast("Saved. Restarting the app…", "success");
     } catch {
       toast("Could not save the mode", "error");
       setSaving(false);
@@ -62,6 +69,16 @@ export function DesktopAppTab() {
 
   return (
     <div className="space-y-4">
+      <div className="flex items-center justify-between rounded-3xl bg-white p-4">
+        <div>
+          <p className="text-sm font-semibold text-ink-900">Fig POS for Mobile Phones</p>
+          <p className="mt-0.5 text-xs text-ink-500">New &amp; used phones · IMEI tracking · Credit &amp; analytics</p>
+        </div>
+        <Button variant="secondary" onClick={() => void window.fig?.about?.open()}>
+          About
+        </Button>
+      </div>
+
       <div className="rounded-3xl bg-white p-4">
         <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Where the app runs from</p>
         <Dropdown
@@ -84,8 +101,8 @@ export function DesktopAppTab() {
         )}
         <div className="mt-3 rounded-2xl bg-ink-50 px-3.5 py-2.5 text-xs text-ink-500">
           {config?.mode === "hosted"
-            ? "The desktop app will open the hosted website and use its backend. Your local data stays on this computer."
-            : "The desktop app starts its own backend + frontend on this computer and keeps data in a local file."}
+            ? "The desktop app will open the hosted website and use it for everything. Your local data stays on this computer."
+            : "The desktop app runs everything on this computer and keeps your data in a local file."}
         </div>
       </div>
 
@@ -100,28 +117,9 @@ export function DesktopAppTab() {
             <Checkbox
               checked={report.enabled}
               onChange={(v) => setReport((r) => (r ? { ...r, enabled: v } : r))}
-              label="Send crash reports to GitHub Issues"
-              description="When the app fails to start or crashes, it opens a GitHub Issue with the error, system info and the last log lines."
+              label="Send crash reports"
+              description="When the app fails to start or crashes, a report with the error details is sent automatically. We handle everything from our side."
             />
-            <div>
-              <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-ink-500">Repository</p>
-              <Input
-                value={report.repo}
-                onChange={(e) => setReport((r) => (r ? { ...r, repo: e.target.value } : r))}
-                placeholder="owner/repo"
-              />
-            </div>
-            <div>
-              <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-ink-500">
-                GitHub token {report.hasToken && <span className="text-ink-400">(saved)</span>}
-              </p>
-              <Input
-                type="password"
-                value={reportToken}
-                onChange={(e) => setReportToken(e.target.value)}
-                placeholder={report.hasToken ? "•••••••• (leave blank to keep current)" : "paste a token with issues:write"}
-              />
-            </div>
             <Button
               variant="grey"
               size="sm"
@@ -129,12 +127,7 @@ export function DesktopAppTab() {
               onClick={async () => {
                 setSavingReport(true);
                 try {
-                  await window.fig?.report?.set({
-                    enabled: report.enabled,
-                    repo: report.repo,
-                    token: reportToken,
-                  });
-                  setReportToken("");
+                  await window.fig?.report?.set({ enabled: report.enabled });
                   const updated = await window.fig?.report?.get();
                   if (updated) setReport(updated);
                   toast("Crash reporting updated", "success");
@@ -148,7 +141,7 @@ export function DesktopAppTab() {
               Save crash reporting
             </Button>
             <p className="rounded-2xl bg-ink-50 px-3.5 py-2.5 text-xs text-ink-500">
-              Use a low-privilege token limited to this repo. Reports appear as Issues on GitHub.
+              The report is sent securely to our team and reviewed automatically. No setup needed on your side.
             </p>
           </div>
         ) : (
@@ -159,17 +152,120 @@ export function DesktopAppTab() {
       </div>
 
       <div className="rounded-3xl bg-white p-4">
-        <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-ink-500">Update &amp; repair</p>
-        <p className="mb-3 text-sm text-ink-600">
-          Checks for a newer version and re-installs it. The standalone updater works even if this
-          app fails to open.
-        </p>
-        <Button variant="grey" onClick={() => void window.fig?.update?.launch()}>
-          Open updater
-        </Button>
+        <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-ink-500">Updates</p>
+        <div className="mb-3 flex items-center gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-500 text-white">
+            <UpdaterIcon className="h-5 w-5" />
+          </span>
+          <div>
+            <p className="text-sm font-semibold text-ink-900">
+              Version {update?.currentVersion ?? "—"}
+            </p>
+            <p className="text-xs text-ink-500">
+              {update?.checking
+                ? "Checking for updates…"
+                : update?.downloading
+                  ? `Downloading update… ${update?.progress ?? 0}%`
+                  : update?.available
+                    ? `A new version (${update.version}) is available`
+                    : update?.downloaded
+                      ? "Update ready to install"
+                      : "You're on the latest version"}
+            </p>
+          </div>
+        </div>
+
+        {update?.available && !update?.downloaded && (
+          <div className="mb-3 rounded-2xl bg-ink-50 p-3">
+            <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-ink-500">
+              What's new in {update.version}
+            </p>
+            {update.releaseNotes ? (
+              <pre className="max-h-40 overflow-auto whitespace-pre-wrap text-xs leading-relaxed text-ink-600">
+                {update.releaseNotes}
+              </pre>
+            ) : (
+              <p className="text-xs text-ink-400">No release notes provided.</p>
+            )}
+          </div>
+        )}
+
+        {update?.downloading && (
+          <div className="mb-3 h-1.5 overflow-hidden rounded-full bg-ink-100">
+            <div
+              className="h-full rounded-full bg-brand-500 transition-all"
+              style={{ width: `${update.progress ?? 0}%` }}
+            />
+          </div>
+        )}
+
+        {update?.error && (
+          <p className="mb-3 rounded-2xl bg-error/10 px-3.5 py-2.5 text-xs font-medium text-error">
+            Could not check for updates: {update.error}
+          </p>
+        )}
+
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="grey"
+            loading={update?.checking}
+            disabled={update?.downloading || update?.downloaded}
+            onClick={async () => {
+              try {
+                const s = await window.fig?.update?.check();
+                if (s) setUpdate(s);
+                if (s?.available) {
+                  toast(`Update available. Version ${s.version}`, "success");
+                } else {
+                  toast("You're on the latest version", "success");
+                }
+              } catch {
+                toast("Could not check for updates", "error");
+              }
+            }}
+          >
+            {update?.available && !update?.downloaded ? "Check again" : "Check for updates"}
+          </Button>
+          {update?.available && !update?.downloaded && (
+            <Button
+              loading={update?.downloading}
+              disabled={update?.checking}
+              onClick={async () => {
+                try {
+                  const s = await window.fig?.update?.download();
+                  if (s) setUpdate(s);
+                  if (s?.downloaded) {
+                    toast(`Update ${s.version} is ready to install`, "success");
+                  } else if (s?.error) {
+                    toast(`Download failed: ${s.error}`, "error");
+                  } else {
+                    toast("Downloading update…", "success");
+                  }
+                } catch {
+                  toast("Could not start the download", "error");
+                }
+              }}
+            >
+              {update?.downloading ? "Downloading…" : "Download & update"}
+            </Button>
+          )}
+          {update?.downloaded && (
+            <Button
+              onClick={() => {
+                void window.fig?.update?.install();
+                toast("Restarting to apply the update…", "success");
+              }}
+            >
+              Restart &amp; update now
+            </Button>
+          )}
+          <Button variant="ghost" onClick={() => void window.fig?.update?.openChangelog()}>
+            View changelog
+          </Button>
+        </div>
         <p className="mt-2 rounded-2xl bg-ink-50 px-3.5 py-2.5 text-xs text-ink-500">
-          If the app itself is broken, run <span className="font-mono">Fig-POS-Updater.exe</span>{" "}
-          directly — it downloads the latest installer and launches it.
+          Updates are downloaded and installed automatically when you quit the app, so you always stay
+          on the latest version without any manual work.
         </p>
       </div>
 
@@ -191,8 +287,8 @@ export function DesktopAppTab() {
           </pre>
         )}
         <p className="mt-2 rounded-2xl bg-ink-50 px-3.5 py-2.5 text-xs text-ink-500">
-          If the app fails to start or closes, the log file explains why. Share its last lines when
-          reporting a problem.
+          If the app ever fails to start or closes, the log file explains why. Share its last lines
+          when reporting a problem.
         </p>
       </div>
     </div>

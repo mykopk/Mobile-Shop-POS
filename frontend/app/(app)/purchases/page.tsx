@@ -853,7 +853,7 @@ export default function PurchasesPage() {
                 {rows.length === 0 && (
                   <tr>
                     <td colSpan={flow === "ACCESSORY" ? 5 : flow === "USED" ? 8 : 5} className="px-5 py-8 text-center text-sm text-ink-400">
-                      No items added yet — pick a product above and press Add.
+                      No items added yet. Pick a product above and press Add.
                     </td>
                   </tr>
                 )}

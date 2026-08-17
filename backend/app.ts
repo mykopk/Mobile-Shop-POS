@@ -29,6 +29,7 @@ import cashSessionRouter from "./endpoints/cash-session/routes";
 import backupRouter from "./endpoints/backup/routes";
 import purchaseOrderRouter from "./endpoints/purchase-order/routes";
 import moneyRouter from "./endpoints/money/routes";
+import feedbackRouter from "./endpoints/feedback/routes";
 
 export function createApp() {
   const app = express();
@@ -76,6 +77,7 @@ export function createApp() {
   app.use("/api/backup", backupRouter);
   app.use("/api/purchase-order", purchaseOrderRouter);
   app.use("/api/money", moneyRouter);
+  app.use("/api/feedback", feedbackRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

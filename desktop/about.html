@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:" />
+    <title>About Fig POS</title>
+    <style>
+      :root {
+  --brand-500: #9b3f68;
+  --brand-600: #853456;
+  --brand-700: #6f2a48;
+  --brand-50: #faf5f7;
+  --ink-50: #faf8f3;
+  --ink-100: #f3efe7;
+  --ink-300: #d3c7b6;
+  --ink-400: #aaa08f;
+  --ink-500: #7d7467;
+  --ink-700: #443f37;
+  --ink-900: #1c1916;
+}
+
+[data-theme="ember"] {
+  --brand-50: #fff1ec;
+  --brand-500: #ff5018;
+  --brand-600: #e84511;
+  --brand-700: #c1380d;
+  --ink-50: #f9f9f9;
+  --ink-100: #f3f3f3;
+  --ink-300: #d4d4d4;
+  --ink-400: #999999;
+  --ink-500: #666666;
+  --ink-700: #333333;
+  --ink-900: #1a1a1a;
+}
+
+[data-theme="ocean"] {
+  --brand-50: #eff6ff;
+  --brand-500: #3b82f6;
+  --brand-600: #2563eb;
+  --brand-700: #1d4ed8;
+  --ink-50: #f8fafc;
+  --ink-100: #f1f5f9;
+  --ink-300: #cbd5e1;
+  --ink-400: #94a3b8;
+  --ink-500: #64748b;
+  --ink-700: #334155;
+  --ink-900: #0f172a;
+}
+
+[data-theme="forest"] {
+  --brand-50: #f0fdf4;
+  --brand-500: #22c55e;
+  --brand-600: #16a34a;
+  --brand-700: #15803d;
+  --ink-50: #fafaf9;
+  --ink-100: #f5f5f4;
+  --ink-300: #d6d3d1;
+  --ink-400: #a8a29e;
+  --ink-500: #78716c;
+  --ink-700: #44403c;
+  --ink-900: #1c1917;
+}
+
+[data-theme="royal"] {
+  --brand-50: #f5f3ff;
+  --brand-500: #8b5cf6;
+  --brand-600: #7c3aed;
+  --brand-700: #6d28d9;
+  --ink-50: #fafaf9;
+  --ink-100: #f5f5f4;
+  --ink-300: #d6d3d1;
+  --ink-400: #a8a29e;
+  --ink-500: #78716c;
+  --ink-700: #44403c;
+  --ink-900: #1c1917;
+}
+
+[data-theme="graphite"] {
+  --brand-50: #f3f6fb;
+  --brand-500: #4a6ba0;
+  --brand-600: #3f5b84;
+  --brand-700: #364c6e;
+  --ink-50: #f6f8fa;
+  --ink-100: #e9eef2;
+  --ink-300: #b6c2cc;
+  --ink-400: #8b98a3;
+  --ink-500: #6b7783;
+  --ink-700: #3d454d;
+  --ink-900: #1a1f24;
+}
+
+[data-theme="sunset"] {
+  --brand-50: #fff7ed;
+  --brand-500: #f97316;
+  --brand-600: #ea580c;
+  --brand-700: #c2410c;
+  --ink-50: #fafaf8;
+  --ink-100: #f4f2ed;
+  --ink-300: #d2cbbd;
+  --ink-400: #a89e8c;
+  --ink-500: #7c7466;
+  --ink-700: #433d34;
+  --ink-900: #1c1915;
+}
+
+[data-theme="rose"] {
+  --brand-50: #fff1f2;
+  --brand-500: #f43f5e;
+  --brand-600: #e11d48;
+  --brand-700: #be123c;
+  --ink-50: #fbfaf8;
+  --ink-100: #f5f2ee;
+  --ink-300: #d4cbc2;
+  --ink-400: #aaa095;
+  --ink-500: #7e756a;
+  --ink-700: #443e37;
+  --ink-900: #1c1916;
+}
+
+[data-theme="ice"] {
+  --brand-50: #ecfeff;
+  --brand-500: #06b6d4;
+  --brand-600: #0891b2;
+  --brand-700: #0e7490;
+  --ink-50: #f8fafc;
+  --ink-100: #f1f5f9;
+  --ink-300: #cbd5e1;
+  --ink-400: #94a3b8;
+  --ink-500: #64748b;
+  --ink-700: #334155;
+  --ink-900: #0f172a;
+}
+
+[data-theme="gold"] {
+  --brand-50: #fffbeb;
+  --brand-500: #f59e0b;
+  --brand-600: #d97706;
+  --brand-700: #b45309;
+  --ink-50: #fdfbf7;
+  --ink-100: #f7f3ea;
+  --ink-300: #d9ccb3;
+  --ink-400: #b09e7e;
+  --ink-500: #84735a;
+  --ink-700: #463c31;
+  --ink-900: #1d1814;
+}
+
+[data-theme="burgundy"] {
+  --brand-50: #fef2f2;
+  --brand-500: #ef4444;
+  --brand-600: #dc2626;
+  --brand-700: #b91c1c;
+  --ink-50: #fbfaf9;
+  --ink-100: #f5f2f0;
+  --ink-300: #d4cbc7;
+  --ink-400: #aaa098;
+  --ink-500: #7f756d;
+  --ink-700: #453e39;
+  --ink-900: #1c1916;
+}
+
+[data-theme="aqua"] {
+  --brand-50: #f0fdfa;
+  --brand-500: #14b8a6;
+  --brand-600: #0d9488;
+  --brand-700: #0f766e;
+  --ink-50: #f8fafc;
+  --ink-100: #f1f5f9;
+  --ink-300: #cbd5e1;
+  --ink-400: #94a3b8;
+  --ink-500: #64748b;
+  --ink-700: #334155;
+  --ink-900: #0f172a;
+}
+
+[data-theme="lilac"] {
+  --brand-50: #f5f3ff;
+  --brand-500: #8b5cf6;
+  --brand-600: #7c3aed;
+  --brand-700: #6d28d9;
+  --ink-50: #fafaf9;
+  --ink-100: #f5f5f4;
+  --ink-300: #d6d3d1;
+  --ink-400: #a8a29e;
+  --ink-500: #78716c;
+  --ink-700: #44403c;
+  --ink-900: #1c1917;
+}
+
+[data-theme="mint"] {
+  --brand-50: #ecfdf5;
+  --brand-500: #10b981;
+  --brand-600: #059669;
+  --brand-700: #047857;
+  --ink-50: #f8fafc;
+  --ink-100: #f1f5f9;
+  --ink-300: #cbd5e1;
+  --ink-400: #94a3b8;
+  --ink-500: #64748b;
+  --ink-700: #334155;
+  --ink-900: #0f172a;
+}
+
+[data-theme="sand"] {
+  --brand-50: #fbf7ef;
+  --brand-500: #c5853a;
+  --brand-600: #b45309;
+  --brand-700: #92400e;
+  --ink-50: #faf9f6;
+  --ink-100: #f3f0ea;
+  --ink-300: #cfc6b6;
+  --ink-400: #a49785;
+  --ink-500: #7c7161;
+  --ink-700: #423c34;
+  --ink-900: #1c1915;
+}
+
+[data-theme="crimson"] {
+  --brand-50: #fef2f2;
+  --brand-500: #ef4444;
+  --brand-600: #dc2626;
+  --brand-700: #b91c1c;
+  --ink-50: #fcfaf9;
+  --ink-100: #f6f2f0;
+  --ink-300: #d5cbc7;
+  --ink-400: #aa9f99;
+  --ink-500: #7f756e;
+  --ink-700: #453e39;
+  --ink-900: #1c1916;
+}
+
+[data-theme="teal"] {
+  --brand-50: #f0fdfa;
+  --brand-500: #14b8a6;
+  --brand-600: #0d9488;
+  --brand-700: #0f766e;
+  --ink-50: #f5f6f7;
+  --ink-100: #e9ecee;
+  --ink-300: #b6c0c3;
+  --ink-400: #8b999d;
+  --ink-500: #6b7a7f;
+  --ink-700: #3d474a;
+  --ink-900: #1a2022;
+}
+
+[data-theme="pink"] {
+  --brand-50: #fdf2f8;
+  --brand-500: #ec4899;
+  --brand-600: #db2777;
+  --brand-700: #be185d;
+  --ink-50: #faf9fb;
+  --ink-100: #f3f1f4;
+  --ink-300: #cfc8d2;
+  --ink-400: #a69ca8;
+  --ink-500: #7e747e;
+  --ink-700: #443e44;
+  --ink-900: #1c191c;
+}
+
+[data-theme="kiwi"] {
+  --brand-50: #f7fee7;
+  --brand-500: #84cc16;
+  --brand-600: #65a30d;
+  --brand-700: #4d7c0f;
+  --ink-50: #fbfaf6;
+  --ink-100: #f4f1e9;
+  --ink-300: #c9bfa4;
+  --ink-400: #a2967a;
+  --ink-500: #7c735c;
+  --ink-700: #423d33;
+  --ink-900: #1a1813;
+}
+
+[data-theme="watermelon"] {
+  --brand-50: #fff1f2;
+  --brand-500: #f43f5e;
+  --brand-600: #e11d48;
+  --brand-700: #be123c;
+  --ink-50: #fdfbf7;
+  --ink-100: #f7f2ec;
+  --ink-300: #cfbfab;
+  --ink-400: #a6987f;
+  --ink-500: #7f7562;
+  --ink-700: #443f35;
+  --ink-900: #1a1813;
+}
+      * { box-sizing: border-box; }
+      html, body {
+        margin: 0;
+        height: 100%;
+        background: transparent;
+        color: #1a1a1f;
+        font-family: "Montserrat", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -webkit-user-select: none;
+        user-select: none;
+        cursor: default;
+        overflow: hidden;
+      }
+      .canvas {
+        position: fixed;
+        inset: 0;
+        overflow: hidden;
+        background: transparent;
+      }
+      .card {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        display: grid;
+        grid-template-columns: 400px 1fr;
+        background: #ffffff;
+        border-radius: 30px;
+        overflow: hidden;
+      }
+      .info {
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        padding: 38px 34px 30px 42px;
+      }
+      .title-block .app-icon {
+        width: 72px; height: 72px;
+        border-radius: 20px;
+        object-fit: cover;
+        display: block;
+        margin-bottom: 18px;
+        -webkit-user-drag: none;
+        user-drag: none;
+      }
+      .app-name {
+        margin: 0;
+        font-size: 42px;
+        font-weight: 800;
+        line-height: 1.02;
+        letter-spacing: -0.03em;
+        color: #1a1a1f;
+      }
+      .app-name .accent { color: #9b3f68; }
+      .app-sub {
+        margin: 10px 0 0;
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: #8a8f9c;
+        line-height: 1.5;
+        max-width: 260px;
+      }
+      .meta {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .meta-row {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        font-size: 12.5px;
+        gap: 16px;
+      }
+      .meta-row .k { color: #a0a5b0; font-weight: 600; }
+      .meta-row .v { color: #443f37; font-weight: 700; }
+
+      .legal .credit {
+        margin: 0 0 6px;
+        font-size: 12px;
+        color: #565b68;
+        font-weight: 500;
+      }
+      .legal .credit b { color: #1a1a1f; font-weight: 700; }
+      .legal .copyright b { color: #565b68; font-weight: 700; }
+      .legal .copyright {
+        margin: 0;
+        font-size: 10.5px;
+        line-height: 1.55;
+        color: #a0a5b0;
+      }
+      .update {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        min-height: 76px;
+      }
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        border-radius: 16px;
+        font-weight: 600;
+        font-size: 14px;
+        font-family: inherit;
+        padding: 10px 18px;
+        border: none;
+        cursor: pointer;
+        transition: background-color 0.15s ease;
+        -webkit-user-select: none;
+        user-select: none;
+      }
+      .btn-primary { background: var(--brand-600); color: #ffffff; }
+      .btn-primary:hover:not(:disabled) { background: var(--brand-700); }
+      .btn-secondary { background: var(--brand-50); color: var(--brand-600); }
+      .btn-secondary:hover:not(:disabled) { background: var(--brand-100); }
+      .btn-grey { background: var(--ink-100); color: var(--ink-700); }
+      .btn-grey:hover:not(:disabled) { background: var(--ink-200); }
+      .btn:disabled { opacity: 0.5; cursor: default; }
+      .update-line {
+        font-size: 12px;
+        color: #565b68;
+        font-weight: 500;
+        min-height: 16px;
+      }
+      .update-line.error { color: #d9534f; }
+      .update-line.good { color: #2f9e44; }
+      .spinner {
+        display: inline-block;
+        width: 14px; height: 14px;
+        border: 2px solid rgba(255,255,255,0.35);
+        border-top-color: #ffffff;
+        border-radius: 50%;
+        animation: spin 0.7s linear infinite;
+      }
+      .spinner.dark {
+        border-color: rgba(0,0,0,0.15);
+        border-top-color: currentColor;
+      }
+      @keyframes spin { to { transform: rotate(360deg); } }
+
+      .art {
+        position: relative;
+        overflow: hidden;
+        background: #f6f3ee;
+      }
+      .art img {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+        -webkit-user-drag: none;
+        user-drag: none;
+      }
+      .close-btn {
+        position: absolute;
+        top: 16px;
+        right: 18px;
+        width: 34px; height: 34px;
+        border-radius: 50%;
+        border: 1px solid rgba(20, 24, 34, 0.1);
+        background: #ffffff;
+        color: #565b68;
+        font-size: 18px;
+        font-family: inherit;
+        line-height: 1;
+        cursor: pointer;
+        box-shadow: 0 2px 8px rgba(20, 24, 34, 0.08);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 6;
+        transition: background-color 0.15s ease, color 0.15s ease;
+      }
+      .close-btn:hover { background: #f3efe7; color: #1a1a1f; }
+    </style>
+  </head>
+  <body>
+    <div class="canvas">
+      <div class="card">
+        <div class="info">
+          <div class="title-block">
+            <img class="app-icon" src="icon.png" alt="" draggable="false" />
+            <p class="app-name">Fig <span class="accent">POS</span></p>
+            <p class="app-sub">New &amp; used phones · IMEI tracking · Credit &amp; analytics</p>
+          </div>
+
+          <div class="meta">
+            <div class="meta-row"><span class="k">Version</span><span class="v" id="ver">–</span></div>
+            <div class="meta-row"><span class="k">Runtime</span><span class="v" id="runtime">–</span></div>
+            <div class="meta-row"><span class="k">Channel</span><span class="v" id="channel">–</span></div>
+          </div>
+
+          <div>
+            <div class="update">
+              <div class="update-line" id="updateLine">Checking for updates…</div>
+              <div id="updateActions">
+                <button class="btn btn-primary" id="btnCheck">Check for updates</button>
+              </div>
+            </div>
+            <div class="legal" style="margin-top: 16px;">
+              <p class="credit">Crafted with care by <b>Wavlon Studio</b>.</p>
+              <p class="copyright">Fig POS is proudly built in Pakistan by <b>MYKO Pvt Ltd</b>.<br/>© 2026 Fig POS. All rights reserved.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="art">
+          <img id="splashImg" src="spalsh_1.png" alt="" draggable="false" />
+          <button class="close-btn" id="closeBtn" title="Close" aria-label="Close">&#10005;</button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      (function () {
+        try {
+          if (window.fig && window.fig.theme && window.fig.theme.get) {
+            window.fig.theme.get().then(function (t) {
+              if (t && /^[a-z0-9]+$/.test(t)) document.documentElement.dataset.theme = t;
+            }).catch(function () {});
+          }
+        } catch (e) {}
+
+        var img = document.getElementById("splashImg");
+        if (img) img.src = "spalsh_2.png";
+
+        var closeBtn = document.getElementById("closeBtn");
+        if (closeBtn) {
+          closeBtn.addEventListener("click", function () {
+            if (window.fig && window.fig.about && window.fig.about.close) window.fig.about.close();
+          });
+        }
+
+        var verEl = document.getElementById("ver");
+        var q = new URLSearchParams(window.location.search);
+        var ver = q.get("v");
+        if (ver) verEl.textContent = "v" + ver;
+        else if (window.fig && window.fig.about && window.fig.about.info) {
+          window.fig.about.info().then(function (info) {
+            if (!info) return;
+            if (!ver && info.version) verEl.textContent = "v" + info.version;
+            if (info.runtime) document.getElementById("runtime").textContent = info.runtime;
+            if (info.channel) document.getElementById("channel").textContent = info.channel;
+          }).catch(function () {});
+        }
+
+        var line = document.getElementById("updateLine");
+        var actions = document.getElementById("updateActions");
+        var btnCheck = document.getElementById("btnCheck");
+
+        function setLine(text, cls) {
+          line.textContent = text;
+          line.className = "update-line" + (cls ? " " + cls : "");
+        }
+
+        function render(state) {
+          if (!state) return;
+          if (state.checking) {
+            setLine("Checking for updates…");
+            actions.innerHTML = '';
+          } else if (state.available && !state.downloaded) {
+            setLine("Version " + (state.newVersion || "") + " is available.");
+            actions.innerHTML = '<button class="btn btn-primary" id="btnDl"><span class="spinner" id="dlSpin" style="display:none"></span><span id="dlTxt">Download update</span></button>';
+            var btnDl = document.getElementById("btnDl");
+            if (btnDl) btnDl.addEventListener("click", function () {
+              document.getElementById("dlSpin").style.display = "inline-block";
+              document.getElementById("dlTxt").textContent = "Downloading…";
+              if (window.fig && window.fig.update) window.fig.update.download();
+            });
+          } else if (state.downloading) {
+            setLine("Downloading update…");
+            actions.innerHTML = '<button class="btn btn-primary" disabled><span class="spinner"></span>Downloading…</button>';
+          } else if (state.downloaded) {
+            setLine("Update ready. Restart to apply.");
+            actions.innerHTML = '<button class="btn btn-primary" id="btnInstall">Restart &amp; install</button>';
+            var btnInstall = document.getElementById("btnInstall");
+            if (btnInstall) btnInstall.addEventListener("click", function () {
+              if (window.fig && window.fig.update) window.fig.update.install();
+            });
+          } else if (state.error) {
+            setLine("Update failed: " + state.error, "error");
+            actions.innerHTML = '';
+            renderActions();
+          } else {
+            setLine("You are on the latest version.", "good");
+            actions.innerHTML = '';
+            renderActions();
+          }
+        }
+
+        function renderActions() {
+          actions.innerHTML = '<button class="btn btn-grey" id="btnCheck2">Check for updates</button>';
+          var b = document.getElementById("btnCheck2");
+          if (b) b.addEventListener("click", function () {
+            if (window.fig && window.fig.update) window.fig.update.check();
+          });
+        }
+
+        if (btnCheck) {
+          btnCheck.addEventListener("click", function () {
+            if (window.fig && window.fig.update) window.fig.update.check();
+          });
+        }
+
+        if (window.fig && window.fig.update && window.fig.update.onStatus) {
+          window.fig.update.onStatus(function (state) { render(state); });
+          window.fig.update.status().then(function (state) { render(state); }).catch(function () {});
+        } else {
+          setLine("Updates are not available in this build.", "good");
+          actions.innerHTML = '';
+        }
+      })();
+    </script>
+  </body>
+</html>

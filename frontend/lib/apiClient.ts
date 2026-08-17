@@ -37,7 +37,7 @@ export async function apiRequest<T>(
     const isWrite = method !== "GET";
     if (isWrite) {
       enqueueQueuedRequest({ path, method: method as "POST" | "PUT" | "PATCH" | "DELETE", body });
-      throw new ApiClientError(0, "offline_queued", "You're offline — this change is saved and will sync when you're back online.");
+      throw new ApiClientError(0, "offline_queued", "You're offline. This change is saved and will sync when you're back online.");
     }
     throw err;
   }

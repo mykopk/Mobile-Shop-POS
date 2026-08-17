@@ -47,7 +47,7 @@ function AgingSection({ side, kind }: { side: AgingSide; kind: "receivable" | "p
 
       {side.rows.length === 0 ? (
         <p className="rounded-2xl bg-white p-6 text-sm text-ink-400">
-          No open balances — nothing aging.
+          No open balances. Nothing aging.
         </p>
       ) : (
         <div className="overflow-hidden rounded-2xl bg-white">
@@ -112,11 +112,11 @@ export default function AgingPage() {
       ) : data ? (
         <>
           <section className="space-y-2">
-            <h3 className="text-sm font-bold text-ink-900">Receivables — money owed to you</h3>
+            <h3 className="text-sm font-bold text-ink-900">Receivables, money owed to you</h3>
             <AgingSection side={data.receivables} kind="receivable" />
           </section>
           <section className="space-y-2">
-            <h3 className="text-sm font-bold text-ink-900">Payables — money you owe</h3>
+            <h3 className="text-sm font-bold text-ink-900">Payables, money you owe</h3>
             <AgingSection side={data.payables} kind="payable" />
           </section>
         </>

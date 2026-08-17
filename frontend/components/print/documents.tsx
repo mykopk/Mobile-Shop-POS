@@ -60,11 +60,12 @@ function ThermalHeader({
   qrType: QrTarget;
 }) {
   if (!options.header) return null;
+  const logo = profile?.logoUrl ?? "/icon.png";
   return (
     <div className="flex items-start justify-between gap-3">
       <div className="min-w-0 flex-1">
-        {profile?.logoUrl && (
-          <img src={profile.logoUrl} alt="" className="mb-2 max-h-14 w-auto object-contain" />
+        {logo && (
+          <img src={logo} alt="" className="mb-2 max-h-14 w-auto object-contain" />
         )}
         <p className="break-words text-base font-bold uppercase tracking-wide text-ink-900">
           {profile?.name ?? APP.nameFull}
@@ -143,8 +144,8 @@ function A4Header({
     <div className="flex items-start justify-between gap-8">
       {options.header ? (
         <div className="max-w-xs">
-          {profile?.logoUrl && (
-            <img src={profile.logoUrl} alt="" className="mb-2 max-h-16 w-auto object-contain" />
+          {(profile?.logoUrl ?? "/icon.png") && (
+            <img src={profile?.logoUrl ?? "/icon.png"} alt="" className="mb-2 max-h-16 w-auto object-contain" />
           )}
           <p className="break-words text-2xl font-bold tracking-tight text-ink-900">
             {profile?.name ?? APP.nameFull}
@@ -590,8 +591,8 @@ export function VoucherDocument({
         <div className="min-w-0 flex-1">
           {options.header && (
             <>
-              {profile?.logoUrl && (
-                <img src={profile.logoUrl} alt="" className="mb-2 max-h-16 w-auto object-contain" />
+              {(profile?.logoUrl ?? "/icon.png") && (
+                <img src={profile?.logoUrl ?? "/icon.png"} alt="" className="mb-2 max-h-16 w-auto object-contain" />
               )}
               <p className="break-words text-base font-bold uppercase tracking-wide text-ink-900">
                 {profile?.name ?? APP.nameFull}
@@ -705,8 +706,8 @@ export function ExpenseVoucherDocument({
         <div className="min-w-0 flex-1">
           {options.header && (
             <>
-              {profile?.logoUrl && (
-                <img src={profile.logoUrl} alt="" className="mb-2 max-h-16 w-auto object-contain" />
+              {(profile?.logoUrl ?? "/icon.png") && (
+                <img src={profile?.logoUrl ?? "/icon.png"} alt="" className="mb-2 max-h-16 w-auto object-contain" />
               )}
               <p className="break-words text-base font-bold uppercase tracking-wide text-ink-900">
                 {profile?.name ?? APP.nameFull}

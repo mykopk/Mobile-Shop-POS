@@ -73,7 +73,7 @@ const EMPTY_BANK: BankForm = {
 const STEPS = ["Store", "Settings", "Banks", "Admin", "Done"] as const;
 
 export default function OnboardingPage() {
-  const { user, status } = useAuth();
+  const { user, status, login } = useAuth();
   const { needsSetup, loading } = useSetupStatus();
   const { toast } = useToast();
   const router = useRouter();
@@ -162,6 +162,12 @@ export default function OnboardingPage() {
         },
       });
       setStep(4);
+      try {
+        await login(admin.username, admin.pin);
+        router.replace("/dashboard");
+      } catch {
+        // auto-login failed — leave them on the done screen to sign in manually
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not complete setup");
       toast(err instanceof Error ? err.message : "Could not complete setup", "error");
@@ -281,7 +287,7 @@ export default function OnboardingPage() {
                       value={company.currency}
                       options={CURRENCIES.map((c) => ({
                         value: c.code,
-                        label: `${c.symbol} — ${c.label} (${c.code})`,
+                        label: `${c.symbol} ${c.label} (${c.code})`,
                       }))}
                       onChange={(v) => setCompany({ ...company, currency: v })}
                       placeholder="Select currency…"
@@ -509,7 +515,7 @@ function Field({
     <div>
       <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-ink-500">
         {label}
-        {hint && <span className="font-normal normal-case tracking-normal text-ink-400"> — {hint}</span>}
+        {hint && <span className="font-normal normal-case tracking-normal text-ink-400">: {hint}</span>}
       </label>
       {children}
     </div>

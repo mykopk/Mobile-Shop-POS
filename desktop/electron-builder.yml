@@ -1,5 +1,5 @@
 appId: com.fig.pos
-productName: Fig Mobile POS
+productName: Fig POS
 directories:
   output: release
   buildResources: build
@@ -10,6 +10,10 @@ files:
   - logging.js
   - report.js
   - loading.html
+  - about.html
+  - icon.png
+  - spalsh_1.png
+  - spalsh_2.png
   - error.html
   - runtime.json
   - package.json
@@ -36,7 +40,7 @@ publish:
   owner: mykopk
   repo: Mobile-Shop-POS
 
-# Windows + macOS are both supported targets.
+# Windows is the only release target. macOS is not built or released.
 win:
   target:
     - nsis
@@ -47,14 +51,3 @@ nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
   perMachine: false
-
-mac:
-  target:
-    - dmg
-    - zip
-  icon: build/icon.icns
-  category: public.app-category.business
-  artifactName: ${productName}-${version}-mac.${ext}
-
-dmg:
-  title: ${productName} ${version}

@@ -204,7 +204,7 @@ export default function ReservationsPage() {
     const found = await runSearch(q);
     if (found.length === 0) return;
     if (found.length > 1) {
-      toast("Multiple products — tap one to add", "error");
+      toast("Multiple products. Tap one to add", "error");
       return;
     }
     const product = found[0];
@@ -216,7 +216,7 @@ export default function ReservationsPage() {
       addLine(product);
       toast(`${product.brand} ${product.model} added`, "success");
     } else {
-      toast("Multiple units — tap the IMEI", "error");
+      toast("Multiple units. Tap the IMEI", "error");
     }
   }
 
@@ -391,8 +391,8 @@ export default function ReservationsPage() {
             className="mt-4 w-full justify-center rounded-lg px-2 py-1"
           >
             {reservation.type === "CONSIGNMENT"
-              ? `ON CONSIGNMENT — OUT WITH ${reservation.contact.name.toUpperCase()}`
-              : "RESERVED — advance collected"}
+              ? `ON CONSIGNMENT · OUT WITH ${reservation.contact.name.toUpperCase()}`
+              : "RESERVED · advance collected"}
           </Badge>
           <div className="my-4" />
           <p className="text-xs">{reservation.contact.name}</p>
@@ -459,7 +459,7 @@ export default function ReservationsPage() {
         f: "CONSIGNMENT" as const,
         icon: <SmartphoneIcon className="h-8 w-8 text-white" />,
         title: "Send on Consignment",
-        desc: "Another shopkeeper takes the phone out — collect payment when it sells, or take it back",
+        desc: "Another shopkeeper takes the phone out. Collect payment when it sells, or take it back",
         accent: "bg-ink-800",
       },
     ];
@@ -803,7 +803,7 @@ export default function ReservationsPage() {
             {cart.length === 0 && (
               <tr>
                 <td colSpan={5} className="px-4 py-8 text-center text-sm text-ink-400">
-                  Cart is empty — search and add items.
+                  Cart is empty. Search and add items.
                 </td>
               </tr>
             )}
@@ -816,7 +816,7 @@ export default function ReservationsPage() {
           <div className="min-w-0 flex-1">
             {flow === "CONSIGNMENT" ? (
               <p className="max-w-xs rounded-2xl bg-ink-50 px-4 py-3 text-xs font-medium text-ink-500">
-                Phone leaves the shop — collect payment when it sells.
+                Phone leaves the shop. Collect payment when it sells.
               </p>
             ) : (
               <div className="max-w-64">

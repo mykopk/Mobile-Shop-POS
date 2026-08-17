@@ -17,7 +17,7 @@ export default function ProfitReportPage() {
     <div className="space-y-4">
       <div>
         <h2 className="text-lg font-bold text-ink-900">Profit report</h2>
-        <p className="text-xs text-ink-500">Revenue against cost of goods and expenses — by day, brand, model and condition.</p>
+        <p className="text-xs text-ink-500">Revenue against cost of goods and expenses, broken down by day, brand, model and condition.</p>
       </div>
 
       <PeriodPicker value={range} onChange={setRange} />

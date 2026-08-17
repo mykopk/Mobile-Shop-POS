@@ -206,7 +206,7 @@ export function ContactForm({
                 </li>
               ))}
             </ul>
-            <p className="mt-1 text-amber-800/80">Double-check before saving — this may be a duplicate.</p>
+            <p className="mt-1 text-amber-800/80">Double-check before saving. This may be a duplicate.</p>
           </div>
         ) : null}
         <div>

@@ -113,7 +113,7 @@ export default function MoneyReportPage() {
         <div>
           <h2 className="text-lg font-bold text-ink-900">Money & bank balances</h2>
           <p className="text-xs text-ink-500">
-            What you actually hold — cash in hand, money in each bank, pending card, and outstanding credit.
+            What you actually hold, including cash in hand, money in each bank, pending card, and outstanding credit.
           </p>
         </div>
         {canWrite && (
@@ -141,7 +141,7 @@ export default function MoneyReportPage() {
             <KpiCard
               label="Pending card"
               value={formatPKR(overview.pendingCard)}
-              sub="Card sales not yet settled — record it under “Settle card” when the bank pays out"
+              sub="Card sales not yet settled. Record it under “Settle card” when the bank pays out"
             />
             <KpiCard
               label="Outstanding credit"

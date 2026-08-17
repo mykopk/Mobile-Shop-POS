@@ -1,6 +1,6 @@
 "use strict";
 
-const { app, BrowserWindow, clipboard, dialog, ipcMain, shell } = require("electron");
+const { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, shell } = require("electron");
 const { spawn } = require("node:child_process");
 const { randomBytes } = require("node:crypto");
 const fs = require("node:fs");
@@ -10,7 +10,13 @@ const logging = require("./logging");
 const report = require("./report");
 const { autoUpdater } = require("electron-updater");
 
+app.setName("Fig POS for Mobile Phones");
+
 const ROOT = path.resolve(__dirname, "..");
+const APP_ICON =
+  process.platform === "darwin"
+    ? path.join(__dirname, "build", "icon.iconset", "icon_512x512.png")
+    : path.join(__dirname, "build", "icon.ico");
 const PROD_DIR = path.join(ROOT, "production");
 const PROD_BACKEND = path.join(PROD_DIR, "backend");
 const PROD_FRONTEND = path.join(PROD_DIR, "frontend");
@@ -46,52 +52,125 @@ const DEV_ATTACH = process.argv.includes("--dev");
 const BACKEND_PORT = Number(process.env.FIG_BACKEND_PORT || 4701);
 const FRONTEND_PORT = Number(process.env.FIG_FRONTEND_PORT || 3100);
 
-const DEFAULT_RUNTIME = { mode: "local", hostedUrl: "", report: { enabled: true, token: "", repo: "" } };
+const DEFAULT_RUNTIME = { mode: "local", hostedUrl: "", theme: "fig", report: { enabled: true, backendUrl: "", secret: "" } };
 
 const children = new Set();
 let mainWindow = null;
+let aboutWindow = null;
 
 // ---------------------------------------------------------------------------
-// OTA self-update. Installed builds check GitHub Releases once at startup,
-// download any newer version in the background, and install on quit so the
-// user never has to re-download the installer.
+// OTA self-update. Installed builds check GitHub Releases, download any newer
+// version, and install on quit. State is tracked here so the Settings → Update
+// panel can show current version, check for updates, view the changelog and
+// trigger download/install from inside the app.
 // ---------------------------------------------------------------------------
-function checkForUpdates() {
-  autoUpdater.autoDownload = true;
-  autoUpdater.autoInstallOnAppQuit = true;
-  autoUpdater.on("checking-for-update", () => logging.write("OTA: checking for updates…"));
-  autoUpdater.on("update-available", (info) =>
-    logging.write(`OTA: update available (${info.version}) — downloading…`)
-  );
-  autoUpdater.on("update-not-available", (info) =>
-    logging.write(`OTA: no update available (latest ${info.version}).`)
-  );
-  autoUpdater.on("update-downloaded", (info) => {
-    logging.write(`OTA: update ${info.version} downloaded — will install on quit.`);
-    try {
-      dialog.showMessageBox(mainWindow, {
-        type: "info",
-        buttons: ["Restart & update now", "Later"],
-        defaultId: 0,
-        cancelId: 1,
-        title: "Fig Mobile POS — Update ready",
-        message: `Version ${info.version} is ready to install.`,
-        detail: "Restart now to apply the update, or choose Later to install it the next time you quit the app.",
-      }).then(({ response }) => {
-        if (response === 0) {
-          autoUpdater.quitAndInstall();
-        }
-      }).catch(() => {});
-    } catch (e) {
-      logging.error("OTA: could not show update dialog: " + e.message);
-    }
-  });
-  autoUpdater.on("error", (err) => logging.error("OTA: " + (err && err.message ? err.message : err)));
+const updateState = {
+  available: false,
+  checking: false,
+  downloading: false,
+  downloaded: false,
+  version: "",
+  releaseNotes: "",
+  progress: 0,
+  error: "",
+};
 
-  autoUpdater.checkForUpdates().catch((err) =>
-    logging.write(`OTA: check failed (silent): ${err.message}`)
-  );
+function updateSnapshot() {
+  return {
+    currentVersion: app.getVersion(),
+    available: updateState.available,
+    checking: updateState.checking,
+    downloading: updateState.downloading,
+    downloaded: updateState.downloaded,
+    version: updateState.version,
+    releaseNotes: updateState.releaseNotes,
+    progress: updateState.progress,
+    error: updateState.error,
+  };
 }
+
+function pushUpdateState() {
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (!win.isDestroyed()) win.webContents.send("update:status", updateSnapshot());
+  }
+}
+
+function checkForUpdates() {
+  if (!app.isPackaged) return;
+  updateState.checking = true;
+  updateState.error = "";
+  pushUpdateState();
+  autoUpdater.autoDownload = false;
+  autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.checkForUpdates().then((result) => {
+    const info = result && result.updateInfo;
+    if (!info) return;
+    updateState.version = info.version || "";
+    updateState.releaseNotes = info.releaseNotes ? String(info.releaseNotes) : "";
+  }).catch((err) => {
+    updateState.error = err && err.message ? err.message : String(err);
+    logging.error(`OTA: check failed: ${updateState.error}`);
+  }).finally(() => {
+    updateState.checking = false;
+    pushUpdateState();
+  });
+}
+
+autoUpdater.on("checking-for-update", () => logging.write("OTA: checking for updates…"));
+
+autoUpdater.on("update-available", (info) => {
+  updateState.available = true;
+  updateState.downloaded = false;
+  updateState.version = info.version || "";
+  updateState.releaseNotes = info.releaseNotes ? String(info.releaseNotes) : "";
+  logging.write(`OTA: update available (${info.version}).`);
+  pushUpdateState();
+});
+
+autoUpdater.on("update-not-available", () => {
+  updateState.available = false;
+  updateState.version = "";
+  logging.write(`OTA: no update available.`);
+  pushUpdateState();
+});
+
+autoUpdater.on("download-progress", (p) => {
+  updateState.downloading = true;
+  updateState.progress = typeof p.percent === "number" ? Math.round(p.percent) : 0;
+  pushUpdateState();
+});
+
+autoUpdater.on("update-downloaded", (info) => {
+  updateState.downloading = false;
+  updateState.downloaded = true;
+  updateState.progress = 100;
+  logging.write(`OTA: update ${info.version} downloaded — will install on quit.`);
+  pushUpdateState();
+  try {
+    dialog.showMessageBox(mainWindow, {
+      type: "info",
+      buttons: ["Restart & update now", "Later"],
+      defaultId: 0,
+      cancelId: 1,
+      title: "Fig POS for Mobile Phones. Update ready",
+      message: `Version ${info.version} is ready to install.`,
+      detail: "Restart now to apply the update, or choose Later to install it the next time you quit the app.",
+    }).then(({ response }) => {
+      if (response === 0) {
+        autoUpdater.quitAndInstall();
+      }
+    }).catch(() => {});
+  } catch (e) {
+    logging.error("OTA: could not show update dialog: " + e.message);
+  }
+});
+
+autoUpdater.on("error", (err) => {
+  const msg = err && err.message ? err.message : String(err);
+  updateState.error = msg;
+  logging.error("OTA: " + msg);
+  pushUpdateState();
+});
 
 // ---------------------------------------------------------------------------
 // Logging + crash surfacing. Everything is written to a log file in the
@@ -122,26 +201,36 @@ function buildReport(err) {
   return body;
 }
 
-// Send a crash report to GitHub Issues. Opt-in via Settings; the token is never
-// hardcoded. Fire-and-forget and fully silent — the user is never told an Issue
-// was opened.
+// Send a crash report to the backend, which forwards it to GitHub Issues
+// server-side (the GitHub token never ships with the app). Opt-in via Settings.
+// Fire-and-forget and fully silent — the user is never told an Issue was opened.
 function sendReport(title, err) {
   const cfg = loadRuntime();
   if (!cfg.report || !cfg.report.enabled) return;
+  const backendUrl = cfg.report.backendUrl || `http://localhost:${BACKEND_PORT}`;
   report
-    .submit({ cfg: cfg.report, title: `[Crash] ${title}`, body: buildReport(err) })
+    .submit({
+      cfg: { ...cfg.report, backendUrl },
+      title: `[Crash] ${title}`,
+      body: buildReport(err),
+      meta: {
+        version: app.getVersion(),
+        platform: `${process.platform} ${process.arch}`,
+        logTail: logging.tail(50).join("\n"),
+      },
+    })
     .catch((e) => logging.write(`[report] failed (silent): ${e.message}`));
 }
 
 // Store the latest error so the error window can fetch it and let the user copy it.
 let lastErrorDetail = "";
-let lastErrorTitle = "Fig Mobile POS encountered an error";
+let lastErrorTitle = "Fig POS for Mobile Phones encountered an error";
 
 // Show a small window with the error, selectable text, and a Copy button — the
 // OS dialog's text is not copyable. A crash report is sent first (silently).
 function fatalDialog(title, err) {
   sendReport(title, err);
-  lastErrorTitle = title || "Fig Mobile POS encountered an error";
+  lastErrorTitle = title || "Fig POS for Mobile Phones encountered an error";
   const logPath = logging.getPath();
   lastErrorDetail =
     `${String(err && err.stack ? err.stack : err)}\n\n` +
@@ -151,7 +240,7 @@ function fatalDialog(title, err) {
       width: 560,
       height: 480,
       resizable: true,
-      title: "Fig Mobile POS — Error",
+      title: "Fig POS for Mobile Phones. Error",
       backgroundColor: "#f6f5f2",
       webPreferences: {
         preload: path.join(__dirname, "preload.js"),
@@ -168,7 +257,7 @@ function fatalDialog(title, err) {
 
 process.on("uncaughtException", (err) => {
   logging.error("Uncaught exception: " + (err && err.stack ? err.stack : err));
-  fatalDialog("Fig Mobile POS crashed", err);
+  fatalDialog("Fig POS for Mobile Phones crashed", err);
   app.exit(1);
 });
 
@@ -218,6 +307,16 @@ function getSecret() {
   fs.mkdirSync(userDataDir(), { recursive: true });
   fs.writeFileSync(f, s, { mode: 0o600 });
   return s;
+}
+
+// GitHub token for crash reporting. Provided via the FIG_GH_TOKEN env var
+// (development/CI) and passed to the backend so reports can be opened as Issues
+// server-side. Never shipped with the app.
+function getGhToken() {
+  if (process.env.FIG_GH_TOKEN && process.env.FIG_GH_TOKEN.trim()) {
+    return process.env.FIG_GH_TOKEN.trim();
+  }
+  return "";
 }
 
 // The database always lives in the OS user-data dir — the same in dev and in a
@@ -299,6 +398,9 @@ function spawnBackend() {
     AUTO_BACKUP_ON_START: process.env.FIG_AUTO_BACKUP || "true",
     BACKUP_INTERVAL_HOURS: process.env.FIG_BACKUP_INTERVAL_HOURS || "24",
     BACKUP_RETENTION: process.env.FIG_BACKUP_RETENTION || "14",
+    FIG_GH_TOKEN: getGhToken(),
+    FIG_GH_REPO: process.env.FIG_GH_REPO || "mykopk/Mobile-Shop-POS",
+    FIG_FEEDBACK_SECRET: process.env.FIG_FEEDBACK_SECRET || "",
     FIG_DESKTOP: "1",
   };
 
@@ -395,16 +497,48 @@ function track(child) {
 // ---------------------------------------------------------------------------
 // Loading screen shown immediately while DB setup + servers boot. It swaps to
 // the real app URL once everything is healthy, so first run never looks dead.
+function lockZoom(win) {
+  if (!win || !win.webContents) return;
+  const wc = win.webContents;
+  wc.setZoomFactor(1);
+  wc.on("zoom-changed", (event, direction) => {
+    event.preventDefault();
+    wc.setZoomFactor(1);
+  });
+}
+
+// Disable developer access on a window: no DevTools, no reload/force-reload
+// (keyboard shortcuts, right-click menu, and the menu bar entries).
+function hardenWindow(win) {
+  if (!win || !win.webContents) return;
+  const wc = win.webContents;
+  lockZoom(win);
+  wc.on("before-input-event", (event, input) => {
+    const mod = input.meta || input.control;
+    if (input.type !== "keyDown") return;
+    const key = (input.key || "").toLowerCase();
+    if (mod && key === "r") event.preventDefault();
+    if (mod && key === "j") event.preventDefault();
+    if (mod && key === "i") event.preventDefault();
+  });
+  wc.on("devtools-opened", () => {
+    wc.closeDevTools();
+  });
+}
+
 function createLoadingWindow() {
   const win = new BrowserWindow({
-    width: 420,
-    height: 320,
+    width: 1000,
+    height: 620,
     resizable: false,
     minimizable: false,
     maximizable: false,
     frame: false,
-    title: "Fig Mobile POS",
-    backgroundColor: "#f6f5f2",
+    transparent: true,
+    hasShadow: true,
+    icon: APP_ICON,
+    title: "Fig POS for Mobile Phones",
+    backgroundColor: "#00000000",
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
@@ -412,8 +546,125 @@ function createLoadingWindow() {
       sandbox: true,
     },
   });
-  win.loadFile(path.join(__dirname, "loading.html"));
+  win.loadFile(path.join(__dirname, "loading.html"), { query: { v: app.getVersion() } });
+  hardenWindow(win);
+  win.webContents.setWindowOpenHandler(({ url: u }) => {
+    if (/^https?:\/\//.test(u)) shell.openExternal(u);
+    return { action: "deny" };
+  });
   return win;
+}
+
+function setupAppMenu() {
+  const isMac = process.platform === "darwin";
+  const template = [
+    ...(isMac
+      ? [
+          {
+            label: app.name,
+            submenu: [
+              { label: "About Fig POS", click: () => openAboutWindow() },
+              { type: "separator" },
+              { role: "hide" },
+              { role: "hideOthers" },
+              { role: "unhide" },
+              { type: "separator" },
+              { role: "quit" },
+            ],
+          },
+        ]
+      : []),
+    {
+      label: "View",
+      submenu: [
+        { role: "reload" },
+        { type: "separator" },
+        { role: "togglefullscreen" },
+      ],
+    },
+    {
+      role: "window",
+      submenu: [{ role: "minimize" }, { role: "close" }],
+    },
+    {
+      role: "help",
+      submenu: [
+        {
+          label: "Help & documentation",
+          click: () => openHelp(),
+        },
+        { type: "separator" },
+        { label: "Getting started", click: () => openHelp("getting-started") },
+        { label: "Dashboard", click: () => openHelp("dashboard") },
+        { label: "Sales & POS", click: () => openHelp("sales") },
+        { label: "Stock & inventory", click: () => openHelp("stock") },
+        { label: "Products", click: () => openHelp("products") },
+        { label: "Purchases", click: () => openHelp("purchases") },
+        { label: "Contacts & credit", click: () => openHelp("people") },
+        { label: "Reservations & vouchers", click: () => openHelp("reservations") },
+        { label: "Money & expenses", click: () => openHelp("money") },
+        { label: "Reports", click: () => openHelp("reports") },
+        { label: "Printing", click: () => openHelp("printing") },
+        { label: "Settings", click: () => openHelp("settings") },
+        { label: "Backup & data", click: () => openHelp("backup-data") },
+        { label: "Troubleshooting", click: () => openHelp("troubleshooting") },
+        { label: "Contact & support", click: () => openHelp("contact-support") },
+        { type: "separator" },
+        {
+          label: "About Fig POS",
+          click: () => openAboutWindow(),
+        },
+      ],
+    },
+  ];
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
+
+function openHelp(section) {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  const base = mainWindow.webContents.getURL();
+  const url = new URL(base);
+  url.pathname = "/help";
+  if (section) url.search = `?section=${section}`;
+  mainWindow.loadURL(url.toString());
+  mainWindow.show();
+  mainWindow.focus();
+}
+
+function openAboutWindow() {
+  if (aboutWindow && !aboutWindow.isDestroyed()) {
+    aboutWindow.focus();
+    return aboutWindow;
+  }
+  aboutWindow = new BrowserWindow({
+    width: 1000,
+    height: 620,
+    resizable: false,
+    minimizable: false,
+    maximizable: false,
+    frame: false,
+    transparent: true,
+    hasShadow: true,
+    icon: APP_ICON,
+    title: "About Fig POS",
+    backgroundColor: "#00000000",
+    webPreferences: {
+      preload: path.join(__dirname, "preload.js"),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  });
+  aboutWindow.loadFile(path.join(__dirname, "about.html"), { query: { v: app.getVersion() } });
+  hardenWindow(aboutWindow);
+  aboutWindow.webContents.setWindowOpenHandler(({ url: u }) => {
+    if (/^https?:\/\//.test(u)) shell.openExternal(u);
+    return { action: "deny" };
+  });
+  aboutWindow.on("closed", () => {
+    aboutWindow = null;
+  });
+  return aboutWindow;
 }
 
 function createWindow(url) {
@@ -423,7 +674,8 @@ function createWindow(url) {
     height: 860,
     minWidth: 960,
     minHeight: 600,
-    title: "Fig Mobile POS",
+    icon: APP_ICON,
+    title: "Fig POS for Mobile Phones",
     backgroundColor: "#f6f5f2",
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
@@ -435,6 +687,7 @@ function createWindow(url) {
 
   mainWindow.loadURL(url);
 
+  hardenWindow(mainWindow);
   mainWindow.webContents.setWindowOpenHandler(({ url: u }) => {
     if (/^https?:\/\//.test(u)) shell.openExternal(u);
     return { action: "deny" };
@@ -493,9 +746,18 @@ if (!app.requestSingleInstanceLock()) {
 
   ipcMain.handle("runtime:get", () => loadRuntime());
 
+  ipcMain.handle("theme:get", () => loadRuntime().theme || "fig");
+
+  ipcMain.handle("theme:set", (_event, theme) => {
+    const rt = loadRuntime();
+    const next = /^[a-z0-9]+$/.test(String(theme || "")) ? String(theme) : "fig";
+    saveRuntime({ ...rt, theme: next });
+    return next;
+  });
+
   ipcMain.handle("report:get", () => {
     const r = loadRuntime().report || {};
-    return { enabled: Boolean(r.enabled), repo: r.repo || "", hasToken: Boolean(r.token) };
+    return { enabled: Boolean(r.enabled), backendUrl: r.backendUrl || "", hasSecret: Boolean(r.secret) };
   });
 
   ipcMain.handle("report:set", (_event, cfg) => {
@@ -503,14 +765,23 @@ if (!app.requestSingleInstanceLock()) {
     const next = rt.report || {};
     const clean = {
       enabled: Boolean(cfg && cfg.enabled),
-      repo: cfg && cfg.repo ? String(cfg.repo).trim() : "",
-      token: cfg && cfg.token ? String(cfg.token).trim() : next.token || "",
+      backendUrl: cfg && cfg.backendUrl ? String(cfg.backendUrl).trim() : "",
+      secret: cfg && cfg.secret ? String(cfg.secret).trim() : next.secret || "",
     };
     saveRuntime({ ...rt, report: clean });
-    return { enabled: clean.enabled, repo: clean.repo, hasToken: Boolean(clean.token) };
+    return { enabled: clean.enabled, backendUrl: clean.backendUrl, hasSecret: Boolean(clean.secret) };
   });
 
   ipcMain.handle("logs:get", () => logging.tail(500));
+
+  ipcMain.handle("dialog:pick-directory", async () => {
+    const result = await dialog.showOpenDialog(mainWindow ?? undefined, {
+      title: "Choose a backup folder",
+      properties: ["openDirectory", "createDirectory"],
+    });
+    if (result.canceled || result.filePaths.length === 0) return null;
+    return result.filePaths[0];
+  });
 
   ipcMain.handle("logs:open", () => {
     const dir = path.dirname(logging.getPath() || "");
@@ -518,22 +789,53 @@ if (!app.requestSingleInstanceLock()) {
     return true;
   });
 
-  // Launch the standalone updater if it sits next to the app; otherwise open
-  // the GitHub releases page where Fig-POS-Updater.exe can be downloaded.
-  ipcMain.handle("update:launch", () => {
-    try {
-      const dir = path.dirname(process.execPath);
-      const updater = fs.readdirSync(dir).find((f) => /^Fig-POS-Updater-.*\.exe$/i.test(f));
-      if (updater) {
-        spawn(path.join(dir, updater), [], { detached: true, stdio: "ignore" }).unref();
-        return { launched: true };
-      }
-    } catch {
-      /* ignore */
+  // In-app update controls: current status, trigger a check, download an
+  // available update, apply a downloaded one, or open the release page.
+  ipcMain.handle("update:status", () => updateSnapshot());
+
+  ipcMain.handle("update:check", () => {
+    if (!updateState.checking) {
+      autoUpdater.checkForUpdates().catch((err) =>
+        logging.write(`OTA: manual check failed (silent): ${err.message}`)
+      );
     }
-    shell.openExternal("https://github.com/mykopk/Mobile-Shop-POS/releases/latest");
-    return { launched: false };
+    return updateSnapshot();
   });
+
+  ipcMain.handle("update:download", () => {
+    if (!updateState.available || updateState.downloaded) return updateSnapshot();
+    updateState.downloading = true;
+    pushUpdateState();
+    autoUpdater.downloadUpdate().catch((err) => {
+      updateState.downloading = false;
+      updateState.error = err && err.message ? err.message : String(err);
+      pushUpdateState();
+    });
+    return updateSnapshot();
+  });
+
+  ipcMain.handle("update:install", () => {
+    if (updateState.downloaded) autoUpdater.quitAndInstall();
+    return updateSnapshot();
+  });
+
+  ipcMain.handle("update:open-changelog", () => {
+    shell.openExternal("https://github.com/mykopk/Mobile-Shop-POS/releases/latest");
+    return true;
+  });
+
+  ipcMain.handle("about:open", () => openAboutWindow());
+
+  ipcMain.handle("about:close", () => {
+    if (aboutWindow && !aboutWindow.isDestroyed()) aboutWindow.close();
+    return true;
+  });
+
+  ipcMain.handle("about:info", () => ({
+    version: app.getVersion(),
+    runtime: `Electron ${process.versions.electron} · Node ${process.versions.node}`,
+    channel: app.isPackaged ? "stable" : "dev",
+  }));
 
   ipcMain.handle("error:get", () => lastErrorDetail);
 
@@ -558,6 +860,9 @@ if (!app.requestSingleInstanceLock()) {
   });
 
   app.whenReady().then(async () => {
+    if (process.platform === "darwin" && app.dock) {
+      app.dock.setIcon(APP_ICON);
+    }
     const cfg = loadRuntime();
     let url;
 
@@ -581,7 +886,7 @@ if (!app.requestSingleInstanceLock()) {
     } else if (cfg.mode === "hosted") {
       if (!/^https?:\/\//.test(cfg.hostedUrl)) {
         logging.error("Hosted mode is selected but the URL is missing/invalid.");
-        fatalDialog("Fig Mobile POS could not start", "Hosted mode is selected but the URL is missing/invalid. Open Settings in local mode to fix it.");
+        fatalDialog("Fig POS for Mobile Phones could not start", "Hosted mode is selected but the URL is missing/invalid. Open Settings in local mode to fix it.");
         app.exit(1);
         return;
       }
@@ -609,7 +914,7 @@ if (!app.requestSingleInstanceLock()) {
       } catch (err) {
         logging.error("Frontend/backend did not come up in time: " + (err && err.stack ? err.stack : err));
         setStatus("Servers did not start in time.");
-        fatalDialog("Fig Mobile POS could not start", err);
+        fatalDialog("Fig POS for Mobile Phones could not start", err);
         app.exit(1);
         return;
       }
@@ -617,7 +922,19 @@ if (!app.requestSingleInstanceLock()) {
 
     // Open the real (framed) app window, then dismiss the loading screen.
     createWindow(url);
-    if (!loadingWin.isDestroyed()) loadingWin.close();
+    setupAppMenu();
+    if (!loadingWin.isDestroyed() && process.env.FIG_STAY_ON_LOADING !== "1") loadingWin.close();
+
+    // Temporary dev aid: when staying on the loading window, reload it whenever
+    // loading.html changes so styling/layout edits show up without relaunching.
+    if (process.env.FIG_STAY_ON_LOADING === "1") {
+      const loadingHtml = path.join(__dirname, "loading.html");
+      fs.watchFile(loadingHtml, { interval: 500 }, () => {
+        if (!loadingWin.isDestroyed()) {
+          loadingWin.reload();
+        }
+      });
+    }
 
     // OTA: silently check for a newer release and auto-install on quit.
     // Only meaningful for installed builds — skip the unpacked/no-install test

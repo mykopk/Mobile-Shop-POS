@@ -77,7 +77,7 @@ export default function LedgerPage() {
           <ReportCard>
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">
-                {data.contact.name} — ledger
+                {data.contact.name} ledger
               </p>
               <p className="text-xs text-ink-400">
                 Positive balance = contact owes you · negative = you owe the contact

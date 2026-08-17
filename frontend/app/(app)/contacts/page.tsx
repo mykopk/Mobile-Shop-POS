@@ -255,7 +255,7 @@ export default function ContactsPage() {
       setConfirmDeleteOne(null);
       refetch();
       if (result.blocked.length > 0) {
-        toast("Can't delete — this contact has transactions", "error");
+        toast("Can't delete. This contact has transactions", "error");
       } else {
         toast("Contact deleted", "success");
       }
@@ -652,7 +652,7 @@ export default function ContactsPage() {
 
       <Sheet
         open={!!documentsContact}
-        title={documentsContact ? `${documentsContact.name} — documents` : ""}
+        title={documentsContact ? `${documentsContact.name} documents` : ""}
         onClose={() => setDocumentsContact(null)}
         width="max-w-lg"
       >

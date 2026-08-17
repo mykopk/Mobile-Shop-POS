@@ -7,7 +7,6 @@ import { seedBrands } from "./endpoints/brand/seed";
 import { seedCategories } from "./endpoints/category/seed";
 import { seedColors } from "./endpoints/color/seed";
 import { scheduleBackups } from "./core/lib/backup";
-import { checkWeakPins } from "./core/lib/security";
 
 const app = createApp();
 
@@ -31,7 +30,6 @@ async function bootstrap() {
   });
 
   scheduleBackups();
-  void checkWeakPins();
 
   function shutdown(signal: string) {
     console.log(`${signal} received, shutting down...`);

@@ -283,8 +283,8 @@ export function VoucherForm({
               ) : (
                 <p className="rounded-2xl bg-ink-100 px-3.5 py-2 text-xs text-ink-500">
                   {method === "CARD"
-                    ? "No registered bank accounts — card money will go to cash. Add banks in Settings."
-                    : "No registered bank accounts — add them in Settings."}
+                    ? "No registered bank accounts. Card money will go to cash. Add banks in Settings."
+                    : "No registered bank accounts. Add them in Settings."}
                 </p>
               )}
             </Field>
@@ -343,7 +343,7 @@ function VoucherPreview({
   const accent = "border-brand-200 bg-brand-50/60 text-brand-700";
   const value = parseFloat(amount) || 0;
   const effect = !contact
-    ? "Pick a contact — the voucher is recorded against them."
+    ? "Pick a contact. The voucher is recorded against them."
     : receiving
       ? `Lowers ${contact.name}'s balance by ${formatPKR(value)}.`
       : `Raises ${contact.name}'s balance by ${formatPKR(value)}.`;

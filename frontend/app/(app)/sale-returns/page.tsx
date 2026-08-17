@@ -234,7 +234,7 @@ export default function SaleReturnsPage() {
       return;
     }
     if (found.length > 1) {
-      toast("Multiple products — tap one to pick a unit", "error");
+      toast("Multiple products. Tap one to pick a unit", "error");
       return;
     }
     const product = found[0];
@@ -243,7 +243,7 @@ export default function SaleReturnsPage() {
       return;
     }
     if (product.units.length > 1) {
-      toast("Multiple units — tap the IMEI", "error");
+      toast("Multiple units. Tap the IMEI", "error");
       return;
     }
     setResults([]);
@@ -544,7 +544,7 @@ export default function SaleReturnsPage() {
                 {cart.length === 0 && (
                   <tr>
                     <td colSpan={5} className="px-5 py-8 text-center text-sm text-ink-400">
-                      No units yet — scan or search for sold units. The customer is picked automatically.
+                      No units yet. Scan or search for sold units. The customer is picked automatically.
                     </td>
                   </tr>
                 )}

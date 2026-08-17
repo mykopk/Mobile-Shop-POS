@@ -78,7 +78,7 @@ export function FormField({
     <div>
       <label className="mb-1 block text-xs font-medium text-ink-500">
         {label}
-        {hint && <span className="font-normal text-ink-400"> — {hint}</span>}
+        {hint && <span className="font-normal text-ink-400">: {hint}</span>}
       </label>
       {children}
       {error && <p className="mt-1 text-xs font-medium text-error">{error}</p>}

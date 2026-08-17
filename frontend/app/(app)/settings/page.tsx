@@ -8,6 +8,8 @@ import { useApi } from "@/lib/use-api";
 import { hasPermission } from "@/lib/roles";
 import { PERMISSIONS } from "@/lib/constants/permissions";
 import { SOUND, APP, CURRENCIES, currencyOf, DEFAULT_TIMEZONE, TIMEZONES, type SoundKind } from "@/lib/constants";
+import { THEMES } from "@/lib/constants";
+import { useTheme } from "@/lib/theme-context";
 import { PIN_LENGTH } from "@/lib/constants/users";
 import { setSoundPrefs } from "@/lib/sound";
 import { setUnsaved } from "@/lib/unsaved-guard";
@@ -134,7 +136,7 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
     <div>
       <label className="mb-1 block text-xs font-medium text-ink-500">
         {label}
-        {hint && <span className="font-normal text-ink-400"> — {hint}</span>}
+        {hint && <span className="font-normal text-ink-400">: {hint}</span>}
       </label>
       {children}
     </div>
@@ -160,6 +162,7 @@ function PaneTitle({ title, subtitle, action }: { title: string; subtitle?: stri
 
 export default function SettingsPage() {
   const { user } = useAuth();
+  const { theme, setTheme } = useTheme();
   const searchParams = useSearchParams();
   const { data, loading } = useApi<CompanyProfile>("/settings/company");
   const { toast } = useToast();
@@ -600,7 +603,7 @@ export default function SettingsPage() {
                     value={form.currency ?? "PKR"}
                     options={CURRENCIES.map((c) => ({
                       value: c.code,
-                      label: `${c.symbol} — ${c.label} (${c.code})`,
+                      label: `${c.symbol} ${c.label} (${c.code})`,
                     }))}
                     onChange={(v) => setForm({ ...form, currency: v })}
                     triggerClassName={!canEdit ? "opacity-60" : ""}
@@ -869,6 +872,50 @@ export default function SettingsPage() {
             <h3 className="mb-4 text-lg font-bold text-ink-900">Desktop app</h3>
             <DesktopAppTab />
           </div>
+        )}
+
+        {tab === "theme" && (
+          <>
+            <PaneTitle title="Theme" subtitle="Pick the colour style for the whole app." />
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {THEMES.map((t) => {
+                const active = theme === t.id;
+                return (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => setTheme(t.id)}
+                    className={`flex flex-col overflow-hidden rounded-2xl border text-left transition ${
+                      active
+                        ? "border-brand-500 ring-2 ring-brand-500/40"
+                        : "border-ink-200 hover:border-ink-300"
+                    }`}
+                  >
+                    <span className="flex h-14 items-stretch">
+                      {t.swatch.map((c, i) => (
+                        <span key={i} className="flex-1" style={{ backgroundColor: c }} />
+                      ))}
+                    </span>
+                    <span className="flex items-center justify-between gap-2 px-4 py-3">
+                      <span>
+                        <span className="block text-sm font-semibold text-ink-900">{t.label}</span>
+                        <span className="block text-xs text-ink-400">{t.description}</span>
+                      </span>
+                      <span
+                        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${
+                          active
+                            ? "border-brand-500 bg-brand-500 text-white"
+                            : "border-ink-300 text-transparent"
+                        }`}
+                      >
+                        <CheckIcon className="h-3 w-3" />
+                      </span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </>
         )}
       </main>
 

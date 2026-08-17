@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
 import { ApiError } from "../../core/middleware/error";
-import { exportBackup, restoreBackup } from "./service";
+import { exportBackup, restoreBackup, backupConfig, updateBackupConfig } from "./service";
 
 export async function exportHandler(_req: Request, res: Response) {
   const data = await exportBackup();
@@ -18,4 +18,17 @@ export async function restoreHandler(req: Request, res: Response) {
   }
   await restoreBackup(buffer);
   res.json({ data: { ok: true } });
+}
+
+export async function configGetHandler(_req: Request, res: Response) {
+  res.json({ data: await backupConfig() });
+}
+
+export async function configSaveHandler(req: Request, res: Response) {
+  const body = req.body ?? {};
+  const enabled = typeof body.enabled === "boolean" ? body.enabled : undefined;
+  const directory = typeof body.directory === "string" ? body.directory : undefined;
+  const intervalHours = typeof body.intervalHours === "number" ? body.intervalHours : undefined;
+  const retention = typeof body.retention === "number" ? body.retention : undefined;
+  res.json({ data: await updateBackupConfig({ enabled, directory, intervalHours, retention }) });
 }

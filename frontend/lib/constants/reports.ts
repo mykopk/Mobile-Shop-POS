@@ -64,11 +64,11 @@ export const REPORT_CONDITION_LABELS: Record<string, string> = {
 
 export const LEDGER_TYPE_LABELS: Record<string, string> = {
   ...TRANSACTION_TYPE_LABELS,
-  PAYMENT_CASH: "Payment — Cash",
-  PAYMENT_CARD: "Payment — Card",
-  PAYMENT_BANK_TRANSFER: "Payment — Bank",
-  PAYMENT_CREDIT: "Payment — Credit",
-  VOUCHER_RECEIVING: "Voucher — Receiving",
-  VOUCHER_PAYMENT: "Voucher — Payment",
+  PAYMENT_CASH: "Payment (Cash)",
+  PAYMENT_CARD: "Payment (Card)",
+  PAYMENT_BANK_TRANSFER: "Payment (Bank)",
+  PAYMENT_CREDIT: "Payment (Credit)",
+  VOUCHER_RECEIVING: "Voucher (Receiving)",
+  VOUCHER_PAYMENT: "Voucher (Payment)",
   EXPENSE: "Expense",
 };

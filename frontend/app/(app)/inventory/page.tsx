@@ -606,7 +606,7 @@ export default function InventoryPage() {
                       </td>
                       <td className="px-5 py-3 text-right">
                         <span
-                          title="Cost is locked — hover to reveal"
+                          title="Cost is locked. Hover to reveal"
                           className={
                             shouldBlurCost
                               ? "cursor-help select-none blur-[5px] transition duration-150 hover:blur-none"
@@ -753,7 +753,7 @@ export default function InventoryPage() {
                           {visibleColumns.includes("cost") && (
                             <td className="px-5 py-3 text-right text-ink-500">
                               <span
-                                title="Cost is locked — hover to reveal"
+                                title="Cost is locked. Hover to reveal"
                                 className={
                                   shouldBlurCost
                                     ? "cursor-help select-none blur-[5px] transition duration-150 hover:blur-none"
@@ -821,7 +821,7 @@ export default function InventoryPage() {
                         {visibleColumns.includes("cost") && (
                           <td className="px-5 py-3 text-right text-ink-500">
                             <span
-                              title="Cost is locked — hover to reveal"
+                              title="Cost is locked. Hover to reveal"
                               className={
                                 shouldBlurCost
                                   ? "cursor-help select-none blur-[5px] transition duration-150 hover:blur-none"

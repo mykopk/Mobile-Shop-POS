@@ -479,6 +479,7 @@ export function UsersManager() {
                   <div className="flex items-center gap-2">
                     <p className="truncate text-sm font-semibold text-ink-900">{u.name}</p>
                     <Badge variant="neutral">@{u.username}</Badge>
+                    {u.system && <Badge variant="brand">System</Badge>}
                     {u.id === me?.id && <Badge variant="brand">You</Badge>}
                   </div>
                   <p className="mt-0.5 flex items-center gap-2 text-xs text-ink-500">
@@ -500,14 +501,16 @@ export function UsersManager() {
                 </div>
                 <ContextMenu
                   items={[
-                    {
-                      label: "Edit",
-                      onClick: () => {
-                        setEditing(u);
-                        setPanelOpen(true);
-                      },
-                    },
-                    ...(u.id !== me?.id && (u.role !== "ADMIN" || isAdmin)
+                    ...(u.system
+                      ? []
+                      : [{
+                          label: "Edit",
+                          onClick: () => {
+                            setEditing(u);
+                            setPanelOpen(true);
+                          },
+                        }]),
+                    ...(!u.system && u.id !== me?.id && (u.role !== "ADMIN" || isAdmin)
                       ? [{
                           label: "Delete",
                           leading: <TrashIcon className="h-4 w-4" />,

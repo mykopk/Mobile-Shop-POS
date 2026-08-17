@@ -581,7 +581,7 @@ export default function ProductsPage() {
 
       <Sheet
         open={!!historyProduct}
-        title={historyProduct ? `Price history — ${historyProduct.brand} ${historyProduct.model}` : ""}
+        title={historyProduct ? `Price history for ${historyProduct.brand} ${historyProduct.model}` : ""}
         onClose={() => setHistoryProduct(null)}
         width="max-w-lg"
       >

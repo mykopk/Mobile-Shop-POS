@@ -39,7 +39,10 @@ export const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
   },
   {
     title: "Account",
-    items: [{ href: "/settings", label: "Settings", icon: "settings" }],
+    items: [
+      { href: "/settings", label: "Settings", icon: "settings" },
+      { href: "/help", label: "Help", icon: "help" },
+    ],
   },
 ];
 

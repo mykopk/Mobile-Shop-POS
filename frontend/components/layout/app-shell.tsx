@@ -145,7 +145,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <div className="flex min-w-0 flex-1 flex-col">
         {(!online || pending > 0) && (
           <div className="flex shrink-0 items-center justify-center gap-2 bg-warning px-4 py-1.5 text-xs font-semibold text-white">
-            <span>{online ? `${pending} change(s) pending sync` : "You're offline — changes are saved locally and will sync when you reconnect"}</span>
+            <span>{online ? `${pending} change(s) pending sync` : "You're offline. Changes are saved locally and will sync when you reconnect"}</span>
             {pending > 0 && online && (
               <button
                 type="button"

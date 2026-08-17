@@ -128,7 +128,7 @@ export default function IconsPage() {
         <div>
           <h1 className="text-lg font-bold text-ink-900">{ICONS_PAGE.title}</h1>
           <p className="text-sm text-ink-500">
-            {ICONS.length} {ICONS_PAGE.total} — {ICONS_PAGE.subtitle}
+            {ICONS.length} {ICONS_PAGE.total}. {ICONS_PAGE.subtitle}
           </p>
         </div>
         <div className="w-64">

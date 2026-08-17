@@ -158,7 +158,7 @@ export default function PurchaseOrdersPage() {
         method: "POST",
         body: { items },
       });
-      toast("Order received — stock updated", "success");
+      toast("Order received. Stock updated", "success");
       setReceiveOpen(null);
       setReceiveQty({});
       await load();

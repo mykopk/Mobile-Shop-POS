@@ -14,6 +14,7 @@ import {
   HeadphonesIcon,
   HistoryIcon,
   LockIcon,
+  PaletteIcon,
   PrinterIcon,
   SettingsIcon,
   TrendingUpIcon,
@@ -21,7 +22,7 @@ import {
   WalletIcon,
 } from "@/components/icons";
 
-export type TabId = "shop" | "preferences" | "financial" | "bank" | "sounds" | "users" | "audit" | "backup" | "print" | "desktop";
+export type TabId = "shop" | "preferences" | "financial" | "bank" | "sounds" | "users" | "audit" | "backup" | "print" | "desktop" | "theme";
 
 export const SETTINGS_TABS: {
   id: TabId;
@@ -40,6 +41,7 @@ export const SETTINGS_TABS: {
   { id: "backup", label: "Backup & restore", icon: <PrinterIcon className="h-4 w-4" />, permission: PERMISSIONS.backup },
   { id: "print", label: "Print & thermal", icon: <PrinterIcon className="h-4 w-4" />, permission: PERMISSIONS.printView },
   { id: "desktop", label: "Desktop app", icon: <SettingsIcon className="h-4 w-4" /> },
+  { id: "theme", label: "Theme", icon: <PaletteIcon className="h-4 w-4" /> },
 ];
 
 const TOOL_LINKS: { href: string; label: string; icon: React.ReactNode; permission?: Permission }[] = [

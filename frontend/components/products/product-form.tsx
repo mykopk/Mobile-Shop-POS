@@ -172,7 +172,7 @@ export function ProductForm({
         </div>
         <div>
           <label className="mb-1 block text-xs font-semibold text-ink-500">
-            Retail price (PKR) <span className="font-normal text-ink-400">— invoice / company MRP (optional)</span>
+            Retail price (PKR) <span className="font-normal text-ink-400">(invoice / company MRP, optional)</span>
           </label>
           <Input
             value={form.retailPrice}

@@ -84,6 +84,7 @@ export type AdminUser = {
   active: boolean;
   permissions: string[];
   createdAt: string;
+  system?: boolean;
 };
 
 export type Category = {

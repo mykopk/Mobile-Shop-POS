@@ -40,8 +40,8 @@ export default function CancelReservationPage() {
         body: { refunded },
       });
       toast(
-        `${cancelling.number} cancelled — ${
-          refunded ? "advance returned" : "advance kept as debt on us"
+        `${cancelling.number} cancelled. ${
+          refunded ? "Advance returned" : "Advance kept as debt on us"
         }`,
         "success",
       );
@@ -153,7 +153,7 @@ export default function CancelReservationPage() {
                         !refunded ? "bg-brand-600 text-white" : "text-brand-700 hover:text-ink-900"
                       }`}
                     >
-                      Not yet — we owe it
+                      Not yet. We owe it
                     </button>
                   </div>
                   <p className="text-xs text-ink-500">

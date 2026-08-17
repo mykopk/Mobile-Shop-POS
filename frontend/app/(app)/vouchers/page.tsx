@@ -215,7 +215,7 @@ export default function VouchersPage() {
                 title={
                   vouchers && vouchers.length > 0
                     ? "No vouchers match these filters"
-                    : "No vouchers yet — record cash in and cash out here"
+                    : "No vouchers yet. Record cash in and cash out here"
                 }
                 action={
                   canCreateVouchers && vouchers && vouchers.length === 0 ? (

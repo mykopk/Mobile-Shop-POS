@@ -17,7 +17,7 @@ export default function ExpensesReportPage() {
     <div className="space-y-4">
       <div>
         <h2 className="text-lg font-bold text-ink-900">Expenses report</h2>
-        <p className="text-xs text-ink-500">Shop spending by category — rent, salaries, utilities and more.</p>
+        <p className="text-xs text-ink-500">Shop spending by category, including rent, salaries, utilities and more.</p>
       </div>
 
       <PeriodPicker value={range} onChange={setRange} />

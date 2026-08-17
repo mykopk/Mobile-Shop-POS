@@ -3,10 +3,19 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { prisma } from "../../core/lib/prisma";
 import { env } from "../../core/config/env";
+import { getBackupConfig, saveBackupConfig, type BackupConfig } from "../../core/lib/backup";
 
 function dbPath() {
   const file = env.DATABASE_URL.replace(/^file:/, "");
   return resolve(process.cwd(), file);
+}
+
+export function backupConfig(): Promise<BackupConfig> {
+  return getBackupConfig();
+}
+
+export function updateBackupConfig(input: Partial<BackupConfig>): Promise<BackupConfig> {
+  return saveBackupConfig(input);
 }
 
 export async function exportBackup(): Promise<Buffer> {

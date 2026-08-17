@@ -20,7 +20,8 @@ const select = {
 } as const;
 
 export async function listUsers() {
-  return prisma.user.findMany({ select, orderBy: { createdAt: "asc" } });
+  const users = await prisma.user.findMany({ select, orderBy: { createdAt: "asc" } });
+  return users.map((u) => ({ ...u, system: u.username === "SYSTEM" }));
 }
 
 export async function createUser(input: CreateUserInput, actorId: string) {
@@ -62,6 +63,10 @@ export async function updateUser(
 ) {
   const existing = await prisma.user.findUnique({ where: { id } });
   if (!existing) throw new ApiError(404, "user.not_found", "User not found");
+
+  if (existing.username === "SYSTEM" && (input.role !== undefined || input.permissions !== undefined || input.active === false || input.username !== undefined || input.pin !== undefined)) {
+    throw new ApiError(400, "user.cannot_edit_system", "The SYSTEM account cannot be edited");
+  }
 
   if (id === actorId && input.role !== undefined) {
     throw new ApiError(400, "user.cannot_change_own_role", "You cannot change your own role");
@@ -117,6 +122,9 @@ export async function updateUser(
 export async function deleteUser(id: string, actorId: string, actorRole: Role) {
   const existing = await prisma.user.findUnique({ where: { id } });
   if (!existing) throw new ApiError(404, "user.not_found", "User not found");
+  if (existing.username === "SYSTEM") {
+    throw new ApiError(400, "user.cannot_delete_system", "The SYSTEM account cannot be deleted");
+  }
   if (id === actorId) {
     throw new ApiError(400, "user.cannot_delete_self", "You cannot delete your own account");
   }

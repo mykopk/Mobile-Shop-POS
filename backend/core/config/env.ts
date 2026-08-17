@@ -22,6 +22,12 @@ const envSchema = z.object({
     .transform((s) => s === "true"),
   BACKUP_INTERVAL_HOURS: z.coerce.number().int().positive().default(24),
   BACKUP_RETENTION: z.coerce.number().int().positive().default(14),
+
+  // Crash / error report forwarding. When set, the backend can forward reports
+  // received from the desktop app to GitHub Issues server-side.
+  FIG_GH_TOKEN: z.string().optional(),
+  FIG_GH_REPO: z.string().optional(),
+  FIG_FEEDBACK_SECRET: z.string().optional(),
 }).refine((v) => v.NODE_ENV !== "production" || Boolean(v.CORS_ORIGIN), {
   message: "CORS_ORIGIN is required when NODE_ENV=production",
   path: ["CORS_ORIGIN"],

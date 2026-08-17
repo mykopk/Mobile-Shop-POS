@@ -100,17 +100,17 @@ export default function AllReservationsPage() {
           body: { refunded },
         });
         toast(
-          `${reservation.number} cancelled — ${
-            refunded ? "units returned to stock" : "advance kept as debt on us"
+          `${reservation.number} cancelled. ${
+            refunded ? "Units returned to stock" : "Advance kept as debt on us"
           }`,
           "success",
         );
       } else if (kind === "refund") {
         await apiRequest(`/reservation/${reservation.id}/refund`, { method: "POST" });
-        toast(`${reservation.number} — advance refunded to ${reservation.contact.name}`, "success");
+        toast(`${reservation.number}. Advance refunded to ${reservation.contact.name}`, "success");
       } else {
         await apiRequest(`/reservation/${reservation.id}/return`, { method: "POST" });
-        toast(`${reservation.number} returned — phones are back in stock`, "success");
+        toast(`${reservation.number} returned. Phones are back in stock`, "success");
       }
       setAction(null);
       void refetch();
@@ -270,7 +270,7 @@ export default function AllReservationsPage() {
                           !refunded ? "bg-brand-600 text-white" : "text-brand-700 hover:text-ink-900"
                         }`}
                       >
-                        Not yet — we owe it
+                        Not yet. We owe it
                       </button>
                     </div>
                     <p className="text-xs text-ink-500">
@@ -289,7 +289,7 @@ export default function AllReservationsPage() {
             ) : (
               <div className="space-y-2">
                 <p>
-                  {action.reservation.contact.name} has not paid for the phones — they are coming back
+                  {action.reservation.contact.name} has not paid for the phones. They are coming back
                   unsold.
                 </p>
                 <p>The phones will return to stock.</p>
@@ -396,7 +396,7 @@ function FragmentRow({
               ))}
               {isConsignment && r.status === "COMPLETED" && !r.sale && (
                 <div className="mt-1.5 rounded-lg bg-white px-2.5 py-1.5 text-xs text-ink-500">
-                  Returned unsold — no payment collected.
+                  Returned unsold. No payment collected.
                 </div>
               )}
               {r.status === "CANCELLED" && !isConsignment ? (

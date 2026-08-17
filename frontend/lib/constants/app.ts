@@ -1,11 +1,12 @@
 export const APP = {
-  name: "Fig",
-  nameFull: "Fig POS",
-  tagline: "Point of Sale for mobile phone shops",
+  name: "Fig POS",
+  nameFull: "Fig POS for Mobile Phones",
+  tagline: "The complete point of sale built for new and used mobile phone shops",
   footer: "New & used · IMEI tracked · Credit & analytics",
   storeSub: "Mobile Phone Shop",
   signInTitle: "Sign in to your store",
-  devMarker: "DEV-20260817",
+  // Build-verification marker shown only on dev builds (never in production).
+  devMarker: process.env.NODE_ENV !== "production" ? "DEV-20260817" : "",
 } as const;
 
 export const DEFAULT_LOCALE = "en-PK";

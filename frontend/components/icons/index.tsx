@@ -257,6 +257,14 @@ export function LockIcon(props: IconProps) {
   ));
 }
 
+export function FolderIcon(props: IconProps) {
+  return base(props, (
+    <>
+      <path d="M3.5 6.5a2 2 0 0 1 2-2h3.2a2 2 0 0 1 1.5.7l1 1.2a2 2 0 0 0 1.5.7H18.5a2 2 0 0 1 2 2v8.5a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2V6.5Z" />
+    </>
+  ));
+}
+
 export function ReportsIcon(props: IconProps) {
   const { className = "", ...rest } = props;
   return (
@@ -886,6 +894,53 @@ export function VoucherIcon(props: IconProps) {
   ));
 }
 
+export function PaletteIcon(props: IconProps) {
+  return base(props, (
+    <>
+      <path d="M12 21a9 9 0 1 1 9-9c0 2.5-2 3-3.5 3H15a2 2 0 0 0-1.5 3.3c.6.7.1 2.7-1.5 2.7Z" />
+      <path d="M8.5 8.5a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" fill="currentColor" stroke="none" />
+      <path d="M12 6.5a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" fill="currentColor" stroke="none" />
+      <path d="M15.5 8.5a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" fill="currentColor" stroke="none" />
+    </>
+  ));
+}
+
+export function UpdaterIcon(props: IconProps) {
+  return base(props, (
+    <>
+      <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+      <path d="M21 3v6h-6" />
+    </>
+  ));
+}
+
+export function HelpIcon(props: IconProps) {
+  return base(props, (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M9.1 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+      <path d="M12 17h.01" />
+    </>
+  ));
+}
+
+export function MailIcon(props: IconProps) {
+  return base(props, (
+    <>
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <path d="m3 7 9 6 9-6" />
+    </>
+  ));
+}
+
+export function PhoneIcon(props: IconProps) {
+  return base(props, (
+    <>
+      <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z" />
+    </>
+  ));
+}
+
 export const NAV_ICONS = {
   dashboard: DashboardIcon,
   pos: PosIcon,
@@ -903,6 +958,7 @@ export const NAV_ICONS = {
   analytics: ChartPieIcon,
   print: PrinterIcon,
   settings: SettingsIcon,
+  help: HelpIcon,
   users: UsersIcon,
   audit: HistoryIcon,
 } as const;

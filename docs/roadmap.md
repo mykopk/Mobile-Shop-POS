@@ -46,7 +46,7 @@
 - [x] **Purchase orders** (order → partial/complete receive into stock)
 - [ ] Search perf (indexes, debounce, pagination)
 - [ ] Bulk import/export catalog (partial: CSV import/export exists)
-- [x] **Windows desktop app + auto-releases** — Electron shell (`desktop/`): runs the local backend+frontend (or opens a hosted URL), switchable at runtime from Settings. Installer built on a Windows runner (`.github/workflows/build-desktop.yml`, `.github/workflows/release.yml` — one-click "Release now" bumps version, builds, and publishes the `.exe` to a GitHub Release); native `better-sqlite3` rebuilt for Windows+Electron
+- [x] **Windows desktop app + auto-releases** — Electron shell (`desktop/`): runs the local backend+frontend (or opens a hosted URL), switchable at runtime from Settings. One-click **Release** workflow (`.github/workflows/release.yml`) bumps the version, builds the installer on a Windows runner, and publishes the `.exe` to a GitHub Release; native `better-sqlite3` rebuilt for Windows+Electron
 
 ## Phase 5 — Later
 - [ ] Offline queue for POS
